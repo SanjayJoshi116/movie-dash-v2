@@ -1,0 +1,43 @@
+{
+  "name": "movie-dash",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "antd": "^5.24.0",
+    "@ant-design/icons": "^5.6.1",
+    "axios": "^1.7.9",
+    "chart.js": "^4.4.7",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.1.0",
+    "express": "^4.21.2",
+    "framer-motion": "^11.16.2",
+    "react": "^19.0.0",
+    "react-chartjs-2": "^5.3.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.1"
+  },
+  "scripts": {
+    "dev": "concurrently \"vite\" \"tsx watch server/server.ts\"",
+    "build": "tsc --noEmit && vite build",
+    "build:server": "tsc --project server/tsconfig.json",
+    "server:prod": "node server/dist/server/server.js",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.1"
+  },
+  "description": "Movie analytics dashboard",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
