@@ -6,7 +6,7 @@ import type { MenuProps } from 'antd';
 
 const { Sider } = Layout;
 
-const ACCENT = '#38bdf8';
+const ACCENT = '#818cf8';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -34,10 +34,14 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
       collapsible
       collapsed={collapsed}
       onCollapse={onCollapse}
+      className="glass-panel"
       style={{
-        background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
+        background: 'rgba(255, 255, 255, 0.05)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         minHeight: '100vh',
-        borderRight: '1px solid rgba(255,255,255,0.06)',
+        borderRight: '1px solid rgba(255, 255, 255, 0.12)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
       }}
       theme="dark"
     >

@@ -13,7 +13,7 @@ code {
 
 /* ── Table row hover accent ──────────────────────────────────────────────── */
 .ant-table-tbody .ant-table-row:hover > td {
-  background: rgba(56, 189, 248, 0.07) !important;
+  background: rgba(129, 140, 248, 0.07) !important;
 }
 
 .movie-row-odd > td {
@@ -34,21 +34,21 @@ code {
 }
 
 .ant-tabs-tab-active .ant-tabs-tab-btn {
-  color: #38bdf8 !important;
+  color: #818cf8 !important;
 }
 
 .ant-tabs-ink-bar {
-  background: #38bdf8 !important;
+  background: #818cf8 !important;
 }
 
 /* ── Ant Design Menu active item accent ─────────────────────────────────── */
 .ant-menu-dark .ant-menu-item-selected {
-  background-color: rgba(56, 189, 248, 0.12) !important;
-  border-left: 3px solid #38bdf8;
+  background-color: rgba(129, 140, 248, 0.12) !important;
+  border-left: 3px solid #818cf8;
 }
 
 .ant-menu-dark .ant-menu-item:hover {
-  background-color: rgba(56, 189, 248, 0.07) !important;
+  background-color: rgba(129, 140, 248, 0.07) !important;
 }
 
 /* ── Custom scrollbar ────────────────────────────────────────────────────── */
@@ -58,7 +58,7 @@ code {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #0d0d1a;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -67,5 +67,12 @@ code {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(56, 189, 248, 0.4);
+  background: rgba(129, 140, 248, 0.4);
+}
+
+/* ── Glassmorphism fallback ───────────────────────────────────────────────── */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass-panel {
+    background: rgba(26, 16, 48, 0.92) !important;
+  }
 }

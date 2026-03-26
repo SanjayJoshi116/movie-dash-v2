@@ -2,6 +2,7 @@ import React from 'react';
 import { Table, Empty } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { Movie } from '../types/movie';
+import { getLanguageName } from '../utils/languages';
 
 interface MovieTableProps {
   movies: Movie[];
@@ -21,8 +22,9 @@ const columns: ColumnsType<Movie> = [
     title: 'Language',
     dataIndex: 'Language',
     key: 'Language',
-    width: 100,
+    width: 110,
     sorter: (a, b) => a.Language.localeCompare(b.Language),
+    render: (code: string) => getLanguageName(code),
   },
   {
     title: 'Runtime (mins)',

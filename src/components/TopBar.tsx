@@ -15,9 +15,13 @@ const TopBar: React.FC<TopBarProps> = ({ title }) => {
 
   return (
     <Header
+      className="glass-panel"
       style={{
-        background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 100%)',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        background: 'rgba(255, 255, 255, 0.05)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -47,9 +51,9 @@ const TopBar: React.FC<TopBarProps> = ({ title }) => {
             count={movies.length.toLocaleString()}
             overflowCount={999999}
             style={{
-              backgroundColor: 'rgba(56,189,248,0.15)',
-              color: '#38bdf8',
-              border: '1px solid rgba(56,189,248,0.3)',
+              backgroundColor: 'rgba(129,140,248,0.15)',
+              color: '#818cf8',
+              border: '1px solid rgba(129,140,248,0.3)',
               fontWeight: 600,
               fontSize: 12,
               padding: '0 8px',

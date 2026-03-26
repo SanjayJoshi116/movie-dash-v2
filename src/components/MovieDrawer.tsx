@@ -1,6 +1,7 @@
 import React from 'react';
 import { Drawer, Descriptions, Tag, Typography } from 'antd';
 import type { Movie } from '../types/movie';
+import { getLanguageName } from '../utils/languages';
 
 const { Title } = Typography;
 
@@ -22,9 +23,19 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
       open={movie !== null}
       onClose={onClose}
       styles={{
-        header: { background: 'linear-gradient(90deg, #1e293b 0%, #0f172a 100%)', borderBottom: '1px solid rgba(255,255,255,0.1)' },
-        body: { background: '#0f172a', padding: 24 },
-        mask: { backdropFilter: 'blur(2px)' },
+        header: {
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+        },
+        body: {
+          background: 'rgba(13, 13, 26, 0.85)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          padding: 24,
+        },
+        mask: { backdropFilter: 'blur(4px)' },
       }}
     >
       {movie && (
@@ -37,7 +48,7 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
         >
           <Descriptions.Item label="Movie ID">{movie['Movie ID']}</Descriptions.Item>
           <Descriptions.Item label="Language">
-            <Tag color="blue">{movie.Language}</Tag>
+            <Tag color="blue">{getLanguageName(movie.Language)}</Tag>
           </Descriptions.Item>
           <Descriptions.Item label="Runtime">{movie.Runtime} mins</Descriptions.Item>
           <Descriptions.Item label="Release Year">{movie['Release Year']}</Descriptions.Item>

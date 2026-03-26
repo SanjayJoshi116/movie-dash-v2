@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Input, Select, Slider, Button, Collapse, Row, Col, Space } from 'antd';
 import { SearchOutlined, FilterOutlined, ClearOutlined } from '@ant-design/icons';
 import type { Movie, FilterState } from '../types/movie';
+import { getLanguageName } from '../utils/languages';
 
 interface FiltersPanelProps {
   movies: Movie[];
@@ -27,7 +28,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ movies, filters, onChange }
     });
 
     return {
-      languageOptions: [...languages].sort().map((l) => ({ label: l, value: l })),
+      languageOptions: [...languages].sort((a, b) => getLanguageName(a).localeCompare(getLanguageName(b))).map((l) => ({ label: getLanguageName(l), value: l })),
       genreOptions: [...genres].sort().map((g) => ({ label: g, value: g })),
       yearMin: isFinite(min) ? min : 1900,
       yearMax: isFinite(max) ? max : new Date().getFullYear(),

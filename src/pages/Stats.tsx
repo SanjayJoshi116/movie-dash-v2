@@ -11,7 +11,11 @@ import DoughnutChart from '../components/Charts/DoughnutChart';
 import RadarChart from '../components/Charts/RadarChart';
 import PolarAreaChart from '../components/Charts/PolarAreaChart';
 import StatCard from '../components/StatCard';
+import MatrixChart from '../components/Charts/MatrixChart';
+import type { MatrixDataPoint } from '../components/Charts/MatrixChart';
+import TopNExplorer from '../components/TopNExplorer';
 import type { Movie, StatsCounters } from '../types/movie';
+import { getLanguageName } from '../utils/languages';
 
 ChartJS.register(...registerables);
 
@@ -25,10 +29,12 @@ const PALETTE = [
   '#4ade80', '#facc15', '#60a5fa', '#c084fc', '#fb7185',
 ];
 const CHART_CARD: React.CSSProperties = {
-  background: 'linear-gradient(135deg, #2d3748 0%, #1e293b 100%)',
-  border: '1px solid rgba(255,255,255,0.08)',
+  background: 'rgba(255, 255, 255, 0.05)',
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+  border: '1px solid rgba(255, 255, 255, 0.12)',
   borderRadius: 12,
-  boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -58,11 +64,14 @@ function makePolar(data: Record<string, number>, label: string): ChartData<'pola
   return { labels: Object.keys(data), datasets: [{ label, data: Object.values(data), backgroundColor: PALETTE.map(c => c + 'cc'), borderColor: PALETTE, borderWidth: 1 }] };
 }
 
+const DECADE_LABELS = ['1960s', '1970s', '1980s', '1990s', '2000s', '2010s', '2020s'];
+const TOP_GENRES_N = 10;
+
 // ── Shared chart block wrapper ────────────────────────────────────────────────
-const ChartBlock: React.FC<{ title: string; height?: number; children: React.ReactNode }> = ({ title, height = 400, children }) => (
+const ChartBlock: React.FC<{ title: string; height?: number; children: React.ReactNode }> = ({ title, height, children }) => (
   <div style={{ ...CHART_CARD, padding: 24, marginBottom: 24 }}>
     <Title level={5} style={{ color: 'rgba(255,255,255,0.9)', marginBottom: 16 }}>{title}</Title>
-    <div style={{ height }}>{children}</div>
+    <div style={height !== undefined ? { height } : {}}>{children}</div>
   </div>
 );
 
@@ -106,7 +115,7 @@ const Stats: React.FC = () => {
   // ── Tab 1: Overview ───────────────────────────────────────────────────────
   const languageBarData = useMemo<ChartData<'bar'>>(() => {
     const g = groupByField(movies, 'Language');
-    return { labels: Object.keys(g), datasets: [{ label: 'Movies', data: Object.values(g), backgroundColor: PALETTE, hoverBackgroundColor: PALETTE }] };
+    return { labels: Object.keys(g).map(getLanguageName), datasets: [{ label: 'Movies', data: Object.values(g), backgroundColor: PALETTE, hoverBackgroundColor: PALETTE }] };
   }, [movies]);
 
   const yearLineData = useMemo<ChartData<'line'>>(() => {
@@ -117,8 +126,8 @@ const Stats: React.FC = () => {
       datasets: [{
         label: 'Movies Released',
         data: sorted.map(([, c]) => c),
-        borderColor: '#38bdf8',
-        backgroundColor: 'rgba(56,189,248,0.15)',
+        borderColor: '#818cf8',
+        backgroundColor: 'rgba(129,140,248,0.15)',
         fill: true,
       }],
     };
@@ -159,7 +168,7 @@ const Stats: React.FC = () => {
       const v = parseFloat(m['Vote Average']);
       if (!isNaN(v)) { const idx = Math.min(Math.floor(v), 9); buckets[`${idx}–${idx + 1}`] += 1; }
     });
-    return { labels: Object.keys(buckets), datasets: [{ label: 'Movies', data: Object.values(buckets), backgroundColor: '#38bdf8', hoverBackgroundColor: '#0ea5e9' }] };
+    return { labels: Object.keys(buckets), datasets: [{ label: 'Movies', data: Object.values(buckets), backgroundColor: '#818cf8', hoverBackgroundColor: '#6366f1' }] };
   }, [movies]);
 
   const avgVoteByGenreData = useMemo<ChartData<'bar'>>(() => {
@@ -194,13 +203,13 @@ const Stats: React.FC = () => {
     const top8 = Object.entries(langCounts).sort(([, a], [, b]) => b - a).slice(0, 8).map(([l]) => l);
     const avgs = top8.map(l => sums[l] ? parseFloat((sums[l].sum / sums[l].count).toFixed(2)) : 0);
     return {
-      labels: top8,
+      labels: top8.map(getLanguageName),
       datasets: [{
         label: 'Avg Vote Average',
         data: avgs,
-        backgroundColor: 'rgba(56,189,248,0.2)',
-        borderColor: '#38bdf8',
-        pointBackgroundColor: '#38bdf8',
+        backgroundColor: 'rgba(129,140,248,0.2)',
+        borderColor: '#818cf8',
+        pointBackgroundColor: '#818cf8',
         pointBorderColor: '#fff',
       }],
     };
@@ -247,6 +256,64 @@ const Stats: React.FC = () => {
   const countryPolarData  = useMemo(() => makePolar(withOther(groupByField(movies, 'Production Country'), 10), 'Movies by Country'), [movies]);
   const genrePolarData    = useMemo(() => makePolar(withOther(groupByField(movies, 'Genres'), 35), 'Movies by Genre'), [movies]);
 
+  // ── Tab 5: Explore ────────────────────────────────────────────────────────
+  const genreBarData = useMemo<ChartData<'bar'>>(() => {
+    const counts: Record<string, number> = {};
+    movies.forEach(m => {
+      m.Genres.split(',').forEach(g => {
+        const genre = g.trim();
+        if (genre) counts[genre] = (counts[genre] ?? 0) + 1;
+      });
+    });
+    const top = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 20);
+    return {
+      labels: top.map(([label]) => label),
+      datasets: [{ label: 'Movies', data: top.map(([, v]) => v), backgroundColor: PALETTE, hoverBackgroundColor: PALETTE }],
+    };
+  }, [movies]);
+
+  const { matrixData, matrixGenres } = useMemo(() => {
+    const genreCounts: Record<string, number> = {};
+    movies.forEach(m => {
+      m.Genres.split(',').forEach(g => {
+        const genre = g.trim();
+        if (genre) genreCounts[genre] = (genreCounts[genre] ?? 0) + 1;
+      });
+    });
+    const topGenres = Object.entries(genreCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, TOP_GENRES_N)
+      .map(([g]) => g);
+
+    const matrix: Record<string, Record<string, number>> = {};
+    DECADE_LABELS.forEach(d => {
+      matrix[d] = {};
+      topGenres.forEach(g => { matrix[d][g] = 0; });
+    });
+
+    movies.forEach(m => {
+      const year = parseInt(m['Release Year'], 10);
+      if (isNaN(year)) return;
+      const decadeLabel = `${Math.floor(year / 10) * 10}s`;
+      if (!matrix[decadeLabel]) return;
+      m.Genres.split(',').forEach(g => {
+        const genre = g.trim();
+        if (topGenres.includes(genre)) {
+          matrix[decadeLabel][genre] = (matrix[decadeLabel][genre] ?? 0) + 1;
+        }
+      });
+    });
+
+    const matrixData: MatrixDataPoint[] = [];
+    DECADE_LABELS.forEach(decade => {
+      topGenres.forEach(genre => {
+        matrixData.push({ x: decade, y: genre, v: matrix[decade]?.[genre] ?? 0 });
+      });
+    });
+
+    return { matrixData, matrixGenres: topGenres };
+  }, [movies]);
+
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}><Spin size="large" /></div>;
@@ -262,7 +329,7 @@ const Stats: React.FC = () => {
       children: (
         <>
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col xs={24} sm={12} md={8}><StatCard label="Total Movies"     value={counts.totalMovies}     color="#38bdf8" /></Col>
+            <Col xs={24} sm={12} md={8}><StatCard label="Total Movies"     value={counts.totalMovies}     color="#818cf8" /></Col>
             <Col xs={24} sm={12} md={8}><StatCard label="Average Runtime"  value={counts.avgRuntime}      color="#a78bfa" suffix="mins" /></Col>
             <Col xs={24} sm={12} md={8}><StatCard label="Longest Runtime"  value={counts.longestRuntime}  color="#34d399" suffix="mins" /></Col>
             <Col xs={24} sm={12} md={8}><StatCard label="Shortest Runtime" value={counts.shortestRuntime} color="#f472b6" suffix="mins" /></Col>
@@ -335,10 +402,38 @@ const Stats: React.FC = () => {
         </Row>
       ),
     },
+    {
+      key: 'explore',
+      label: '🔭 Explore',
+      children: (
+        <Row gutter={[24, 24]}>
+          <Col xs={24} lg={12}>
+            <ChartBlock title="Genre Distribution (Top 20)" height={420}>
+              <HorizontalBarChart data={genreBarData} height={420} />
+            </ChartBlock>
+          </Col>
+          <Col xs={24} lg={12}>
+            <ChartBlock title="Year × Genre Heatmap" height={420}>
+              <MatrixChart
+                data={matrixData}
+                xLabels={DECADE_LABELS}
+                yLabels={matrixGenres}
+                height={420}
+              />
+            </ChartBlock>
+          </Col>
+          <Col xs={24}>
+            <ChartBlock title="Top 10 Explorer">
+              <TopNExplorer movies={movies} />
+            </ChartBlock>
+          </Col>
+        </Row>
+      ),
+    },
   ];
 
   return (
-    <div style={{ padding: 24, background: 'linear-gradient(120deg, #0f172a 0%, #1e293b 100%)', minHeight: '100vh' }}>
+    <div style={{ padding: 24, background: 'linear-gradient(135deg, #0d0d1a 0%, #1a1030 100%)', minHeight: '100vh' }}>
       <Title level={3} style={{ color: '#fff', marginBottom: 24 }}>📊 Statistics Dashboard</Title>
 
       {/* Sample motion doughnut cards preserved for genre/director in old style */}
