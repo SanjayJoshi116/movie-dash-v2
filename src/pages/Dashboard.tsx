@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Spin, Alert } from 'antd';
 import { useMovies } from '../hooks/useMovies';
 import { useDebounce } from '../hooks/useDebounce';
+import { usePersistedFilters } from '../hooks/usePersistedFilters';
 import FiltersPanel from '../components/FiltersPanel';
 import MovieTable from '../components/MovieTable';
 import MovieDrawer from '../components/MovieDrawer';
@@ -26,7 +27,7 @@ const DEFAULT_FILTERS: FilterState = {
 
 const Dashboard: React.FC = () => {
   const { movies, loading, error } = useMovies();
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [filters, setFilters] = usePersistedFilters(DEFAULT_FILTERS);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
   const debouncedSearch = useDebounce(filters.search, 300);
