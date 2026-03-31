@@ -1,9 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ConfigProvider, theme } from 'antd';
+import { Chart as ChartJS, registerables } from 'chart.js';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 import App from './App';
+
+ChartJS.register(...registerables);
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element not found');
