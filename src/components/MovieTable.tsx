@@ -1,8 +1,10 @@
 import React from 'react';
-import { Table, Empty } from 'antd';
+import { Table, Empty, Button } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { Movie } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
+import { exportMoviesToCsv } from '../utils/exportCsv';
 
 interface MovieTableProps {
   movies: Movie[];
@@ -104,6 +106,14 @@ const MovieTable: React.FC<MovieTableProps> = ({ movies, onRowClick }) => {
         <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
           Click a row to view details
         </span>
+        <Button
+          icon={<DownloadOutlined />}
+          size="small"
+          disabled={movies.length === 0}
+          onClick={() => exportMoviesToCsv(movies, `movies-filtered-${movies.length}.csv`)}
+        >
+          Export CSV
+        </Button>
       </div>
       <Table<Movie>
         dataSource={movies}
