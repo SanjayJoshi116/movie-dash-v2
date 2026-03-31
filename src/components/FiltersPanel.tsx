@@ -19,7 +19,12 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ movies, filters, onChange }
 
     movies.forEach((m) => {
       if (m.Language) languages.add(m.Language);
-      if (m.Genres) genres.add(m.Genres);
+      if (m.Genres) {
+        m.Genres.split(',').forEach(g => {
+          const trimmed = g.trim();
+          if (trimmed) genres.add(trimmed);
+        });
+      }
       const y = parseInt(m['Release Year'], 10);
       if (!isNaN(y)) {
         if (y < min) min = y;

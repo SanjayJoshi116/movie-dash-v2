@@ -48,8 +48,10 @@ const Dashboard: React.FC = () => {
       }
 
       // Genre filter
-      if (filters.genres.length > 0 && !filters.genres.includes(movie.Genres)) {
-        return false;
+      if (filters.genres.length > 0) {
+        const movieGenres = movie.Genres.split(',').map(g => g.trim());
+        const hasMatch = filters.genres.some(selected => movieGenres.includes(selected));
+        if (!hasMatch) return false;
       }
 
       // Year range filter
