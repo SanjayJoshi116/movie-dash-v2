@@ -4,23 +4,25 @@ import type { ChartData } from 'chart.js';
 import BarChart from '../Charts/BarChart';
 import LineChart from '../Charts/LineChart';
 import StatCard from '../StatCard';
-import { CHART_CARD_STYLE } from '../../utils/chartTheme';
+import { getCardStyle } from '../../utils/chartTheme';
 import { groupByField } from '../../utils/statsHelpers';
 import { getLanguageName } from '../../utils/languages';
+import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie, StatsCounters } from '../../types/movie';
 
 const { Title } = Typography;
 
 interface OverviewTabProps { movies: Movie[] }
 
-const ChartBlock: React.FC<{ title: string; height?: number; children: React.ReactNode }> = ({ title, height, children }) => (
-  <div style={{ ...CHART_CARD_STYLE, padding: 24, marginBottom: 24 }}>
-    <Title level={5} style={{ color: 'rgba(255,255,255,0.9)', marginBottom: 16 }}>{title}</Title>
+const ChartBlock: React.FC<{ title: string; height?: number; isDark: boolean; children: React.ReactNode }> = ({ title, height, isDark, children }) => (
+  <div style={{ ...getCardStyle(isDark), padding: 24, marginBottom: 24 }}>
+    <Title level={5} style={{ color: 'var(--text-primary)', marginBottom: 16 }}>{title}</Title>
     <div style={height !== undefined ? { height } : {}}>{children}</div>
   </div>
 );
 
 const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
+  const { isDark } = useTheme();
   const [counts, setCounts] = useState<StatsCounters>({
     totalMovies: 0, avgRuntime: 0, longestRuntime: 0, shortestRuntime: 0, totalTimeSpent: 0,
   });
@@ -85,10 +87,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
       </Row>
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={12}>
-          <ChartBlock title="Movies by Language" height={360}><BarChart data={languageBarData} /></ChartBlock>
+          <ChartBlock title="Movies by Language" height={360} isDark={isDark}><BarChart data={languageBarData} isDark={isDark} /></ChartBlock>
         </Col>
         <Col xs={24} lg={12}>
-          <ChartBlock title="Movies Released per Year" height={360}><LineChart data={yearLineData} /></ChartBlock>
+          <ChartBlock title="Movies Released per Year" height={360} isDark={isDark}><LineChart data={yearLineData} isDark={isDark} /></ChartBlock>
         </Col>
       </Row>
     </>

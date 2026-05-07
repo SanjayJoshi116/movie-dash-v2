@@ -11,25 +11,58 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
+/* ── CSS Custom Properties ────────────────────────────────────────────────── */
+:root {
+  --bg-gradient: linear-gradient(135deg, #0d0d1a 0%, #1a1030 50%, #0d0d1a 100%);
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --text-primary: #fff;
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-muted: rgba(255, 255, 255, 0.4);
+  --scrollbar-track: #0d0d1a;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --row-odd: rgba(255, 255, 255, 0.015);
+  --row-hover: rgba(129, 140, 248, 0.07);
+  --filters-bg: linear-gradient(135deg, #1e293b 0%, #2d3748 100%);
+  --filters-border: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] {
+  --bg-gradient: linear-gradient(135deg, #f5f7ff 0%, #eef1ff 50%, #f5f7ff 100%);
+  --glass-bg: rgba(255, 255, 255, 0.92);
+  --glass-border: rgba(129, 140, 248, 0.35);
+  --glass-shadow: 0 2px 20px rgba(100, 100, 200, 0.22);
+  --text-primary: #1e1e3f;
+  --text-secondary: rgba(30, 30, 63, 0.6);
+  --text-muted: rgba(30, 30, 63, 0.4);
+  --scrollbar-track: #eef1ff;
+  --scrollbar-thumb: rgba(129, 140, 248, 0.25);
+  --row-odd: rgba(129, 140, 248, 0.07);
+  --row-hover: rgba(129, 140, 248, 0.15);
+  --filters-bg: linear-gradient(135deg, #dde5ff 0%, #e8eeff 100%);
+  --filters-border: rgba(129, 140, 248, 0.35);
+}
+
 /* ── Table row hover accent ──────────────────────────────────────────────── */
 .ant-table-tbody .ant-table-row:hover > td {
-  background: rgba(129, 140, 248, 0.07) !important;
+  background: var(--row-hover) !important;
 }
 
 .movie-row-odd > td {
-  background: rgba(255, 255, 255, 0.015) !important;
+  background: var(--row-odd) !important;
 }
 
 /* ── Ant Design Tabs on dark background ─────────────────────────────────── */
-.ant-tabs-nav::before {
+[data-theme="dark"] .ant-tabs-nav::before {
   border-bottom-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.ant-tabs-tab {
+[data-theme="dark"] .ant-tabs-tab {
   color: rgba(255, 255, 255, 0.55) !important;
 }
 
-.ant-tabs-tab:hover {
+[data-theme="dark"] .ant-tabs-tab:hover {
   color: rgba(255, 255, 255, 0.85) !important;
 }
 
@@ -58,11 +91,11 @@ code {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0d0d1a;
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
@@ -73,6 +106,6 @@ code {
 /* ── Glassmorphism fallback ───────────────────────────────────────────────── */
 @supports not (backdrop-filter: blur(1px)) {
   .glass-panel {
-    background: rgba(26, 16, 48, 0.92) !important;
+    background: var(--glass-bg) !important;
   }
 }

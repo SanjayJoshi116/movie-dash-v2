@@ -9,7 +9,11 @@ export interface Movie {
   'Actors/Actresses': string;
   'Production Company': string;
   'Production Country': string;
+  'Box Office Revenue': string;
+  'Budget': string;
+  'Popularity Score': string;
   'Vote Average': string;
+  'Vote Count': string;
   'Release Date': string;
 }
 

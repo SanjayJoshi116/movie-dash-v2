@@ -4,11 +4,16 @@ import type { ChartData, ChartOptions } from 'chart.js';
 
 interface HorizontalBarChartProps {
   data: ChartData<'bar'>;
-  /** Height of the chart container in px. Defaults to 400. */
   height?: number;
+  isDark?: boolean;
+  formatValue?: (n: number) => string;
 }
 
-const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 400 }) => {
+const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 400, isDark = true, formatValue }) => {
+  const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';
+  const tickColor = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.75)';
+  const labelColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
+
   const options: ChartOptions<'bar'> = {
     indexAxis: 'y' as const,
     responsive: true,
@@ -17,18 +22,25 @@ const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 
       legend: { display: false },
       tooltip: {
         callbacks: {
-          label: (ctx) => ` ${typeof ctx.raw === 'number' ? ctx.raw.toFixed(2) : ctx.raw}`,
+          label: (ctx) => {
+            const raw = ctx.raw as number;
+            if (formatValue) return ` ${formatValue(raw)}`;
+            return ` ${typeof raw === 'number' ? raw.toFixed(2) : raw}`;
+          },
         },
       },
     },
     scales: {
       x: {
-        grid: { color: 'rgba(255,255,255,0.07)' },
-        ticks: { color: 'rgba(255,255,255,0.7)' },
+        grid: { color: gridColor },
+        ticks: {
+          color: tickColor,
+          ...(formatValue ? { callback: (value) => formatValue(value as number) } : {}),
+        },
       },
       y: {
         grid: { display: false },
-        ticks: { color: 'rgba(255,255,255,0.8)', font: { size: 11 } },
+        ticks: { color: labelColor, font: { size: 11 } },
       },
     },
   };

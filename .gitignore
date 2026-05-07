@@ -11,6 +11,9 @@
 # production
 /build
 
+# data
+src/movies.csv
+
 # misc
 .DS_Store
 .env.local

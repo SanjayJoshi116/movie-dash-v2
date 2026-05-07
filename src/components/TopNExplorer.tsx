@@ -4,10 +4,11 @@ import type { Movie } from '../types/movie';
 
 const { Text } = Typography;
 
-type Metric = 'highest_rated' | 'longest_runtime' | 'most_recent' | 'oldest';
+type Metric = 'highest_rated' | 'longest_runtime' | 'most_recent' | 'oldest' | 'most_popular';
 
 interface TopNExplorerProps {
   movies: Movie[];
+  isDark?: boolean;
 }
 
 const METRIC_OPTIONS: { value: Metric; label: string }[] = [
@@ -15,6 +16,7 @@ const METRIC_OPTIONS: { value: Metric; label: string }[] = [
   { value: 'longest_runtime', label: 'Longest Runtime' },
   { value: 'most_recent',     label: 'Most Recent' },
   { value: 'oldest',          label: 'Oldest' },
+  { value: 'most_popular',    label: 'Most Popular' },
 ];
 
 function getMetricValue(movie: Movie, metric: Metric): { raw: number; display: string } {
@@ -31,12 +33,16 @@ function getMetricValue(movie: Movie, metric: Metric): { raw: number; display: s
     }
     case 'oldest':
       return { raw: -(parseInt(movie['Release Year'], 10) || 9999), display: movie['Release Year'] };
+    case 'most_popular': {
+      const p = parseFloat(movie['Popularity Score']) || 0;
+      return { raw: p, display: p.toFixed(1) };
+    }
   }
 }
 
 const RANK_COLORS = ['#e879f9', '#818cf8', '#38bdf8', '#34d399', '#fbbf24'];
 
-const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies }) => {
+const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies, isDark = true }) => {
   const [metric, setMetric] = useState<Metric>('highest_rated');
 
   const topMovies = useMemo(() => {
@@ -49,10 +55,17 @@ const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies }) => {
       .slice(0, 10);
   }, [movies, metric]);
 
+  const textPrimary = isDark ? '#fff' : '#1e1e3f';
+  const textSecondary = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.6)';
+  const textMuted = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(30,30,63,0.45)';
+  const rowBg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(129,140,248,0.05)';
+  const rankBg = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(129,140,248,0.08)';
+  const borderDefault = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(129,140,248,0.15)';
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14 }}>Sort by:</Text>
+        <Text style={{ color: textSecondary, fontSize: 14 }}>Sort by:</Text>
         <Select
           value={metric}
           onChange={setMetric}
@@ -75,10 +88,10 @@ const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies }) => {
                 alignItems: 'center',
                 gap: 16,
                 padding: '14px 20px',
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: rowBg,
                 backdropFilter: 'blur(8px)',
                 WebkitBackdropFilter: 'blur(8px)',
-                border: `1px solid ${isTop3 ? rankColor + '40' : 'rgba(255,255,255,0.08)'}`,
+                border: `1px solid ${isTop3 ? rankColor + '40' : borderDefault}`,
                 borderRadius: 10,
               }}
             >
@@ -87,14 +100,14 @@ const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies }) => {
                   width: 36,
                   height: 36,
                   borderRadius: '50%',
-                  background: isTop3 ? rankColor + '22' : 'rgba(255,255,255,0.06)',
-                  border: `2px solid ${isTop3 ? rankColor : 'rgba(255,255,255,0.12)'}`,
+                  background: isTop3 ? rankColor + '22' : rankBg,
+                  border: `2px solid ${isTop3 ? rankColor : borderDefault}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: 700,
                   fontSize: isTop3 ? 15 : 13,
-                  color: isTop3 ? rankColor : 'rgba(255,255,255,0.5)',
+                  color: isTop3 ? rankColor : textMuted,
                   flexShrink: 0,
                 }}
               >
@@ -104,7 +117,7 @@ const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies }) => {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <Text
                   style={{
-                    color: '#fff',
+                    color: textPrimary,
                     fontSize: 14,
                     fontWeight: isTop3 ? 600 : 400,
                     display: 'block',
@@ -115,19 +128,12 @@ const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies }) => {
                 >
                   {movie.Name}
                 </Text>
-                <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>
+                <Text style={{ color: textMuted, fontSize: 12 }}>
                   {movie.Director} · {movie.Genres}
                 </Text>
               </div>
 
-              <div
-                style={{
-                  color: rankColor,
-                  fontWeight: 700,
-                  fontSize: 15,
-                  flexShrink: 0,
-                }}
-              >
+              <div style={{ color: rankColor, fontWeight: 700, fontSize: 15, flexShrink: 0 }}>
                 {display}
               </div>
             </div>

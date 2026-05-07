@@ -94,16 +94,16 @@ const MovieTable: React.FC<MovieTableProps> = ({ movies, onRowClick }) => {
           alignItems: 'center',
           marginBottom: 16,
           padding: '16px 24px',
-          background: 'linear-gradient(135deg, #1e293b 0%, #2d3748 100%)',
+          background: 'var(--filters-bg)',
           borderRadius: 12,
-          border: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: '0 4px 24px 0 rgba(0,0,0,0.2)',
+          border: '1px solid var(--filters-border)',
+          boxShadow: 'var(--glass-shadow)',
         }}
       >
-        <span style={{ color: '#fff', fontSize: 24, fontWeight: 700, letterSpacing: 1 }}>
+        <span style={{ color: 'var(--text-primary)', fontSize: 24, fontWeight: 700, letterSpacing: 1 }}>
           🎬 Movie List
         </span>
-        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+        <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
           Click a row to view details
         </span>
         <Button

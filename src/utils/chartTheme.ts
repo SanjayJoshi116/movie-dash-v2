@@ -14,3 +14,14 @@ export const CHART_CARD_STYLE: React.CSSProperties = {
   borderRadius: 12,
   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
 };
+
+export const getCardStyle = (isDark: boolean): React.CSSProperties => isDark
+  ? CHART_CARD_STYLE
+  : {
+      background: 'rgba(255, 255, 255, 0.75)',
+      backdropFilter: 'blur(12px)',
+      WebkitBackdropFilter: 'blur(12px)',
+      border: '1px solid rgba(129, 140, 248, 0.18)',
+      borderRadius: 12,
+      boxShadow: '0 4px 16px rgba(100, 100, 200, 0.12)',
+    };

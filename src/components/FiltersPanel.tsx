@@ -92,7 +92,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ movies, filters, onChange }
 
       <Col xs={24} sm={12} lg={4}>
         <div style={{ paddingLeft: 8 }}>
-          <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: 4 }}>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginBottom: 4 }}>
             Release Year
           </div>
           <Slider
@@ -108,7 +108,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ movies, filters, onChange }
 
       <Col xs={24} sm={12} lg={3}>
         <div style={{ paddingLeft: 8 }}>
-          <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: 4 }}>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginBottom: 4 }}>
             Vote Average
           </div>
           <Slider
@@ -142,8 +142,8 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ movies, filters, onChange }
     <Collapse
       defaultActiveKey={['filters']}
       style={{
-        background: 'linear-gradient(135deg, #1e293b 0%, #2d3748 100%)',
-        border: '1px solid rgba(255,255,255,0.1)',
+        background: 'var(--filters-bg)',
+        border: '1px solid var(--filters-border)',
         borderRadius: 12,
         marginBottom: 16,
       }}
@@ -153,7 +153,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ movies, filters, onChange }
           label: (
             <Space>
               <FilterOutlined />
-              <span style={{ color: '#fff', fontWeight: 600 }}>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
                 Filters {isFiltered && <span style={{ color: '#38bdf8' }}>●</span>}
               </span>
             </Space>

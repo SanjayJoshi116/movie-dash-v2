@@ -3,22 +3,25 @@ import { Row, Col, Typography } from 'antd';
 import type { ChartData } from 'chart.js';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import DoughnutChart from '../Charts/DoughnutChart';
-import { CHART_CARD_STYLE } from '../../utils/chartTheme';
+import { getCardStyle } from '../../utils/chartTheme';
 import { groupByField, withOther, makeDoughnut } from '../../utils/statsHelpers';
+import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
 
 const { Title } = Typography;
 
 interface PeopleTabProps { movies: Movie[] }
 
-const ChartBlock: React.FC<{ title: string; height?: number; children: React.ReactNode }> = ({ title, height, children }) => (
-  <div style={{ ...CHART_CARD_STYLE, padding: 24, marginBottom: 24 }}>
-    <Title level={5} style={{ color: 'rgba(255,255,255,0.9)', marginBottom: 16 }}>{title}</Title>
+const ChartBlock: React.FC<{ title: string; height?: number; isDark: boolean; children: React.ReactNode }> = ({ title, height, isDark, children }) => (
+  <div style={{ ...getCardStyle(isDark), padding: 24, marginBottom: 24 }}>
+    <Title level={5} style={{ color: 'var(--text-primary)', marginBottom: 16 }}>{title}</Title>
     <div style={height !== undefined ? { height } : {}}>{children}</div>
   </div>
 );
 
 const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
+  const { isDark } = useTheme();
+
   const topActorsData = useMemo<ChartData<'bar'>>(() => {
     const counts: Record<string, number> = {};
     movies.forEach(m => {
@@ -51,13 +54,13 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
   return (
     <Row gutter={[24, 24]}>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Top 15 Actors & Actresses" height={480}><HorizontalBarChart data={topActorsData} height={480} /></ChartBlock>
+        <ChartBlock title="Top 15 Actors & Actresses" height={480} isDark={isDark}><HorizontalBarChart data={topActorsData} height={480} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Top 15 Directors" height={480}><HorizontalBarChart data={topDirectorsData} height={480} /></ChartBlock>
+        <ChartBlock title="Top 15 Directors" height={480} isDark={isDark}><HorizontalBarChart data={topDirectorsData} height={480} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Movies by Production Company" height={380}><DoughnutChart data={companyDoughnutData} /></ChartBlock>
+        <ChartBlock title="Movies by Production Company" height={380} isDark={isDark}><DoughnutChart data={companyDoughnutData} isDark={isDark} /></ChartBlock>
       </Col>
     </Row>
   );

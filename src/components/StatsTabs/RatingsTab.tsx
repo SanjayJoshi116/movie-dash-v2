@@ -4,23 +4,26 @@ import type { ChartData } from 'chart.js';
 import BarChart from '../Charts/BarChart';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import RadarChart from '../Charts/RadarChart';
-import { CHART_CARD_STYLE } from '../../utils/chartTheme';
+import { getCardStyle } from '../../utils/chartTheme';
 import { groupByField } from '../../utils/statsHelpers';
 import { getLanguageName } from '../../utils/languages';
+import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
 
 const { Title } = Typography;
 
 interface RatingsTabProps { movies: Movie[] }
 
-const ChartBlock: React.FC<{ title: string; height?: number; children: React.ReactNode }> = ({ title, height, children }) => (
-  <div style={{ ...CHART_CARD_STYLE, padding: 24, marginBottom: 24 }}>
-    <Title level={5} style={{ color: 'rgba(255,255,255,0.9)', marginBottom: 16 }}>{title}</Title>
+const ChartBlock: React.FC<{ title: string; height?: number; isDark: boolean; children: React.ReactNode }> = ({ title, height, isDark, children }) => (
+  <div style={{ ...getCardStyle(isDark), padding: 24, marginBottom: 24 }}>
+    <Title level={5} style={{ color: 'var(--text-primary)', marginBottom: 16 }}>{title}</Title>
     <div style={height !== undefined ? { height } : {}}>{children}</div>
   </div>
 );
 
 const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
+  const { isDark } = useTheme();
+
   const voteDistData = useMemo<ChartData<'bar'>>(() => {
     const buckets: Record<string, number> = {};
     for (let i = 0; i < 10; i++) buckets[`${i}–${i + 1}`] = 0;
@@ -76,21 +79,21 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
         backgroundColor: 'rgba(129,140,248,0.2)',
         borderColor: '#818cf8',
         pointBackgroundColor: '#818cf8',
-        pointBorderColor: '#fff',
+        pointBorderColor: isDark ? '#fff' : '#1e1e3f',
       }],
     };
-  }, [movies]);
+  }, [movies, isDark]);
 
   return (
     <Row gutter={[24, 24]}>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Vote Average Distribution" height={360}><BarChart data={voteDistData} /></ChartBlock>
+        <ChartBlock title="Vote Average Distribution" height={360} isDark={isDark}><BarChart data={voteDistData} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Average Vote by Language (Top 8)" height={360}><RadarChart data={avgVoteByLanguageData} /></ChartBlock>
+        <ChartBlock title="Average Vote by Language (Top 8)" height={360} isDark={isDark}><RadarChart data={avgVoteByLanguageData} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24}>
-        <ChartBlock title="Average Vote by Genre (Top 15)" height={440}><HorizontalBarChart data={avgVoteByGenreData} height={440} /></ChartBlock>
+        <ChartBlock title="Average Vote by Genre (Top 15)" height={440} isDark={isDark}><HorizontalBarChart data={avgVoteByGenreData} height={440} isDark={isDark} /></ChartBlock>
       </Col>
     </Row>
   );

@@ -3,7 +3,6 @@ import type { Movie } from '../types/movie';
 import { CHART_PALETTE } from './chartTheme';
 
 export function groupByField(movies: Movie[], field: keyof Movie): Record<string, number> {
-  // For the Genres field, split comma-separated values and count each genre individually
   if (field === 'Genres') {
     return movies.reduce<Record<string, number>>((acc, m) => {
       const raw = m[field] ?? '';
@@ -49,4 +48,19 @@ export function makePolar(data: Record<string, number>, label: string): ChartDat
       borderWidth: 1,
     }],
   };
+}
+
+export function parseRevenue(val: string): number {
+  if (!val) return 0;
+  const clean = val.replace(/[$,\s]/g, '');
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+}
+
+export function formatRevenue(n: number): string {
+  if (n <= 0) return 'N/A';
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${n.toFixed(0)}`;
 }

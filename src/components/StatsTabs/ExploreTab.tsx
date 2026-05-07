@@ -5,7 +5,8 @@ import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import MatrixChart from '../Charts/MatrixChart';
 import type { MatrixDataPoint } from '../Charts/MatrixChart';
 import TopNExplorer from '../TopNExplorer';
-import { CHART_CARD_STYLE, CHART_PALETTE } from '../../utils/chartTheme';
+import { getCardStyle, CHART_PALETTE } from '../../utils/chartTheme';
+import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
 
 const { Title } = Typography;
@@ -15,14 +16,16 @@ interface ExploreTabProps { movies: Movie[] }
 const DECADE_LABELS = ['1960s', '1970s', '1980s', '1990s', '2000s', '2010s', '2020s'];
 const TOP_GENRES_N = 10;
 
-const ChartBlock: React.FC<{ title: string; height?: number; children: React.ReactNode }> = ({ title, height, children }) => (
-  <div style={{ ...CHART_CARD_STYLE, padding: 24, marginBottom: 24 }}>
-    <Title level={5} style={{ color: 'rgba(255,255,255,0.9)', marginBottom: 16 }}>{title}</Title>
+const ChartBlock: React.FC<{ title: string; height?: number; isDark: boolean; children: React.ReactNode }> = ({ title, height, isDark, children }) => (
+  <div style={{ ...getCardStyle(isDark), padding: 24, marginBottom: 24 }}>
+    <Title level={5} style={{ color: 'var(--text-primary)', marginBottom: 16 }}>{title}</Title>
     <div style={height !== undefined ? { height } : {}}>{children}</div>
   </div>
 );
 
 const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
+  const { isDark } = useTheme();
+
   const genreBarData = useMemo<ChartData<'bar'>>(() => {
     const counts: Record<string, number> = {};
     movies.forEach(m => {
@@ -83,18 +86,18 @@ const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
   return (
     <Row gutter={[24, 24]}>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Genre Distribution (Top 20)" height={420}>
-          <HorizontalBarChart data={genreBarData} height={420} />
+        <ChartBlock title="Genre Distribution (Top 20)" height={420} isDark={isDark}>
+          <HorizontalBarChart data={genreBarData} height={420} isDark={isDark} />
         </ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Year × Genre Heatmap" height={420}>
-          <MatrixChart data={matrixData} xLabels={DECADE_LABELS} yLabels={matrixGenres} height={420} />
+        <ChartBlock title="Year × Genre Heatmap" height={420} isDark={isDark}>
+          <MatrixChart data={matrixData} xLabels={DECADE_LABELS} yLabels={matrixGenres} height={420} isDark={isDark} />
         </ChartBlock>
       </Col>
       <Col xs={24}>
-        <ChartBlock title="Top 10 Explorer">
-          <TopNExplorer movies={movies} />
+        <ChartBlock title="Top 10 Explorer" isDark={isDark}>
+          <TopNExplorer movies={movies} isDark={isDark} />
         </ChartBlock>
       </Col>
     </Row>

@@ -3,22 +3,25 @@ import { Row, Col, Typography } from 'antd';
 import type { ChartData } from 'chart.js';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import PolarAreaChart from '../Charts/PolarAreaChart';
-import { CHART_CARD_STYLE } from '../../utils/chartTheme';
+import { getCardStyle } from '../../utils/chartTheme';
 import { groupByField, withOther, makePolar } from '../../utils/statsHelpers';
+import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
 
 const { Title } = Typography;
 
 interface RuntimeTabProps { movies: Movie[] }
 
-const ChartBlock: React.FC<{ title: string; height?: number; children: React.ReactNode }> = ({ title, height, children }) => (
-  <div style={{ ...CHART_CARD_STYLE, padding: 24, marginBottom: 24 }}>
-    <Title level={5} style={{ color: 'rgba(255,255,255,0.9)', marginBottom: 16 }}>{title}</Title>
+const ChartBlock: React.FC<{ title: string; height?: number; isDark: boolean; children: React.ReactNode }> = ({ title, height, isDark, children }) => (
+  <div style={{ ...getCardStyle(isDark), padding: 24, marginBottom: 24 }}>
+    <Title level={5} style={{ color: 'var(--text-primary)', marginBottom: 16 }}>{title}</Title>
     <div style={height !== undefined ? { height } : {}}>{children}</div>
   </div>
 );
 
 const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
+  const { isDark } = useTheme();
+
   const top50RuntimeData = useMemo<ChartData<'bar'>>(() => {
     const top50 = [...movies]
       .filter(m => !isNaN(parseFloat(m.Runtime)) && parseFloat(m.Runtime) > 0)
@@ -69,16 +72,16 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
   return (
     <Row gutter={[24, 24]}>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Movies by Country" height={400}><PolarAreaChart data={countryPolarData} /></ChartBlock>
+        <ChartBlock title="Movies by Country" height={400} isDark={isDark}><PolarAreaChart data={countryPolarData} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Movies by Genre" height={400}><PolarAreaChart data={genrePolarData} /></ChartBlock>
+        <ChartBlock title="Movies by Genre" height={400} isDark={isDark}><PolarAreaChart data={genrePolarData} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Avg Vote by Runtime Length" height={320}><HorizontalBarChart data={runtimeBucketVoteData} height={320} /></ChartBlock>
+        <ChartBlock title="Avg Vote by Runtime Length" height={320} isDark={isDark}><HorizontalBarChart data={runtimeBucketVoteData} height={320} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24}>
-        <ChartBlock title="Top 50 Longest Films" height={500}><HorizontalBarChart data={top50RuntimeData} height={500} /></ChartBlock>
+        <ChartBlock title="Top 50 Longest Films" height={500} isDark={isDark}><HorizontalBarChart data={top50RuntimeData} height={500} isDark={isDark} /></ChartBlock>
       </Col>
     </Row>
   );

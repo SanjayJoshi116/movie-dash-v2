@@ -1,7 +1,8 @@
 import React from 'react';
-import { Layout, Typography, Badge, Spin } from 'antd';
-import { VideoCameraOutlined } from '@ant-design/icons';
+import { Layout, Typography, Badge, Spin, Button } from 'antd';
+import { VideoCameraOutlined, SunOutlined, MoonOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useMovies } from '../hooks/useMovies';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { Header } = Layout;
 const { Text } = Typography;
@@ -12,16 +13,17 @@ interface TopBarProps {
 
 const TopBar: React.FC<TopBarProps> = ({ title }) => {
   const { movies, loading } = useMovies();
+  const { isDark, toggleTheme } = useTheme();
 
   return (
     <Header
       className="glass-panel"
       style={{
-        background: 'rgba(255, 255, 255, 0.05)',
+        background: 'var(--glass-bg)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+        borderBottom: '1px solid var(--glass-border)',
+        boxShadow: 'var(--glass-shadow)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -33,7 +35,7 @@ const TopBar: React.FC<TopBarProps> = ({ title }) => {
     >
       <Text
         style={{
-          color: '#fff',
+          color: 'var(--text-primary)',
           fontSize: 18,
           fontWeight: 700,
           letterSpacing: 0.5,
@@ -60,7 +62,21 @@ const TopBar: React.FC<TopBarProps> = ({ title }) => {
             }}
           />
         )}
-        <VideoCameraOutlined style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16 }} />
+        <a href="/movies.template.csv" download="movies.template.csv" title="Download CSV template">
+          <Button
+            type="text"
+            icon={<DownloadOutlined />}
+            style={{ color: 'var(--text-secondary)', fontSize: 16 }}
+          />
+        </a>
+        <Button
+          type="text"
+          icon={isDark ? <SunOutlined /> : <MoonOutlined />}
+          onClick={toggleTheme}
+          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          style={{ color: 'var(--text-secondary)', fontSize: 16 }}
+        />
+        <VideoCameraOutlined style={{ color: 'var(--text-muted)', fontSize: 16 }} />
       </div>
     </Header>
   );

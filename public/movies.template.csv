@@ -1,0 +1,6 @@
+Movie ID,Name,Language,Runtime,Release Year,Genres,Director,Actors/Actresses,Production Company,Production Country,Box Office Revenue,Budget,Popularity Score,Vote Average,Vote Count,Keywords/Tags,Release Date
+1,Example Action Film,en,124,2022,"Action, Adventure, Thriller",Jane Smith,"Actor One, Actor Two, Actor Three",Example Studios,US,850000000,180000000,72.4,7.8,3200,"action hero sequel blockbuster",2022-07-15
+2,French Drama,fr,98,2020,Drama,Pierre Dupont,"Marie Claire, Jean-Luc Moreau",Cinéma Français,FR,9500000,4200000,18.6,8.1,1450,"drama romance family",2020-03-08
+3,Anime Fantasy,ja,115,2021,"Animation, Fantasy, Adventure",Hiroshi Tanaka,"Yuki Sato, Kenji Nakamura",Studio Sakura,JP,420000000,95000000,88.3,8.7,5100,"anime magic coming-of-age",2021-11-12
+4,Spanish Thriller,es,107,2019,"Thriller, Mystery",Carlos Rodríguez,"Ana López, Diego Martínez",Cine Ibérico,ES,6200000,3000000,24.9,7.3,980,"thriller suspense crime",2019-09-27
+5,Korean Romance,ko,131,2023,"Romance, Drama",Kim Ji-young,"Park Min-jun, Lee Soo-yeon",K-Studio Entertainment,KR,55000000,12000000,43.1,8.4,2750,"romance drama heartwarming",2023-02-14
