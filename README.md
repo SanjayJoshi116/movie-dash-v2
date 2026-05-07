@@ -83,6 +83,36 @@ Vote Count, Keywords/Tags, Release Date
 
 A download button in the top bar also lets users grab the template directly from the running app.
 
+#### Where to get the data — TMDB API
+
+This project was populated using the [TMDB (The Movie Database) API](https://www.themoviedb.org/documentation/api), which is free for non-commercial use.
+
+1. Create a free account at [themoviedb.org](https://www.themoviedb.org) and generate an API key under **Settings → API**.
+2. Use the [`/discover/movie`](https://developer.themoviedb.org/reference/discover-movie) endpoint to fetch movies in bulk, paginating through results.
+3. For each movie, map the TMDB fields to the CSV columns:
+
+| CSV column | TMDB field |
+|---|---|
+| `Movie ID` | `id` |
+| `Name` | `title` |
+| `Language` | `original_language` |
+| `Runtime` | `runtime` (from `/movie/{id}`) |
+| `Release Year` | `release_date` (year part) |
+| `Genres` | `genres[].name` joined with `, ` |
+| `Director` | `credits.crew` where `job == "Director"` |
+| `Actors/Actresses` | `credits.cast[0..4].name` joined with `, ` |
+| `Production Company` | `production_companies[0].name` |
+| `Production Country` | `production_countries[0].iso_3166_1` |
+| `Box Office Revenue` | `revenue` |
+| `Budget` | `budget` |
+| `Popularity Score` | `popularity` |
+| `Vote Average` | `vote_average` |
+| `Vote Count` | `vote_count` |
+| `Keywords/Tags` | `keywords.keywords[].name` joined with `, ` |
+| `Release Date` | `release_date` |
+
+`credits` and `keywords` require appending `append_to_response=credits,keywords` to the `/movie/{id}` request.
+
 ### 3. Run
 
 ```bash
