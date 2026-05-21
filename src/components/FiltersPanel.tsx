@@ -100,7 +100,11 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ movies, filters, onChange }
             min={yearMin}
             max={yearMax}
             value={filters.yearRange ?? [yearMin, yearMax]}
-            onChange={(val) => onChange({ ...filters, yearRange: val as [number, number] })}
+            disabled={yearMin === yearMax}
+            onChange={(val) => {
+              const [lo, hi] = val as [number, number];
+              onChange({ ...filters, yearRange: lo <= yearMin && hi >= yearMax ? null : [lo, hi] });
+            }}
             tooltip={{ formatter: (v) => v }}
           />
         </div>
@@ -117,7 +121,10 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ movies, filters, onChange }
             max={10}
             step={0.1}
             value={filters.voteRange ?? [0, 10]}
-            onChange={(val) => onChange({ ...filters, voteRange: val as [number, number] })}
+            onChange={(val) => {
+              const [lo, hi] = val as [number, number];
+              onChange({ ...filters, voteRange: lo <= 0 && hi >= 10 ? null : [lo, hi] });
+            }}
             tooltip={{ formatter: (v) => v?.toFixed(1) }}
           />
         </div>

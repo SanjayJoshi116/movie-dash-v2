@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Spin, Alert } from 'antd';
+import { Spin, Alert, Button } from 'antd';
 import { useMovies } from '../hooks/useMovies';
 import { useDebounce } from '../hooks/useDebounce';
 import { usePersistedFilters } from '../hooks/usePersistedFilters';
@@ -26,7 +26,7 @@ const DEFAULT_FILTERS: FilterState = {
 };
 
 const Dashboard: React.FC = () => {
-  const { movies, loading, error } = useMovies();
+  const { movies, loading, error, refetch } = useMovies();
   const [filters, setFilters] = usePersistedFilters(DEFAULT_FILTERS);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
@@ -84,7 +84,16 @@ const Dashboard: React.FC = () => {
   }
 
   if (error) {
-    return <Alert type="error" message="Failed to load movies" description={error} showIcon style={{ margin: 24 }} />;
+    return (
+      <Alert
+        type="error"
+        message="Failed to load movies"
+        description={error}
+        showIcon
+        style={{ margin: 24 }}
+        action={<Button size="small" onClick={refetch}>Retry</Button>}
+      />
+    );
   }
 
   return (

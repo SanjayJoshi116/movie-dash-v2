@@ -33,14 +33,14 @@ const columns: ColumnsType<Movie> = [
     dataIndex: 'Runtime',
     key: 'Runtime',
     width: 120,
-    sorter: (a, b) => parseFloat(a.Runtime) - parseFloat(b.Runtime),
+    sorter: (a, b) => (parseFloat(a.Runtime) || 0) - (parseFloat(b.Runtime) || 0),
   },
   {
     title: 'Year',
     dataIndex: 'Release Year',
     key: 'Release Year',
     width: 80,
-    sorter: (a, b) => parseInt(a['Release Year'], 10) - parseInt(b['Release Year'], 10),
+    sorter: (a, b) => (parseInt(a['Release Year'], 10) || 0) - (parseInt(b['Release Year'], 10) || 0),
   },
   { title: 'Genres', dataIndex: 'Genres', key: 'Genres', width: 150 },
   {
@@ -74,7 +74,7 @@ const columns: ColumnsType<Movie> = [
     dataIndex: 'Vote Average',
     key: 'Vote Average',
     width: 90,
-    sorter: (a, b) => parseFloat(a['Vote Average']) - parseFloat(b['Vote Average']),
+    sorter: (a, b) => (parseFloat(a['Vote Average']) || 0) - (parseFloat(b['Vote Average']) || 0),
   },
   {
     title: 'Release Date',

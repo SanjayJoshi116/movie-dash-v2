@@ -13,7 +13,6 @@ const { Title } = Typography;
 
 interface ExploreTabProps { movies: Movie[] }
 
-const DECADE_LABELS = ['1960s', '1970s', '1980s', '1990s', '2000s', '2010s', '2020s'];
 const TOP_GENRES_N = 10;
 
 const ChartBlock: React.FC<{ title: string; height?: number; isDark: boolean; children: React.ReactNode }> = ({ title, height, isDark, children }) => (
@@ -41,21 +40,26 @@ const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
     };
   }, [movies]);
 
-  const { matrixData, matrixGenres } = useMemo(() => {
+  const { matrixData, matrixGenres, decadeLabels } = useMemo(() => {
     const genreCounts: Record<string, number> = {};
+    const decadeSet = new Set<string>();
     movies.forEach(m => {
       m.Genres.split(',').forEach(g => {
         const genre = g.trim();
         if (genre) genreCounts[genre] = (genreCounts[genre] ?? 0) + 1;
       });
+      const year = parseInt(m['Release Year'], 10);
+      if (!isNaN(year)) decadeSet.add(`${Math.floor(year / 10) * 10}s`);
     });
     const topGenres = Object.entries(genreCounts)
       .sort(([, a], [, b]) => b - a)
       .slice(0, TOP_GENRES_N)
       .map(([g]) => g);
 
+    const decades = [...decadeSet].sort();
+
     const matrix: Record<string, Record<string, number>> = {};
-    DECADE_LABELS.forEach(d => {
+    decades.forEach(d => {
       matrix[d] = {};
       topGenres.forEach(g => { matrix[d][g] = 0; });
     });
@@ -74,13 +78,13 @@ const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
     });
 
     const matrixData: MatrixDataPoint[] = [];
-    DECADE_LABELS.forEach(decade => {
+    decades.forEach(decade => {
       topGenres.forEach(genre => {
         matrixData.push({ x: decade, y: genre, v: matrix[decade]?.[genre] ?? 0 });
       });
     });
 
-    return { matrixData, matrixGenres: topGenres };
+    return { matrixData, matrixGenres: topGenres, decadeLabels: decades };
   }, [movies]);
 
   return (
@@ -92,7 +96,7 @@ const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
       </Col>
       <Col xs={24} lg={12}>
         <ChartBlock title="Year × Genre Heatmap" height={420} isDark={isDark}>
-          <MatrixChart data={matrixData} xLabels={DECADE_LABELS} yLabels={matrixGenres} height={420} isDark={isDark} />
+          <MatrixChart data={matrixData} xLabels={decadeLabels} yLabels={matrixGenres} height={420} isDark={isDark} />
         </ChartBlock>
       </Col>
       <Col xs={24}>

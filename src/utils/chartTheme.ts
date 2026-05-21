@@ -6,7 +6,7 @@ export const CHART_PALETTE = [
   '#4ade80', '#facc15', '#60a5fa', '#c084fc', '#fb7185',
 ];
 
-export const CHART_CARD_STYLE: React.CSSProperties = {
+const CHART_CARD_STYLE: React.CSSProperties = {
   background: 'rgba(255, 255, 255, 0.05)',
   backdropFilter: 'blur(12px)',
   WebkitBackdropFilter: 'blur(12px)',

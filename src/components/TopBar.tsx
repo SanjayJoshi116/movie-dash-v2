@@ -76,7 +76,7 @@ const TopBar: React.FC<TopBarProps> = ({ title }) => {
           title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           style={{ color: 'var(--text-secondary)', fontSize: 16 }}
         />
-        <VideoCameraOutlined style={{ color: 'var(--text-muted)', fontSize: 16 }} />
+        <VideoCameraOutlined style={{ color: 'var(--text-muted)', fontSize: 16 }} aria-hidden="true" />
       </div>
     </Header>
   );

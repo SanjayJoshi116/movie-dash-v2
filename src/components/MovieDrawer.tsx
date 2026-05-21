@@ -70,9 +70,9 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
           <Descriptions.Item label="Release Year">{movie['Release Year']}</Descriptions.Item>
           <Descriptions.Item label="Release Date">{movie['Release Date']}</Descriptions.Item>
           <Descriptions.Item label="Genres">
-            {movie.Genres.split(',').map((g) => (
-              <Tag key={g.trim()} color="purple" style={{ marginBottom: 4 }}>
-                {g.trim()}
+            {movie.Genres.split(',').map(g => g.trim()).filter(Boolean).map((g) => (
+              <Tag key={g} color="purple" style={{ marginBottom: 4 }}>
+                {g}
               </Tag>
             ))}
           </Descriptions.Item>

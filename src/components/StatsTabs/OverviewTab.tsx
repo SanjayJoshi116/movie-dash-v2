@@ -31,8 +31,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
   const validRuntimes   = useMemo(() => movies.map(m => parseFloat(m.Runtime)).filter(r => !isNaN(r) && r > 0), [movies]);
   const totalMovies     = useMemo(() => movies.length, [movies]);
   const avgRuntime      = useMemo(() => validRuntimes.length ? validRuntimes.reduce((a, b) => a + b, 0) / validRuntimes.length : 0, [validRuntimes]);
-  const longestRuntime  = useMemo(() => validRuntimes.length ? Math.max(...validRuntimes) : 0, [validRuntimes]);
-  const shortestRuntime = useMemo(() => validRuntimes.length ? Math.min(...validRuntimes) : 0, [validRuntimes]);
+  const longestRuntime  = useMemo(() => validRuntimes.reduce((a, b) => Math.max(a, b), 0), [validRuntimes]);
+  const shortestRuntime = useMemo(() => validRuntimes.reduce((a, b) => Math.min(a, b), Infinity) || 0, [validRuntimes]);
   const totalTimeSpent  = useMemo(() => validRuntimes.reduce((a, b) => a + b, 0), [validRuntimes]);
 
   useEffect(() => {

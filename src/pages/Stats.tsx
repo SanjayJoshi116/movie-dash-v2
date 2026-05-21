@@ -1,5 +1,5 @@
 import React from 'react';
-import { Typography, Spin, Alert, Tabs } from 'antd';
+import { Typography, Spin, Alert, Tabs, Button } from 'antd';
 import { useMovies } from '../hooks/useMovies';
 import { useTheme } from '../contexts/ThemeContext';
 import OverviewTab from '../components/StatsTabs/OverviewTab';
@@ -12,14 +12,23 @@ import BoxOfficeTab from '../components/StatsTabs/BoxOfficeTab';
 const { Title } = Typography;
 
 const Stats: React.FC = () => {
-  const { movies, loading, error } = useMovies();
+  const { movies, loading, error, refetch } = useMovies();
   const { isDark } = useTheme();
 
   if (loading) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}><Spin size="large" /></div>;
   }
   if (error) {
-    return <Alert type="error" message="Failed to load movies" description={error} showIcon style={{ margin: 24 }} />;
+    return (
+      <Alert
+        type="error"
+        message="Failed to load movies"
+        description={error}
+        showIcon
+        style={{ margin: 24 }}
+        action={<Button size="small" onClick={refetch}>Retry</Button>}
+      />
+    );
   }
 
   const tabItems = [
@@ -37,7 +46,6 @@ const Stats: React.FC = () => {
       <Tabs
         defaultActiveKey="overview"
         items={tabItems}
-        destroyInactiveTabPane
         size="large"
         style={{ color: isDark ? '#fff' : '#1e1e3f' }}
       />

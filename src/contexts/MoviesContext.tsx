@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import axios from 'axios';
 import type { Movie } from '../types/movie';
 
@@ -6,18 +6,27 @@ interface MoviesState {
   movies: Movie[];
   loading: boolean;
   error: string | null;
+  refetch: () => void;
 }
 
 const MoviesContext = createContext<MoviesState>({
   movies: [],
   loading: true,
   error: null,
+  refetch: () => {},
 });
 
 export const MoviesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fetchKey, setFetchKey] = useState(0);
+
+  const refetch = useCallback(() => {
+    setError(null);
+    setLoading(true);
+    setFetchKey(k => k + 1);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -36,10 +45,10 @@ export const MoviesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
 
     return () => controller.abort();
-  }, []);
+  }, [fetchKey]);
 
   return (
-    <MoviesContext.Provider value={{ movies, loading, error }}>
+    <MoviesContext.Provider value={{ movies, loading, error, refetch }}>
       {children}
     </MoviesContext.Provider>
   );

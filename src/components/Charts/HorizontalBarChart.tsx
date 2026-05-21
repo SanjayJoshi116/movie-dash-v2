@@ -25,7 +25,7 @@ const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 
           label: (ctx) => {
             const raw = ctx.raw as number;
             if (formatValue) return ` ${formatValue(raw)}`;
-            return ` ${typeof raw === 'number' ? raw.toFixed(2) : raw}`;
+            return ` ${raw.toFixed(2)}`;
           },
         },
       },
