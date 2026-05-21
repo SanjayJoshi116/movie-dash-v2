@@ -48,6 +48,7 @@ A full-stack movie analytics dashboard built with React 19, TypeScript, Vite, An
 | HTTP | Axios |
 | Backend | Express.js (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
+| Testing | Playwright (35 E2E tests) |
 
 ---
 
@@ -73,7 +74,7 @@ The expected columns are:
 Movie ID, Name, Language, Runtime, Release Year, Genres, Director,
 Actors/Actresses, Production Company, Production Country,
 Box Office Revenue, Budget, Popularity Score, Vote Average,
-Vote Count, Keywords/Tags, Release Date
+Vote Count, Release Date
 ```
 
 - **Language** — ISO 639-1 code (`en`, `fr`, `ja`, …)
@@ -108,7 +109,6 @@ This project was populated using the [TMDB (The Movie Database) API](https://www
 | `Popularity Score` | `popularity` |
 | `Vote Average` | `vote_average` |
 | `Vote Count` | `vote_count` |
-| `Keywords/Tags` | `keywords.keywords[].name` joined with `, ` |
 | `Release Date` | `release_date` |
 
 `credits` and `keywords` require appending `append_to_response=credits,keywords` to the `/movie/{id}` request.
@@ -133,6 +133,9 @@ Opens the frontend at **http://localhost:3000** and the API at **http://localhos
 | `npm run server:prod` | Run the compiled backend in production |
 | `npm run preview` | Preview the production build locally |
 | `npm run type-check` | Run TypeScript type checking without emitting files |
+| `npm run test:e2e` | Run Playwright E2E tests (headless) |
+| `npm run test:e2e:ui` | Run Playwright E2E tests with interactive UI |
+| `npm run test:e2e:report` | Open the last Playwright HTML report |
 
 ---
 
@@ -143,7 +146,10 @@ movie-dash-v2/
 ├── public/
 │   └── movies.template.csv     # CSV template for your own data
 ├── server/
-│   └── server.ts               # Express API (ports 5000)
+│   └── server.ts               # Express API (port 5000)
+├── tests/
+│   └── app.spec.ts             # Playwright E2E tests (35 tests)
+├── playwright.config.ts        # Playwright configuration
 ├── src/
 │   ├── contexts/
 │   │   ├── MoviesContext.tsx    # Global movie data provider
@@ -175,6 +181,37 @@ movie-dash-v2/
 │   └── types/
 │       └── movie.ts
 ```
+
+---
+
+## E2E Testing
+
+Playwright tests cover the full user journey across 7 suites (35 tests):
+
+- **Dashboard** — layout, search, language/genre filters, empty state, drawer, CSV export, sorting, pagination, collapse panel
+- **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title updates
+- **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence
+- **Theme** — default dark, toggle to light, reload persistence
+- **Filter Persistence** — search filter survives route changes via localStorage
+- **Edge Cases** — combined filters, pagination, sort + filter combo
+
+### Run tests
+
+```bash
+# Install browsers (first time only)
+npx playwright install chromium
+
+# Run headless
+npm run test:e2e
+
+# Interactive UI mode
+npm run test:e2e:ui
+
+# View HTML report after a run
+npm run test:e2e:report
+```
+
+Tests require both the Vite frontend (port 3000) and Express backend (port 5000) to be reachable. The Playwright config starts `npm run dev` automatically if no server is already running.
 
 ---
 
