@@ -84,6 +84,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
         <Col xs={24} sm={12} md={8}><StatCard label="Longest Runtime"  value={counts.longestRuntime}  color="#34d399" suffix="mins" /></Col>
         <Col xs={24} sm={12} md={8}><StatCard label="Shortest Runtime" value={counts.shortestRuntime} color="#f472b6" suffix="mins" /></Col>
         <Col xs={24} sm={12} md={8}><StatCard label="Total Time Spent" value={counts.totalTimeSpent}  color="#fb923c" suffix="mins" /></Col>
+        <Col xs={24} sm={12} md={8}><StatCard label="Hours Watched"    value={Math.round((counts.totalTimeSpent / 60) * 10) / 10}     color="#38bdf8" suffix="hrs"  /></Col>
+        <Col xs={24} sm={12} md={8}><StatCard label="Days Watched"     value={Math.round((counts.totalTimeSpent / 1440) * 10) / 10}   color="#fbbf24" suffix="days" /></Col>
+        <Col xs={24} sm={12} md={8}><StatCard label="Years Watched"    value={Math.round((counts.totalTimeSpent / 525600) * 10) / 10} color="#e879f9" suffix="yrs"  /></Col>
       </Row>
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={12}>

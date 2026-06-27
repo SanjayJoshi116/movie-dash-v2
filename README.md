@@ -22,7 +22,7 @@ A full-stack movie analytics dashboard built with React 19, TypeScript, Vite, An
 ### Statistics — 6 tabs
 | Tab | Contents |
 |---|---|
-| 📊 Overview | Animated stat cards (total, avg/longest/shortest runtime, total watch time) · Movies by language · Movies per year |
+| 📊 Overview | Animated stat cards (total, avg/longest/shortest runtime, total watch time in mins/hrs/days/yrs) · Movies by language · Movies per year |
 | 🎬 People | Top 15 actors · Top 15 directors · Movies by production company |
 | ⭐ Ratings | Vote distribution · Avg vote by language (radar) · Avg vote by genre |
 | ⏱ Runtime & Geography | Movies by country & genre (polar area) · Avg vote by runtime bucket · Top 50 longest films |
