@@ -1,13 +1,21 @@
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Result, Button, ConfigProvider, theme as antdTheme } from 'antd';
+import { Layout, Result, Button, Spin, ConfigProvider, theme as antdTheme } from 'antd';
 import { MoviesProvider } from './contexts/MoviesContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import Dashboard from './pages/Dashboard';
-import Stats from './pages/Stats';
 import ScrollToTop from './components/ScrollToTop';
+import ErrorBoundary from './components/ErrorBoundary';
+
+const Stats = React.lazy(() => import('./pages/Stats'));
+
+const PageLoader: React.FC = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+    <Spin size="large" />
+  </div>
+);
 
 const { Content } = Layout;
 
@@ -81,11 +89,15 @@ const AppContent: React.FC = () => {
         <Layout style={{ background: 'transparent' }}>
           <TopBar title={PAGE_TITLES[location.pathname] ?? 'MovieDash'} />
           <Content>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/stats" element={<Stats />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <ErrorBoundary key={location.pathname}>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/stats" element={<Stats />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
           </Content>
         </Layout>
       </Layout>

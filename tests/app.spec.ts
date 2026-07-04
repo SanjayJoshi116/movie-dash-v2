@@ -34,8 +34,8 @@ test.describe('Dashboard', () => {
   test('filter panel visible and expanded by default', async ({ page }) => {
     await expect(page.locator('.ant-collapse')).toBeVisible();
     await expect(page.getByPlaceholder('Search by name, director, actor…')).toBeVisible();
-    await expect(page.getByPlaceholder('Language')).toBeVisible();
-    await expect(page.getByPlaceholder('Genre')).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Language' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Genre' })).toBeVisible();
   });
 
   test('search narrows table results', async ({ page }) => {
@@ -74,7 +74,7 @@ test.describe('Dashboard', () => {
   });
 
   test('language filter applies', async ({ page }) => {
-    await page.getByPlaceholder('Language').click();
+    await page.getByRole('combobox', { name: 'Language' }).click();
     await page.waitForSelector('.ant-select-item-option');
     await page.locator('.ant-select-item-option').first().click();
     await page.keyboard.press('Escape');
@@ -83,7 +83,7 @@ test.describe('Dashboard', () => {
   });
 
   test('genre filter applies', async ({ page }) => {
-    await page.getByPlaceholder('Genre').click();
+    await page.getByRole('combobox', { name: 'Genre' }).click();
     await page.waitForSelector('.ant-select-item-option');
     await page.locator('.ant-select-item-option').first().click();
     await page.keyboard.press('Escape');
@@ -123,7 +123,7 @@ test.describe('Dashboard', () => {
 
   test('column sorting on Name column', async ({ page }) => {
     await page.locator('.ant-table-column-sorters').first().click();
-    await expect(page.locator('.ant-table-column-sort')).toBeVisible();
+    await expect(page.locator('th.ant-table-column-sort')).toBeVisible();
     // Second click reverses sort
     await page.locator('.ant-table-column-sorters').first().click();
     await expect(page.locator('[aria-sort="descending"]')).toBeVisible();
@@ -221,14 +221,14 @@ test.describe('Stats Page', () => {
     await expect(page.getByText('Total Movies')).toBeVisible();
     await expect(page.getByText('Average Runtime')).toBeVisible();
     await expect(page.getByText('Longest Runtime')).toBeVisible();
-    await expect(page.locator('canvas').first()).toBeVisible();
+    await expect(page.locator('.ant-tabs-tabpane-active canvas').first()).toBeVisible();
   });
 
   test('People tab loads charts', async ({ page }) => {
     await page.getByRole('tab', { name: /People/ }).click();
     await expect(page.getByText('Top 15 Actors & Actresses')).toBeVisible();
     await expect(page.getByText('Top 15 Directors')).toBeVisible();
-    await expect(page.locator('canvas').first()).toBeVisible();
+    await expect(page.locator('.ant-tabs-tabpane-active canvas').first()).toBeVisible();
   });
 
   test('Ratings tab loads charts', async ({ page }) => {
@@ -263,8 +263,9 @@ test.describe('Stats Page', () => {
     // Change metric
     await page.locator('.ant-select-selector').last().click();
     await page.waitForSelector('.ant-select-item-option');
-    await page.getByText('Longest Runtime').click();
-    await expect(page.getByText('mins')).toBeVisible();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.ant-tabs-tabpane-active').getByText('mins').first()).toBeVisible();
   });
 
   test('tab switch keeps previously loaded tab (no destroyInactiveTabPane)', async ({ page }) => {
@@ -346,7 +347,7 @@ test.describe('Edge Cases', () => {
     await page.getByPlaceholder('Search by name, director, actor…').fill('a');
     await page.waitForTimeout(400);
 
-    await page.getByPlaceholder('Language').click();
+    await page.getByRole('combobox', { name: 'Language' }).click();
     await page.waitForSelector('.ant-select-item-option');
     await page.locator('.ant-select-item-option').first().click();
     await page.keyboard.press('Escape');
@@ -373,14 +374,14 @@ test.describe('Edge Cases', () => {
 
     // Sort by Name
     await page.locator('.ant-table-column-sorters').first().click();
-    await expect(page.locator('.ant-table-column-sort')).toBeVisible();
+    await expect(page.locator('th.ant-table-column-sort')).toBeVisible();
 
     // Apply filter
     await page.getByPlaceholder('Search by name, director, actor…').fill('a');
     await page.waitForTimeout(400);
 
     // Sort indicator persists
-    await expect(page.locator('.ant-table-column-sort')).toBeVisible();
+    await expect(page.locator('th.ant-table-column-sort')).toBeVisible();
   });
 
   test('drawer shows Vote Average rating colour', async ({ page }) => {

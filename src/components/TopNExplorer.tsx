@@ -28,8 +28,7 @@ function getMetricValue(movie: Movie, metric: Metric): { raw: number; display: s
     case 'most_recent': {
       const d = new Date(movie['Release Date']);
       if (isNaN(d.getTime())) return { raw: -Infinity, display: movie['Release Date'] || movie['Release Year'] };
-      const diff = Math.abs(Date.now() - d.getTime());
-      return { raw: -(diff || 0.001), display: movie['Release Date'] };
+      return { raw: d.getTime(), display: movie['Release Date'] };
     }
     case 'oldest':
       return { raw: -(parseInt(movie['Release Year'], 10) || 9999), display: movie['Release Year'] };

@@ -18,6 +18,11 @@
 # data
 src/movies.csv
 
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
 # misc
 .DS_Store
 .env

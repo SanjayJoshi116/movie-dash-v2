@@ -68,6 +68,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ movies, filters, onChange }
         <Select
           mode="multiple"
           placeholder="Language"
+          aria-label="Language"
           options={languageOptions}
           value={filters.languages}
           onChange={(val) => onChange({ ...filters, languages: val })}
@@ -81,6 +82,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({ movies, filters, onChange }
         <Select
           mode="multiple"
           placeholder="Genre"
+          aria-label="Genre"
           options={genreOptions}
           value={filters.genres}
           onChange={(val) => onChange({ ...filters, genres: val })}

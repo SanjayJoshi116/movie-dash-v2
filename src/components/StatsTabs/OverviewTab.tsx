@@ -27,15 +27,23 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
     totalMovies: 0, avgRuntime: 0, longestRuntime: 0, shortestRuntime: 0, totalTimeSpent: 0,
   });
   const intervalsRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  const prevTargetsRef = useRef<StatsCounters | null>(null);
 
   const validRuntimes   = useMemo(() => movies.map(m => parseFloat(m.Runtime)).filter(r => !isNaN(r) && r > 0), [movies]);
   const totalMovies     = useMemo(() => movies.length, [movies]);
   const avgRuntime      = useMemo(() => validRuntimes.length ? validRuntimes.reduce((a, b) => a + b, 0) / validRuntimes.length : 0, [validRuntimes]);
   const longestRuntime  = useMemo(() => validRuntimes.reduce((a, b) => Math.max(a, b), 0), [validRuntimes]);
-  const shortestRuntime = useMemo(() => validRuntimes.reduce((a, b) => Math.min(a, b), Infinity) || 0, [validRuntimes]);
+  const shortestRuntime = useMemo(() => validRuntimes.length ? validRuntimes.reduce((a, b) => Math.min(a, b), Infinity) : 0, [validRuntimes]);
   const totalTimeSpent  = useMemo(() => validRuntimes.reduce((a, b) => a + b, 0), [validRuntimes]);
 
   useEffect(() => {
+    const targets: StatsCounters = { totalMovies, avgRuntime, longestRuntime, shortestRuntime, totalTimeSpent };
+    const prev = prevTargetsRef.current;
+    const unchanged = prev !== null && (Object.keys(targets) as (keyof StatsCounters)[])
+      .every(key => prev[key] === targets[key]);
+    if (unchanged) return;
+    prevTargetsRef.current = targets;
+
     const animate = (key: keyof StatsCounters, value: number, speed = 10) => {
       const step = Math.ceil(value / 100);
       intervalsRef.current[key] = setInterval(() => {

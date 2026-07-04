@@ -14,19 +14,20 @@ export function groupByField(movies: Movie[], field: keyof Movie): Record<string
     }, {});
   }
   return movies.reduce<Record<string, number>>((acc, m) => {
-    const k = m[field] ?? 'Unknown';
+    const k = m[field] || 'Unknown';
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
 }
 
 export function withOther(data: Record<string, number>, threshold: number): Record<string, number> {
-  const result: Record<string, number> = { Other: 0 };
+  const result: Record<string, number> = {};
+  let otherTotal = 0;
   for (const [k, v] of Object.entries(data)) {
-    if (v < threshold) result.Other += v;
+    if (v < threshold) otherTotal += v;
     else result[k] = v;
   }
-  if (result.Other === 0) delete result.Other;
+  if (otherTotal > 0) result.Other = (result.Other ?? 0) + otherTotal;
   return result;
 }
 

@@ -3,27 +3,49 @@ import fs from 'fs';
 import path from 'path';
 import csv from 'csv-parser';
 import cors from 'cors';
+import compression from 'compression';
 import type { Movie } from '../src/types/movie';
 
 const app = express();
 app.use(cors());
+app.use(compression());
 app.use(express.json());
 
-let movies: Movie[] = [];
+const movies: Movie[] = [];
+let ready = false;
 
 const csvPath = path.join(__dirname, '..', 'src', 'movies.csv');
 
 fs.createReadStream(csvPath)
-  .on('error', (err) => console.error('Failed to read CSV:', err.message))
+  .on('error', (err) => {
+    console.error('Failed to read CSV:', err.message);
+    ready = true;
+  })
   .pipe(csv())
   .on('data', (data: Movie) => movies.push(data))
-  .on('end', () => console.log(`CSV loaded — ${movies.length} movies`));
+  .on('error', (err) => {
+    console.error('Failed to parse CSV:', err.message);
+    ready = true;
+  })
+  .on('end', () => {
+    ready = true;
+    console.log(`CSV loaded — ${movies.length} movies`);
+  });
 
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', movies: movies.length });
+  res.json({ status: ready ? 'ok' : 'loading', movies: movies.length });
+});
+
+app.use('/movies', (_req: Request, res: Response, next) => {
+  if (!ready) {
+    res.status(503).json({ error: 'Data still loading' });
+    return;
+  }
+  next();
 });
 
 app.get('/movies', (_req: Request, res: Response<Movie[]>) => {
+  res.set('Cache-Control', 'public, max-age=60');
   res.json(movies);
 });
 

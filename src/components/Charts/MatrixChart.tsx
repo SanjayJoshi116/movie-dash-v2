@@ -76,6 +76,7 @@ const MatrixChart: React.FC<MatrixChartProps> = ({ data, xLabels, yLabels, heigh
       x: {
         type: 'category' as const,
         labels: xLabels,
+        offset: true,
         grid: { color: gridColor },
         ticks: { color: tickColor },
       },

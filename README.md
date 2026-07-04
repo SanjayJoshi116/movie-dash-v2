@@ -48,7 +48,8 @@ A full-stack movie analytics dashboard built with React 19, TypeScript, Vite, An
 | HTTP | Axios |
 | Backend | Express.js (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
-| Testing | Playwright (35 E2E tests) |
+| Testing | Playwright (40 E2E tests) |
+| Linting | ESLint (typescript-eslint, react-hooks, unused-imports) |
 
 ---
 
@@ -133,6 +134,7 @@ Opens the frontend at **http://localhost:3000** and the API at **http://localhos
 | `npm run server:prod` | Run the compiled backend in production |
 | `npm run preview` | Preview the production build locally |
 | `npm run type-check` | Run TypeScript type checking without emitting files |
+| `npm run lint` | Run ESLint across the project |
 | `npm run test:e2e` | Run Playwright E2E tests (headless) |
 | `npm run test:e2e:ui` | Run Playwright E2E tests with interactive UI |
 | `npm run test:e2e:report` | Open the last Playwright HTML report |
@@ -186,7 +188,7 @@ movie-dash-v2/
 
 ## E2E Testing
 
-Playwright tests cover the full user journey across 7 suites (35 tests):
+Playwright tests cover the full user journey across 7 suites (40 tests):
 
 - **Dashboard** — layout, search, language/genre filters, empty state, drawer, CSV export, sorting, pagination, collapse panel
 - **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title updates
@@ -221,8 +223,8 @@ The Express server exposes:
 
 | Endpoint | Description |
 |---|---|
-| `GET /health` | Returns server status and loaded movie count |
-| `GET /movies` | Returns all movies as a JSON array |
+| `GET /health` | Returns server status (`ok` / `loading`) and loaded movie count |
+| `GET /movies` | Returns all movies as a JSON array (`503` while the CSV is still loading) |
 | `GET /movies/:id` | Returns a single movie by ID |
 
-In development, Vite proxies `/movies` requests to the Express server automatically (see `vite.config.ts`).
+Responses are gzip-compressed and `/movies` is cached with `Cache-Control: public, max-age=60`. In development, Vite proxies `/movies` requests to the Express server automatically (see `vite.config.ts`).
