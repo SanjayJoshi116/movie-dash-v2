@@ -25,6 +25,8 @@ src/movies.csv
 
 # misc
 .DS_Store
+Thumbs.db
+desktop.ini
 .env
 .env.local
 .env.development.local

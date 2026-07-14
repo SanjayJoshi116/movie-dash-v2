@@ -1,0 +1,31 @@
+MovieDash v2 — Feature List
+
+DASHBOARD
+- Searchable, filterable movie table (name, director, actor, genre, production company)
+- Multi-select language and genre filters
+- Year range and vote average range sliders
+- Filter state persisted across page refreshes (localStorage)
+- Sortable columns
+- Pagination (5 / 10 / 20 / 50 per page)
+- Row click opens detail drawer (full movie info, vote count, popularity score)
+- Export filtered results to CSV
+
+STATISTICS (6 tabs)
+- Overview: animated stat cards (total movies, avg/longest/shortest runtime, total watch time in minutes/hours/days/years), movies by language, movies per year
+- People: top 15 actors, top 15 directors, movies by production company
+- Ratings: vote distribution, avg vote by language (radar), avg vote by genre
+- Runtime & Geography: movies by country & genre (polar area), avg vote by runtime bucket, top 50 longest films
+- Box Office: top 20 highest-grossing films, top 20 highest-budget films, avg revenue by genre
+- Explore: genre distribution, year x genre heatmap, Top 10 Explorer (highest rated / longest / most recent / oldest / most popular)
+
+THEME
+- Light / dark toggle, preference persisted to localStorage
+- Glassmorphism design system via CSS custom properties
+
+BACKEND / DATA
+- Express API serving movie data from a local CSV (gzip-compressed, cached)
+- CSV template + TMDB API sourcing guide included
+
+QUALITY
+- ESLint (typescript-eslint, react-hooks, unused-imports)
+- 40 Playwright E2E tests across 7 suites

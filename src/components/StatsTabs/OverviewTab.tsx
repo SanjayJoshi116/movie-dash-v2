@@ -60,7 +60,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
     if (longestRuntime  > 0) animate('longestRuntime', longestRuntime);
     if (shortestRuntime > 0) animate('shortestRuntime', shortestRuntime);
     if (totalTimeSpent  > 0) animate('totalTimeSpent', Math.round(totalTimeSpent));
-    return () => { Object.values(intervalsRef.current).forEach(clearInterval); };
+    return () => {
+      Object.values(intervalsRef.current).forEach(clearInterval);
+      prevTargetsRef.current = null;
+    };
   }, [totalMovies, avgRuntime, longestRuntime, shortestRuntime, totalTimeSpent]);
 
   const languageBarData = useMemo<ChartData<'bar'>>(() => {

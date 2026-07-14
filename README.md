@@ -228,3 +228,9 @@ The Express server exposes:
 | `GET /movies/:id` | Returns a single movie by ID |
 
 Responses are gzip-compressed and `/movies` is cached with `Cache-Control: public, max-age=60`. In development, Vite proxies `/movies` requests to the Express server automatically (see `vite.config.ts`).
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for release notes. See [features.txt](./features.txt) for a plain-text feature list, and [CLAUDE.md](./CLAUDE.md) for repo/architecture notes aimed at AI coding agents.
