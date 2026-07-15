@@ -3,6 +3,16 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.2] - 2026-07-15
+
+### Added
+- `movie-search.py` — Tkinter GUI to search TMDB by movie/actor name and language, then append picked results straight to `src/movies.csv`. Handles pagination, retries, and duplicate detection.
+- `requirements.txt` — `requests`, `python-dotenv` for the search script.
+- `.env.example` — placeholder for `TMDB_API_KEY`.
+
+### Security
+- `movie-search.py` reads `TMDB_API_KEY` from a local `.env` (via `python-dotenv`) instead of a hardcoded key; script now exits with a clear error if the var isn't set. `.env` was already covered by `.gitignore`.
+
 ## [0.1.1] - 2026-07-14
 
 ### Fixed

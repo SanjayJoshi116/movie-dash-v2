@@ -25,6 +25,7 @@ THEME
 BACKEND / DATA
 - Express API serving movie data from a local CSV (gzip-compressed, cached)
 - CSV template + TMDB API sourcing guide included
+- movie-search.py: Tkinter GUI to search TMDB (by movie or actor, language filter, pagination) and append picked results to src/movies.csv; TMDB_API_KEY read from .env (never hardcoded)
 
 QUALITY
 - ESLint (typescript-eslint, react-hooks, unused-imports)

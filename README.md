@@ -114,6 +114,18 @@ This project was populated using the [TMDB (The Movie Database) API](https://www
 
 `credits` and `keywords` require appending `append_to_response=credits,keywords` to the `/movie/{id}` request.
 
+#### Or use the included search tool
+
+`movie-search.py` is a small Tkinter GUI that does the above for you — search TMDB by movie or actor name, filter by language, and append picked results straight to `src/movies.csv`.
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env   # then set TMDB_API_KEY=<your key> in .env
+python movie-search.py
+```
+
+`.env` is gitignored — the key never gets hardcoded or committed.
+
 ### 3. Run
 
 ```bash
