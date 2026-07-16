@@ -1,11 +1,28 @@
 # MovieDash v2
 
-A full-stack movie analytics dashboard built with React 19, TypeScript, Vite, Ant Design, and Chart.js. Browse, filter, and explore a movie dataset through an interactive table and rich statistics visualisations — with a light/dark theme toggle.
+A full-stack movie analytics dashboard: a React frontend backed by an Express API, serving data from a local CSV. Browse, filter, and explore a movie dataset through an interactive table and rich statistics visualisations — with a light/dark theme toggle.
 
-![Dark mode](https://img.shields.io/badge/theme-dark%20%2F%20light-818cf8)
+[![CI](https://github.com/SanjayJoshi116/movie-dash-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/SanjayJoshi116/movie-dash-v2/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/SanjayJoshi116/movie-dash-v2)](./LICENSE)
 ![React](https://img.shields.io/badge/React-19-61dafb)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
+
+**Highlights:** 6 analytics tabs · Express API with gzip + caching · CSV export · 40 Playwright E2E tests · light/dark theme · filter state persisted to `localStorage`
+
+No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
+
+---
+
+## Screenshots
+
+| Dashboard | Statistics |
+|---|---|
+| ![Dashboard](./docs/screenshots/dashboard.png) | ![Statistics Overview](./docs/screenshots/stats-overview.png) |
+
+| Movie Detail Drawer | Mobile |
+|---|---|
+| ![Movie drawer](./docs/screenshots/movie-drawer.png) | ![Mobile view](./docs/screenshots/mobile.png) |
 
 ---
 
@@ -55,6 +72,8 @@ A full-stack movie analytics dashboard built with React 19, TypeScript, Vite, An
 
 ## Getting Started
 
+Requires **Node.js 20+**.
+
 ### 1. Install dependencies
 
 ```bash
@@ -85,9 +104,11 @@ Vote Count, Release Date
 
 A download button in the top bar also lets users grab the template directly from the running app.
 
+`src/movies.csv` is gitignored and read by the Express server at runtime — it isn't placed in `public/` because it's not a static asset the browser fetches directly; the frontend only ever sees it through the `/movies` API. Keeping it out of `public/` also keeps it out of the Vite production bundle.
+
 #### Where to get the data — TMDB API
 
-This project was populated using the [TMDB (The Movie Database) API](https://www.themoviedb.org/documentation/api), which is free for non-commercial use.
+This project was populated using the [TMDB (The Movie Database) API](https://www.themoviedb.org/documentation/api), which is free for non-commercial use. This product uses the TMDB API but is not endorsed or certified by TMDB — check [TMDB's terms of use](https://www.themoviedb.org/documentation/api/terms-of-use) before using fetched data beyond personal/non-commercial purposes.
 
 1. Create a free account at [themoviedb.org](https://www.themoviedb.org) and generate an API key under **Settings → API**.
 2. Use the [`/discover/movie`](https://developer.themoviedb.org/reference/discover-movie) endpoint to fetch movies in bulk, paginating through results.
@@ -116,12 +137,18 @@ This project was populated using the [TMDB (The Movie Database) API](https://www
 
 #### Or use the included search tool
 
-`movie-search.py` is a small Tkinter GUI that does the above for you — search TMDB by movie or actor name, filter by language, and append picked results straight to `src/movies.csv`.
+`movie-search.py` is a small Tkinter GUI that does the above for you — search TMDB by movie or actor name, filter by language, and append picked results straight to `src/movies.csv`. It checks `Movie ID` against existing rows first and skips (with a dialog) anything already in the CSV, so re-running a search is safe.
 
 ```bash
 pip install -r requirements.txt
 cp .env.example .env   # then set TMDB_API_KEY=<your key> in .env
 python movie-search.py
+```
+
+`.env.example` contains a single placeholder line:
+
+```
+TMDB_API_KEY=your_tmdb_api_key_here
 ```
 
 `.env` is gitignored — the key never gets hardcoded or committed.
@@ -138,14 +165,23 @@ Opens the frontend at **http://localhost:3000** and the API at **http://localhos
 
 ## Scripts
 
+### Development
 | Script | Description |
 |---|---|
 | `npm run dev` | Start Vite dev server + Express backend concurrently |
+| `npm run preview` | Preview the production build locally |
+
+### Build
+| Script | Description |
+|---|---|
 | `npm run build` | Type-check and build frontend for production (`dist/`) |
 | `npm run build:server` | Compile Express backend to `server/dist/` |
 | `npm run server:prod` | Run the compiled backend in production |
-| `npm run preview` | Preview the production build locally |
 | `npm run type-check` | Run TypeScript type checking without emitting files |
+
+### Testing
+| Script | Description |
+|---|---|
 | `npm run lint` | Run ESLint across the project |
 | `npm run test:e2e` | Run Playwright E2E tests (headless) |
 | `npm run test:e2e:ui` | Run Playwright E2E tests with interactive UI |
@@ -155,6 +191,12 @@ Opens the frontend at **http://localhost:3000** and the API at **http://localhos
 
 ## Project Structure
 
+React talks only to the Express API (`/movies`, `/movies/:id`, `/health`); the API is the sole reader of the CSV, so the frontend never touches the filesystem directly.
+
+```
+React (Vite, port 3000) → Express API (port 5000) → src/movies.csv → Chart.js / Ant Table
+```
+
 ```
 movie-dash-v2/
 ├── public/
@@ -162,7 +204,9 @@ movie-dash-v2/
 ├── server/
 │   └── server.ts               # Express API (port 5000)
 ├── tests/
-│   └── app.spec.ts             # Playwright E2E tests (35 tests)
+│   └── app.spec.ts             # Playwright E2E tests (40 tests)
+├── docs/
+│   └── screenshots/            # README screenshots
 ├── playwright.config.ts        # Playwright configuration
 ├── src/
 │   ├── contexts/
@@ -209,7 +253,9 @@ Playwright tests cover the full user journey across 7 suites (40 tests):
 - **Filter Persistence** — search filter survives route changes via localStorage
 - **Edge Cases** — combined filters, pagination, sort + filter combo
 
-### Run tests
+Tests run automatically on every push and pull request to `main` via GitHub Actions (see `.github/workflows/ci.yml`).
+
+### Run tests locally
 
 ```bash
 # Install browsers (first time only)
@@ -231,15 +277,59 @@ Tests require both the Vite frontend (port 3000) and Express backend (port 5000)
 
 ## API
 
-The Express server exposes:
+The Express server exposes JSON endpoints:
 
 | Endpoint | Description |
 |---|---|
-| `GET /health` | Returns server status (`ok` / `loading`) and loaded movie count |
-| `GET /movies` | Returns all movies as a JSON array (`503` while the CSV is still loading) |
-| `GET /movies/:id` | Returns a single movie by ID |
+| `GET /health` | `{ status: "ok" \| "loading", movies: <count> }` |
+| `GET /movies` | All movies as a JSON array. Returns `503 { error: "Data still loading" }` while the CSV is still being read on boot |
+| `GET /movies/:id` | A single movie by `Movie ID`. Returns `404 { error: "Movie not found" }` if no match |
 
 Responses are gzip-compressed and `/movies` is cached with `Cache-Control: public, max-age=60`. In development, Vite proxies `/movies` requests to the Express server automatically (see `vite.config.ts`).
+
+---
+
+## Performance
+
+- **gzip compression** on all API responses (`compression` middleware)
+- **HTTP caching** — `/movies` sent with `Cache-Control: public, max-age=60`
+- **Debounced search** — table search input debounced via `useDebounce` to avoid re-filtering on every keystroke
+- **Single fetch, shared context** — movie data fetched once in `MoviesContext` and reused across the dashboard and all stats tabs, not re-fetched per component
+- **Code splitting** — Vite production build splits vendor/chart bundles
+
+---
+
+## Deployment
+
+- **Frontend**: `npm run build` outputs a static `dist/` — deploy to any static host (Vercel, Netlify, GitHub Pages, S3 + CDN).
+- **Backend**: `npm run build:server` compiles the Express API to `server/dist/`; run it with `npm run server:prod` on any Node 20+ host (Render, Railway, a VPS, etc.). Point the frontend's API calls at the deployed backend URL, or serve both behind the same reverse proxy.
+- Neither is deployed anywhere by default — this is a local-first project (see [Live Demo note](#moviedash-v2) above).
+
+---
+
+## Roadmap
+
+Ideas under consideration, not commitments:
+
+- Pluggable data backend (SQLite/Postgres) as an alternative to CSV
+- Basic auth for multi-user deployments
+- Dockerfile / docker-compose for one-command setup
+- Bulk CSV import/export improvements in `movie-search.py`
+
+---
+
+## Contributing
+
+1. Fork the repo and create a branch off `main`.
+2. Make your changes, keeping with the existing code style (`npm run lint`).
+3. Run `npm run lint` and `npm run test:e2e` before opening a PR.
+4. Open a PR describing the change and why.
+
+---
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
 
 ---
 

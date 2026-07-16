@@ -25,8 +25,16 @@ Guidance for Claude Code (or any AI agent) working in this repo.
 ## Data
 - `src/movies.csv` is gitignored and never committed — it's the user's own dataset (TMDB-sourced, see README). It won't exist in a fresh checkout.
 - `public/movies.template.csv` is the committed template — copy it to `src/movies.csv` to get a working local dataset (a handful of rows) for dev/testing.
-- If `src/movies.csv` is missing, `server/server.ts` degrades gracefully (empty dataset, `ready: true`, no crash) — but Playwright e2e tests hard-require real rows (`tests/app.spec.ts` waits on `.ant-table-row`), so e2e will fail without a populated CSV. Don't add e2e to CI without a committed fixture dataset.
-- `movie-search.py` (Tkinter GUI, `pip install -r requirements.txt`) is an optional tool to search TMDB and append rows to `src/movies.csv` directly. It reads `TMDB_API_KEY` from `.env` via `python-dotenv` — never hardcode the key back into the script; `.env` is gitignored, `.env.example` is the committed placeholder.
+- If `src/movies.csv` is missing, `server/server.ts` degrades gracefully (empty dataset, `ready: true`, no crash) — but Playwright e2e tests hard-require real rows (`tests/app.spec.ts` waits on `.ant-table-row`), so e2e will fail without a populated CSV. `.github/workflows/ci.yml` seeds it from `public/movies.template.csv` before running e2e.
+- `movie-search.py` (Tkinter GUI, `pip install -r requirements.txt`) is an optional tool to search TMDB and append rows to `src/movies.csv` directly. It reads `TMDB_API_KEY` from `.env` via `python-dotenv` — never hardcode the key back into the script; `.env` is gitignored, `.env.example` is the committed placeholder. It skips (doesn't update) rows whose `Movie ID` already exists in the CSV.
+
+## CI
+- `.github/workflows/ci.yml` runs on push/PR to `main`: `npm ci` → lint → build → seed `src/movies.csv` from `public/movies.template.csv` → `npm run test:e2e`.
+- Lint currently fails on pre-existing `@typescript-eslint/no-explicit-any` errors in `src/components/Charts/MatrixChart.tsx:95` — unrelated tech debt, not yet fixed. Expect the CI lint step red until that's addressed.
+
+## Other repo files
+- `LICENSE` — MIT.
+- `docs/screenshots/` — images embedded in `README.md`; regenerate with a throwaway Playwright script against a running `npm run dev` if the UI changes meaningfully (see git history for the pattern used).
 
 ## Known gotchas
 - **StrictMode double-invoke + ref-gated effects.** `React.StrictMode` (enabled in `src/main.tsx`) mounts, cleans up, and remounts effects once in dev. Any effect that uses a ref to skip re-running "if nothing changed" (e.g. the stat-card count-up animation in `src/components/StatsTabs/OverviewTab.tsx`) must reset that ref in its cleanup function, or the synchronous remount will see "unchanged" and silently no-op — intervals/animations get cleared but never restarted. If you add a similar animated-counter or ref-gated effect elsewhere, apply the same pattern: clear the ref in cleanup.

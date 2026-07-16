@@ -30,3 +30,5 @@ BACKEND / DATA
 QUALITY
 - ESLint (typescript-eslint, react-hooks, unused-imports)
 - 40 Playwright E2E tests across 7 suites
+- GitHub Actions CI: lint + build + e2e on push/PR to main
+- MIT licensed
