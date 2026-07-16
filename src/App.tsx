@@ -1,6 +1,6 @@
 import React, { Suspense, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Result, Button, Spin, ConfigProvider, theme as antdTheme } from 'antd';
+import { Layout, Result, Button, Spin, ConfigProvider, Grid, theme as antdTheme } from 'antd';
 import { MoviesProvider } from './contexts/MoviesContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import Sidebar from './components/Sidebar';
@@ -46,6 +46,13 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { isDark } = useTheme();
+  const screens = Grid.useBreakpoint();
+  const [prevMd, setPrevMd] = useState(screens.md);
+
+  if (screens.md !== prevMd) {
+    setPrevMd(screens.md);
+    setCollapsed(!screens.md);
+  }
 
   return (
     <ConfigProvider

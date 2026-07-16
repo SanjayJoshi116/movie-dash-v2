@@ -35,6 +35,7 @@ No hosted demo — this project runs locally against your own CSV dataset. See [
 - Sortable columns, pagination (5 / 10 / 20 / 50 per page)
 - Click any row to open a detail drawer with full movie info, vote count, and popularity score
 - Export filtered results to CSV
+- Sidebar auto-collapses to icon rail below 768px (Ant Design `md` breakpoint); manual toggle still works within a breakpoint
 
 ### Statistics — 6 tabs
 | Tab | Contents |

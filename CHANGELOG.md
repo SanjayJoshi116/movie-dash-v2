@@ -3,6 +3,11 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] - 2026-07-16
+
+### Fixed
+- Mobile/narrow-viewport layout — `Sidebar` now auto-collapses to icon rail below 768px via Ant Design's `Grid.useBreakpoint()`, instead of staying expanded and squeezing the table unusably narrow. Manual collapse toggle still works within a breakpoint. Implemented as a render-phase state sync (not a `useEffect`) to satisfy `eslint-plugin-react-hooks`'s `react-hooks/set-state-in-effect` rule. (`src/App.tsx`)
+
 ## [0.2.0] - 2026-07-16
 
 ### Added

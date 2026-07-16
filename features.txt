@@ -9,6 +9,7 @@ DASHBOARD
 - Pagination (5 / 10 / 20 / 50 per page)
 - Row click opens detail drawer (full movie info, vote count, popularity score)
 - Export filtered results to CSV
+- Sidebar auto-collapses below 768px viewport width (Ant Design breakpoint hook), manual toggle still works
 
 STATISTICS (6 tabs)
 - Overview: animated stat cards (total movies, avg/longest/shortest runtime, total watch time in minutes/hours/days/years), movies by language, movies per year
