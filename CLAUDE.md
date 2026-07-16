@@ -30,7 +30,6 @@ Guidance for Claude Code (or any AI agent) working in this repo.
 
 ## CI
 - `.github/workflows/ci.yml` runs on push/PR to `main`: `npm ci` → lint → build → seed `src/movies.csv` from `public/movies.template.csv` → `npm run test:e2e`.
-- Lint currently fails on pre-existing `@typescript-eslint/no-explicit-any` errors in `src/components/Charts/MatrixChart.tsx:95` — unrelated tech debt, not yet fixed. Expect the CI lint step red until that's addressed.
 
 ## Other repo files
 - `LICENSE` — MIT.

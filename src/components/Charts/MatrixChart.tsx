@@ -1,7 +1,7 @@
 import React from 'react';
 import { Chart } from 'react-chartjs-2';
 import { Chart as ChartJS } from 'chart.js';
-import type { TooltipItem } from 'chart.js';
+import type { TooltipItem, ChartData, ChartOptions } from 'chart.js';
 import { MatrixController, MatrixElement } from 'chartjs-chart-matrix';
 
 ChartJS.register(MatrixController, MatrixElement);
@@ -92,7 +92,11 @@ const MatrixChart: React.FC<MatrixChartProps> = ({ data, xLabels, yLabels, heigh
 
   return (
     <div style={{ height }}>
-      <Chart type={'matrix' as any} data={chartData as any} options={options as any} />
+      <Chart
+        type={'matrix' as unknown as 'bar'}
+        data={chartData as unknown as ChartData<'bar'>}
+        options={options as unknown as ChartOptions<'bar'>}
+      />
     </div>
   );
 };

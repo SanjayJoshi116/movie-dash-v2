@@ -12,8 +12,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `engines.node` (`>=20`) in `package.json`.
 - README overhaul: real CI/license badges, Highlights section, screenshots, no-hosted-demo note, `src/` vs `public/` rationale for `movies.csv`, TMDB attribution note, corrected `movie-search.py` duplicate-handling docs (skips, doesn't update), grouped Scripts table, architecture diagram, documented API error responses (`404`/`503`), Performance/Deployment/Contributing/Roadmap sections.
 
-### Known issues
-- `npm run lint` fails on pre-existing `@typescript-eslint/no-explicit-any` errors in `src/components/Charts/MatrixChart.tsx` — predates this release, not yet fixed; the new CI workflow's lint step will be red until addressed.
+### Fixed
+- `src/components/Charts/MatrixChart.tsx` — replaced three `as any` casts (flagged by the new CI lint step) with `as unknown as <ConcreteType>` per the pattern in `CLAUDE.md`, since `chartjs-chart-matrix`'s `'matrix'` type isn't in Chart.js's base type registry.
 
 ## [0.1.2] - 2026-07-15
 
