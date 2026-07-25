@@ -28,6 +28,8 @@ No hosted demo — this project runs locally against your own CSV dataset. See [
 
 ## Features
 
+Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`, `/stats`) rather than one crowded screen — a landing summary, the filterable catalogue, and deep-dive analytics each get their own layout and loading state instead of competing for space. All three, plus every other breakpoint-dependent element (sidebar/bottom-nav, drawer widths, table columns), are responsive via Ant Design's `Grid.useBreakpoint()` — see [Known gotchas](./CLAUDE.md#known-gotchas) for why there are no `@media` queries in the codebase.
+
 ### Dashboard (`/`)
 - Landing summary: stat cards (total movies, average rating, average runtime, total box office)
 - Highlight cards — top rated, most popular, newest release
@@ -59,6 +61,10 @@ No hosted demo — this project runs locally against your own CSV dataset. See [
 - Light / dark toggle (sun/moon button in the top bar)
 - Preference persisted to `localStorage`
 - Glassmorphism design system with CSS custom properties
+
+### Accessibility
+- Table rows and grid cards are keyboard-operable (`Tab` to focus, `Enter`/`Space` to activate) with `role="button"` and `aria-label`s, not click-only
+- Semantic headings (`<Title>`) per page instead of relying on the top bar for page identity
 
 ---
 
@@ -200,7 +206,7 @@ Opens the frontend at **http://localhost:3000** and the API at **http://localhos
 
 ## Project Structure
 
-React talks only to the Express API (`/api/movies`, `/api/movies/:id`, `/api/health`); the API is the sole reader of the CSV, so the frontend never touches the filesystem directly.
+React talks only to the Express API (`/api/movies`, `/api/movies/:id`, `/api/health`); the API is the sole reader of the CSV, so the frontend never touches the filesystem directly. `MoviesContext` and `ThemeContext` (both under `src/contexts/`) plus the shared hooks in `src/hooks/` keep data-fetching, theme, and filter-persistence logic in one place rather than duplicated per component.
 
 ```
 React (Vite, port 3000) → Express API (port 5000) → src/movies.csv → Chart.js / Ant Table
@@ -295,7 +301,7 @@ Tests require both the Vite frontend (port 3000) and Express backend (port 5000)
 
 ## API
 
-The Express server exposes JSON endpoints:
+The Express server exposes JSON endpoints — every response, success or error, is a JSON body:
 
 | Endpoint | Description |
 |---|---|
@@ -309,7 +315,7 @@ Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: p
 
 ## Security
 
-- **`helmet()`** sets standard security headers on every response.
+- **`helmet()`** sets standard security headers on every response, using its default policy (no per-directive customization).
 - **Rate limiting** — `/api/*` is capped at 300 requests/minute per client (`express-rate-limit`); over the limit returns `429`.
 - **CORS allowlist** — only `CLIENT_ORIGIN` (env var, defaults to `http://localhost:3000`) may call the API cross-origin, instead of an open `cors()` reflecting any origin. Set `CLIENT_ORIGIN` to your deployed frontend's URL in production.
 - **Input validation** — `Movie ID` route params are length-checked before use.
@@ -324,6 +330,7 @@ Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: p
 - **HTTP caching** — `/movies` sent with `Cache-Control: public, max-age=60`
 - **Debounced search** — table search input debounced via `useDebounce` to avoid re-filtering on every keystroke
 - **Single fetch, shared context** — movie data fetched once in `MoviesContext` and reused across the dashboard and all stats tabs, not re-fetched per component
+- **Memoization** — derived data (filtered/sorted movie lists, chart datasets, stat aggregations) computed with `useMemo` throughout, so expensive recalculation only happens when the underlying movies or filters actually change
 - **Code splitting** — Vite production build splits vendor/chart bundles
 
 ---
@@ -332,6 +339,7 @@ Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: p
 
 - **Frontend**: `npm run build` outputs a static `dist/` — deploy to any static host (Vercel, Netlify, GitHub Pages, S3 + CDN).
 - **Backend**: `npm run build:server` compiles the Express API to `server/dist/`; run it with `npm run server:prod` on any Node 20+ host (Render, Railway, a VPS, etc.). Point the frontend's API calls at the deployed backend URL, or serve both behind the same reverse proxy.
+- **Environment variables** (backend, both optional): `PORT` (defaults `5000`) and `CLIENT_ORIGIN` (defaults `http://localhost:3000`) — set `CLIENT_ORIGIN` to your deployed frontend's origin, or the CORS allowlist in [Security](#security) will reject it.
 - Neither is deployed anywhere by default — this is a local-first project (see [Live Demo note](#moviedash-v2) above).
 
 ---
@@ -364,4 +372,4 @@ MIT — see [LICENSE](./LICENSE).
 
 ## Changelog
 
-See [CHANGELOG.md](./CHANGELOG.md) for release notes. See [features.txt](./features.txt) for a plain-text feature list, and [CLAUDE.md](./CLAUDE.md) for repo/architecture notes aimed at AI coding agents.
+`package.json` version follows [Semantic Versioning](https://semver.org/). See [CHANGELOG.md](./CHANGELOG.md) for release notes. See [features.txt](./features.txt) for a plain-text feature list, and [CLAUDE.md](./CLAUDE.md) for repo/architecture notes aimed at AI coding agents.
