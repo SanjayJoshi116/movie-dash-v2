@@ -10,6 +10,7 @@ import ScrollToTop from './components/ScrollToTop';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const Stats = React.lazy(() => import('./pages/Stats'));
+const Movies = React.lazy(() => import('./pages/Movies'));
 
 const PageLoader: React.FC = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
@@ -20,7 +21,8 @@ const PageLoader: React.FC = () => (
 const { Content } = Layout;
 
 const PAGE_TITLES: Record<string, string> = {
-  '/': 'Admin Dashboard',
+  '/': 'Dashboard',
+  '/movies': 'Movies',
   '/stats': 'Statistics Dashboard',
 };
 
@@ -100,6 +102,7 @@ const AppContent: React.FC = () => {
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
+                  <Route path="/movies" element={<Movies />} />
                   <Route path="/stats" element={<Stats />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>

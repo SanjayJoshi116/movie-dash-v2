@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layout, Menu } from 'antd';
-import { DashboardOutlined, BarChartOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { DashboardOutlined, BarChartOutlined, PlayCircleOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import type { MenuProps } from 'antd';
@@ -25,6 +25,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
       label: <Link to="/">Dashboard</Link>,
     },
     {
+      key: '/movies',
+      icon: <UnorderedListOutlined />,
+      label: <Link to="/movies">Movies</Link>,
+    },
+    {
       key: '/stats',
       icon: <BarChartOutlined />,
       label: <Link to="/stats">Stats</Link>,
@@ -44,6 +49,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
         minHeight: '100vh',
         borderRight: '1px solid var(--glass-border)',
         boxShadow: 'var(--glass-shadow)',
+        position: 'sticky',
+        top: 0,
+        left: 0,
+        alignSelf: 'flex-start',
       }}
       theme={isDark ? 'dark' : 'light'}
     >

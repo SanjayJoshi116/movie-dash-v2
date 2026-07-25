@@ -8,7 +8,7 @@ A full-stack movie analytics dashboard: a React frontend backed by an Express AP
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
 
-**Highlights:** 6 analytics tabs · Express API with gzip + caching · CSV export · 40 Playwright E2E tests · light/dark theme · filter state persisted to `localStorage`
+**Highlights:** Table/grid movie catalogue · 6 analytics tabs · Express API with gzip + caching · CSV export · 46 Playwright E2E tests · light/dark theme · filter state persisted to `localStorage`
 
 No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
 
@@ -28,12 +28,19 @@ No hosted demo — this project runs locally against your own CSV dataset. See [
 
 ## Features
 
-### Dashboard
-- Searchable, filterable movie table (name, director, actor, genre, production company)
-- Multi-select language and genre filters, year range and vote average sliders
+### Dashboard (`/`)
+- Landing summary: stat cards (total movies, average rating, average runtime, total box office)
+- Highlight cards — top rated, most popular, newest release
+- CTA cards linking through to Movies and Stats
+
+### Movies (`/movies`)
+- Table or grid view, toggled with a `Segmented` control — grid shows poster-style cards, table is the dense sortable list
+- Searchable, filterable catalogue (name, director, actor, genre, production company)
+- Multi-select language, genre, and director filters; year, vote average, runtime, and box-office revenue range sliders
+- Removable filter chips summarising every active filter, plus a one-click reset
 - Filter state persisted across page refreshes (localStorage)
-- Sortable columns, pagination (5 / 10 / 20 / 50 per page)
-- Click any row to open a detail drawer with full movie info, vote count, and popularity score
+- Sortable columns, pagination (5 / 10 / 20 / 50 per page) in table view
+- Click any row/card to open a detail drawer with full movie info, vote count, and popularity score
 - Export filtered results to CSV
 - Sidebar auto-collapses to icon rail below 768px (Ant Design `md` breakpoint); manual toggle still works within a breakpoint
 
@@ -66,7 +73,7 @@ No hosted demo — this project runs locally against your own CSV dataset. See [
 | HTTP | Axios |
 | Backend | Express.js (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
-| Testing | Playwright (40 E2E tests) |
+| Testing | Playwright (46 E2E tests) |
 | Linting | ESLint (typescript-eslint, react-hooks, unused-imports) |
 
 ---
@@ -105,7 +112,7 @@ Vote Count, Release Date
 
 A download button in the top bar also lets users grab the template directly from the running app.
 
-`src/movies.csv` is gitignored and read by the Express server at runtime — it isn't placed in `public/` because it's not a static asset the browser fetches directly; the frontend only ever sees it through the `/movies` API. Keeping it out of `public/` also keeps it out of the Vite production bundle.
+`src/movies.csv` is gitignored and read by the Express server at runtime — it isn't placed in `public/` because it's not a static asset the browser fetches directly; the frontend only ever sees it through the `/api/movies` API. Keeping it out of `public/` also keeps it out of the Vite production bundle.
 
 #### Where to get the data — TMDB API
 
@@ -192,7 +199,7 @@ Opens the frontend at **http://localhost:3000** and the API at **http://localhos
 
 ## Project Structure
 
-React talks only to the Express API (`/movies`, `/movies/:id`, `/health`); the API is the sole reader of the CSV, so the frontend never touches the filesystem directly.
+React talks only to the Express API (`/api/movies`, `/api/movies/:id`, `/api/health`); the API is the sole reader of the CSV, so the frontend never touches the filesystem directly.
 
 ```
 React (Vite, port 3000) → Express API (port 5000) → src/movies.csv → Chart.js / Ant Table
@@ -205,7 +212,7 @@ movie-dash-v2/
 ├── server/
 │   └── server.ts               # Express API (port 5000)
 ├── tests/
-│   └── app.spec.ts             # Playwright E2E tests (40 tests)
+│   └── app.spec.ts             # Playwright E2E tests (46 tests)
 ├── docs/
 │   └── screenshots/            # README screenshots
 ├── playwright.config.ts        # Playwright configuration
@@ -222,11 +229,13 @@ movie-dash-v2/
 │   │   ├── TopBar.tsx          # Theme toggle + download template button
 │   │   ├── FiltersPanel.tsx
 │   │   ├── MovieTable.tsx
+│   │   ├── MovieCardGrid.tsx
 │   │   ├── MovieDrawer.tsx
 │   │   ├── StatCard.tsx
 │   │   └── TopNExplorer.tsx
 │   ├── pages/
-│   │   ├── Dashboard.tsx
+│   │   ├── Dashboard.tsx       # landing page: stat cards, highlights, CTAs
+│   │   ├── Movies.tsx          # filterable table/grid catalogue
 │   │   └── Stats.tsx
 │   ├── utils/
 │   │   ├── chartTheme.ts       # Shared palette + getCardStyle(isDark)
@@ -245,9 +254,10 @@ movie-dash-v2/
 
 ## E2E Testing
 
-Playwright tests cover the full user journey across 7 suites (40 tests):
+Playwright tests cover the full user journey across 7 suites (46 tests):
 
-- **Dashboard** — layout, search, language/genre filters, empty state, drawer, CSV export, sorting, pagination, collapse panel
+- **Dashboard** — layout, highlight cards, CTA navigation to Movies/Stats
+- **Movies** — layout, table/grid toggle, drawer from row and card, search, language/genre filters, empty state, clear/reset, active-filter indicator, sorting, pagination, page size, filter panel collapse, CSV export
 - **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title updates
 - **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence
 - **Theme** — default dark, toggle to light, reload persistence
@@ -282,11 +292,11 @@ The Express server exposes JSON endpoints:
 
 | Endpoint | Description |
 |---|---|
-| `GET /health` | `{ status: "ok" \| "loading", movies: <count> }` |
-| `GET /movies` | All movies as a JSON array. Returns `503 { error: "Data still loading" }` while the CSV is still being read on boot |
-| `GET /movies/:id` | A single movie by `Movie ID`. Returns `404 { error: "Movie not found" }` if no match |
+| `GET /api/health` | `{ status: "ok" \| "loading", movies: <count> }` |
+| `GET /api/movies` | All movies as a JSON array. Returns `503 { error: "Data still loading" }` while the CSV is still being read on boot |
+| `GET /api/movies/:id` | A single movie by `Movie ID`. Returns `404 { error: "Movie not found" }` if no match |
 
-Responses are gzip-compressed and `/movies` is cached with `Cache-Control: public, max-age=60`. In development, Vite proxies `/movies` requests to the Express server automatically (see `vite.config.ts`).
+Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: public, max-age=60`. Routes live under `/api` so Vite's dev proxy can forward API calls to Express without colliding with the client-side `/movies` route — a bare `/movies` proxy prefix would intercept the browser's SPA navigation and return raw JSON instead. In development, Vite proxies `/api` requests to the Express server automatically (see `vite.config.ts`).
 
 ---
 

@@ -1,15 +1,22 @@
 MovieDash v2 — Feature List
 
-DASHBOARD
-- Searchable, filterable movie table (name, director, actor, genre, production company)
-- Multi-select language and genre filters
-- Year range and vote average range sliders
+DASHBOARD (/)
+- Landing summary: stat cards (total movies, average rating, average runtime, total box office)
+- Highlight cards: top rated, most popular, newest release
+- CTA cards linking to Movies and Stats
+
+MOVIES (/movies)
+- Table or grid view via Segmented toggle (grid = card layout, table = dense sortable list)
+- Searchable, filterable movie catalogue (name, director, actor, genre, production company)
+- Multi-select language, genre, and director filters
+- Year range, vote average range, runtime range, and box-office revenue range sliders
+- Removable filter chips summarizing active filters, one-click reset
 - Filter state persisted across page refreshes (localStorage)
-- Sortable columns
-- Pagination (5 / 10 / 20 / 50 per page)
-- Row click opens detail drawer (full movie info, vote count, popularity score)
+- Sortable columns (table view)
+- Pagination (5 / 10 / 20 / 50 per page, table view)
+- Row/card click opens detail drawer (full movie info, vote count, popularity score)
 - Export filtered results to CSV
-- Sidebar auto-collapses below 768px viewport width (Ant Design breakpoint hook), manual toggle still works
+- Sidebar auto-collapses below 768px viewport width (Ant Design breakpoint hook), manual toggle still works; sidebar sticky-positioned
 
 STATISTICS (6 tabs)
 - Overview: animated stat cards (total movies, avg/longest/shortest runtime, total watch time in minutes/hours/days/years), movies by language, movies per year
@@ -24,12 +31,13 @@ THEME
 - Glassmorphism design system via CSS custom properties
 
 BACKEND / DATA
-- Express API serving movie data from a local CSV (gzip-compressed, cached)
+- Express API under /api (gzip-compressed, cached) serving movie data from a local CSV
+- /api prefix keeps Vite dev proxy from colliding with client-side routes like /movies
 - CSV template + TMDB API sourcing guide included
 - movie-search.py: Tkinter GUI to search TMDB (by movie or actor, language filter, pagination) and append picked results to src/movies.csv; TMDB_API_KEY read from .env (never hardcoded)
 
 QUALITY
 - ESLint (typescript-eslint, react-hooks, unused-imports)
-- 40 Playwright E2E tests across 7 suites
+- 46 Playwright E2E tests across 7 suites
 - GitHub Actions CI: lint + build + e2e on push/PR to main
 - MIT licensed

@@ -32,7 +32,7 @@ export const MoviesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const controller = new AbortController();
 
     axios
-      .get<Movie[]>('/movies', { signal: controller.signal })
+      .get<Movie[]>('/api/movies', { signal: controller.signal })
       .then((response) => {
         setMovies(response.data);
         setLoading(false);

@@ -5,7 +5,7 @@ Guidance for Claude Code (or any AI agent) working in this repo.
 ## Stack
 - Frontend: React 19, TypeScript, Vite 6, Ant Design v5, Chart.js 4 (+ react-chartjs-2, chartjs-chart-matrix), Framer Motion, React Router v7.
 - Backend: Express (TypeScript, run via `tsx`), serves movie data from a local CSV via `csv-parser`.
-- Testing: Playwright E2E (`tests/app.spec.ts`, 40 tests, 7 suites).
+- Testing: Playwright E2E (`tests/app.spec.ts`, 46 tests, 7 suites).
 - Lint: ESLint (`eslint.config.mjs` — typescript-eslint, react-hooks, unused-imports).
 
 ## Commands
@@ -17,10 +17,11 @@ Guidance for Claude Code (or any AI agent) working in this repo.
 ## Architecture
 - `src/contexts/MoviesContext.tsx` — single source of truth for movie data; fetched once at app root via `useMoviesContext`/`useMovies`. Don't re-fetch per component.
 - `src/contexts/ThemeContext.tsx` — light/dark theme, persisted to `localStorage`.
+- `src/pages/Dashboard.tsx` (`/`) is a summary landing page (stat cards, highlights, CTAs) — the filterable table/grid catalogue lives at `src/pages/Movies.tsx` (`/movies`). `FilterState` (`src/types/movie.ts`) now also carries `directors`, `runtimeRange`, `revenueRange` alongside search/languages/genres/year/vote. `src/components/MovieCardGrid.tsx` is the card-grid alternative to `MovieTable.tsx`, toggled via `Segmented` on the Movies page.
 - `src/components/StatsTabs/*` — one component per Stats tab (Overview, People, Ratings, Runtime, BoxOffice, Explore), composed in `src/pages/Stats.tsx`.
 - `src/components/Charts/*` — thin theme-aware wrappers around Chart.js chart types.
 - `src/utils/statsHelpers.ts` — `groupByField`, revenue parsing/formatting helpers reused across stat tabs.
-- `server/server.ts` — Express API (`/health`, `/movies`, `/movies/:id`), reads `src/movies.csv` on boot, gzip + cache headers.
+- `server/server.ts` — Express API (`/api/health`, `/api/movies`, `/api/movies/:id`), reads `src/movies.csv` on boot, gzip + cache headers. Routes live under `/api` specifically so Vite's dev proxy (`vite.config.ts`, `/api` → `localhost:5000`) can't collide with client-side routes like `/movies` — a bare `/movies` proxy prefix would intercept the browser's page navigation to that route and return raw JSON instead of the SPA.
 
 ## Data
 - `src/movies.csv` is gitignored and never committed — it's the user's own dataset (TMDB-sourced, see README). It won't exist in a fresh checkout.

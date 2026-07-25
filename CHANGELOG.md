@@ -3,6 +3,19 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] - 2026-07-25
+
+### Added
+- `src/pages/Movies.tsx` (`/movies`) — the filterable catalogue split out of `Dashboard`, with a table/grid view toggle (`Segmented`). `src/components/MovieCardGrid.tsx` is the new card-grid view, alongside the existing `MovieTable`.
+- Director multi-select filter, runtime range slider, and box-office revenue range slider in `FiltersPanel`, plus removable chips summarizing every active filter. `FilterState` (`src/types/movie.ts`) gained `directors`, `runtimeRange`, `revenueRange`.
+- Sidebar gained a "Movies" nav entry; sidebar is now sticky-positioned.
+- 6 new Playwright tests (40 → 46) covering the Movies page split, table/grid toggle, and drawer-from-card.
+
+### Changed
+- `Dashboard.tsx` (`/`) is now a landing summary — stat cards, top-rated/most-popular/newest highlight cards, and CTA cards to Movies/Stats — instead of hosting the movie table directly.
+- Express API routes moved under `/api` (`/api/health`, `/api/movies`, `/api/movies/:id`) so Vite's dev proxy can't collide with the client-side `/movies` route. `vite.config.ts` proxy and `MoviesContext`'s fetch updated to match.
+- `vite.config.ts` dev server now binds with `host: true` (LAN-accessible during dev).
+
 ## [0.2.1] - 2026-07-16
 
 ### Fixed

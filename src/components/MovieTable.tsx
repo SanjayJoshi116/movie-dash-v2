@@ -1,10 +1,8 @@
 import React from 'react';
-import { Table, Empty, Button } from 'antd';
-import { DownloadOutlined } from '@ant-design/icons';
+import { Table, Empty } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { Movie } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
-import { exportMoviesToCsv } from '../utils/exportCsv';
 
 interface MovieTableProps {
   movies: Movie[];
@@ -87,34 +85,6 @@ const columns: ColumnsType<Movie> = [
 const MovieTable: React.FC<MovieTableProps> = ({ movies, onRowClick }) => {
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 16,
-          padding: '16px 24px',
-          background: 'var(--filters-bg)',
-          borderRadius: 12,
-          border: '1px solid var(--filters-border)',
-          boxShadow: 'var(--glass-shadow)',
-        }}
-      >
-        <span style={{ color: 'var(--text-primary)', fontSize: 24, fontWeight: 700, letterSpacing: 1 }}>
-          🎬 Movie List
-        </span>
-        <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-          Click a row to view details
-        </span>
-        <Button
-          icon={<DownloadOutlined />}
-          size="small"
-          disabled={movies.length === 0}
-          onClick={() => exportMoviesToCsv(movies, `movies-filtered-${movies.length}.csv`)}
-        >
-          Export CSV
-        </Button>
-      </div>
       <Table<Movie>
         dataSource={movies}
         columns={columns}

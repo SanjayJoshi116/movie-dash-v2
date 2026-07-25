@@ -21,8 +21,11 @@ export interface FilterState {
   search: string;
   languages: string[];
   genres: string[];
+  directors: string[];
   yearRange: [number, number] | null;
   voteRange: [number, number] | null;
+  runtimeRange: [number, number] | null;
+  revenueRange: [number, number] | null;
 }
 
 export interface StatsCounters {

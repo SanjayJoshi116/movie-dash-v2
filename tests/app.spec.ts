@@ -13,6 +13,36 @@ async function waitForStats(page: Page) {
 test.describe('Dashboard', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
+    await page.waitForSelector('.ant-layout-sider');
+  });
+
+  test('layout renders — header, sidebar, stat cards, highlights', async ({ page }) => {
+    await expect(page.locator('.ant-layout-sider')).toBeVisible();
+    await expect(page.locator('.ant-layout-header')).toBeVisible();
+    await expect(page.getByText('Total Movies')).toBeVisible();
+    await expect(page.getByText('Highlights')).toBeVisible();
+  });
+
+  test('highlight cards show top rated, most popular, newest', async ({ page }) => {
+    await expect(page.getByText('Top Rated')).toBeVisible();
+    await expect(page.getByText('Most Popular')).toBeVisible();
+    await expect(page.getByText('Newest Release')).toBeVisible();
+  });
+
+  test('CTA buttons navigate to Movies and Stats', async ({ page }) => {
+    await page.getByRole('button', { name: 'Go to Movies' }).click();
+    await expect(page).toHaveURL('/movies');
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Go to Stats' }).click();
+    await expect(page).toHaveURL('/stats');
+  });
+});
+
+// ── Movies ─────────────────────────────────────────────────────────────────
+
+test.describe('Movies', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/movies');
     await waitForTable(page);
   });
 
@@ -21,6 +51,23 @@ test.describe('Dashboard', () => {
     await expect(page.locator('.ant-layout-header')).toBeVisible();
     await expect(page.getByText('🎬 Movie List')).toBeVisible();
     await expect(page.locator('.ant-table')).toBeVisible();
+  });
+
+  test('table/grid toggle switches view', async ({ page }) => {
+    await expect(page.locator('.ant-table')).toBeVisible();
+    await page.getByText('Grid', { exact: true }).click();
+    await expect(page.locator('.ant-table')).not.toBeVisible();
+    await expect(page.locator('.ant-card').first()).toBeVisible();
+    await page.getByText('Table', { exact: true }).click();
+    await expect(page.locator('.ant-table')).toBeVisible();
+  });
+
+  test('grid card click opens drawer with movie details', async ({ page }) => {
+    await page.getByText('Grid', { exact: true }).click();
+    await page.locator('.ant-card').first().click();
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByText('Movie ID')).toBeVisible();
   });
 
   test('movie count badge is non-zero', async ({ page }) => {
@@ -166,11 +213,19 @@ test.describe('Navigation', () => {
     await expect(page.getByText('📊 Statistics Dashboard')).toBeVisible();
   });
 
+  test('sidebar navigates to Movies page', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('.ant-layout-sider');
+    await page.getByRole('link', { name: 'Movies' }).click();
+    await expect(page).toHaveURL('/movies');
+    await expect(page.getByText('🎬 Movie List')).toBeVisible();
+  });
+
   test('sidebar navigates back to Dashboard', async ({ page }) => {
     await page.goto('/stats');
     await page.getByRole('link', { name: 'Dashboard' }).click();
     await expect(page).toHaveURL('/');
-    await expect(page.getByText('🎬 Movie List')).toBeVisible();
+    await expect(page.getByText('Highlights')).toBeVisible();
   });
 
   test('404 page for unknown route', async ({ page }) => {
@@ -194,7 +249,9 @@ test.describe('Navigation', () => {
 
   test('page title updates on navigation', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('.ant-layout-header')).toContainText('Admin Dashboard');
+    await expect(page.locator('.ant-layout-header')).toContainText('Dashboard');
+    await page.getByRole('link', { name: 'Movies' }).click();
+    await expect(page.locator('.ant-layout-header')).toContainText('Movies');
     await page.getByRole('link', { name: 'Stats' }).click();
     await expect(page.locator('.ant-layout-header')).toContainText('Statistics Dashboard');
   });
@@ -320,14 +377,14 @@ test.describe('Theme', () => {
 
 test.describe('Filter Persistence', () => {
   test('search filter persists across navigation', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/movies');
     await waitForTable(page);
 
     await page.getByPlaceholder('Search by name, director, actor…').fill('drama');
     await page.waitForTimeout(400);
 
     await page.getByRole('link', { name: 'Stats' }).click();
-    await page.getByRole('link', { name: 'Dashboard' }).click();
+    await page.getByRole('link', { name: 'Movies' }).click();
     await waitForTable(page);
 
     await expect(page.getByPlaceholder('Search by name, director, actor…')).toHaveValue('drama');
@@ -341,7 +398,7 @@ test.describe('Filter Persistence', () => {
 
 test.describe('Edge Cases', () => {
   test('multiple filters combined', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/movies');
     await waitForTable(page);
 
     await page.getByPlaceholder('Search by name, director, actor…').fill('a');
@@ -356,7 +413,7 @@ test.describe('Edge Cases', () => {
   });
 
   test('second page of pagination loads', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/movies');
     await waitForTable(page);
 
     const nextBtn = page.locator('.ant-pagination-next');
@@ -369,7 +426,7 @@ test.describe('Edge Cases', () => {
   });
 
   test('sort then filter maintains sort direction', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/movies');
     await waitForTable(page);
 
     // Sort by Name
@@ -385,7 +442,7 @@ test.describe('Edge Cases', () => {
   });
 
   test('drawer shows Vote Average rating colour', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/movies');
     await waitForTable(page);
     await page.locator('.ant-table-row').first().click();
     const drawer = page.getByRole('dialog');

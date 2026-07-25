@@ -32,11 +32,11 @@ fs.createReadStream(csvPath)
     console.log(`CSV loaded — ${movies.length} movies`);
   });
 
-app.get('/health', (_req: Request, res: Response) => {
+app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: ready ? 'ok' : 'loading', movies: movies.length });
 });
 
-app.use('/movies', (_req: Request, res: Response, next) => {
+app.use('/api/movies', (_req: Request, res: Response, next) => {
   if (!ready) {
     res.status(503).json({ error: 'Data still loading' });
     return;
@@ -44,12 +44,12 @@ app.use('/movies', (_req: Request, res: Response, next) => {
   next();
 });
 
-app.get('/movies', (_req: Request, res: Response<Movie[]>) => {
+app.get('/api/movies', (_req: Request, res: Response<Movie[]>) => {
   res.set('Cache-Control', 'public, max-age=60');
   res.json(movies);
 });
 
-app.get('/movies/:id', (req: Request<{ id: string }>, res: Response) => {
+app.get('/api/movies/:id', (req: Request<{ id: string }>, res: Response) => {
   const movie = movies.find((m) => m['Movie ID'] === req.params.id);
   if (movie) {
     res.json(movie);
