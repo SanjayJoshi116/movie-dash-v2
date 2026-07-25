@@ -7,12 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - `src/pages/Movies.tsx` (`/movies`) — the filterable catalogue split out of `Dashboard`, with a table/grid view toggle (`Segmented`). `src/components/MovieCardGrid.tsx` is the new card-grid view, alongside the existing `MovieTable`.
-- Director multi-select filter, runtime range slider, and box-office revenue range slider in `FiltersPanel`, plus removable chips summarizing every active filter. `FilterState` (`src/types/movie.ts`) gained `directors`, `runtimeRange`, `revenueRange`.
+- Director multi-select filter, runtime range slider, and box-office revenue range slider, plus removable chips summarizing every active filter. `FilterState` (`src/types/movie.ts`) gained `directors`, `runtimeRange`, `revenueRange`.
 - Sidebar gained a "Movies" nav entry; sidebar is now sticky-positioned.
-- 6 new Playwright tests (40 → 46) covering the Movies page split, table/grid toggle, and drawer-from-card.
+- `src/components/DashboardSection.tsx` — shared title + content wrapper standardizing spacing across all Dashboard sections.
+- Dashboard gained a "Trends & Breakdown" section: 10-year release trend (line), top-6 genre breakdown (doughnut), rating distribution (bar), and a clickable Recent Releases list — all compact previews, with a "Full analytics" link to `/stats`.
+- `src/components/FiltersDrawer.tsx` — category (language/genre/director) and range (year/vote/runtime/revenue) filters moved into a right-side drawer opened via a "Filters" button (dot badge when active), replacing the inline collapsible filter card. `src/components/ActiveFilters.tsx` renders removable chips + "Clear all" directly on the page; search stays an always-visible toolbar input. Shared chip/active-state logic factored into `src/utils/filterChips.ts`.
+- 7 new Playwright tests (40 → 47) covering the Movies page split, table/grid toggle, drawer-from-card, and the Filters drawer open/close flow.
 
 ### Changed
-- `Dashboard.tsx` (`/`) is now a landing summary — stat cards, top-rated/most-popular/newest highlight cards, and CTA cards to Movies/Stats — instead of hosting the movie table directly.
+- `Dashboard.tsx` (`/`) is now a landing summary — stat cards, highlights, trend/breakdown charts, and CTA cards to Movies/Stats — instead of hosting the movie table directly.
 - Express API routes moved under `/api` (`/api/health`, `/api/movies`, `/api/movies/:id`) so Vite's dev proxy can't collide with the client-side `/movies` route. `vite.config.ts` proxy and `MoviesContext`'s fetch updated to match.
 - `vite.config.ts` dev server now binds with `host: true` (LAN-accessible during dev).
 

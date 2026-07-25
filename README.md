@@ -8,7 +8,7 @@ A full-stack movie analytics dashboard: a React frontend backed by an Express AP
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
 
-**Highlights:** Table/grid movie catalogue · 6 analytics tabs · Express API with gzip + caching · CSV export · 46 Playwright E2E tests · light/dark theme · filter state persisted to `localStorage`
+**Highlights:** Table/grid movie catalogue · 6 analytics tabs · Express API with gzip + caching · CSV export · 47 Playwright E2E tests · light/dark theme · filter state persisted to `localStorage`
 
 No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
 
@@ -35,9 +35,9 @@ No hosted demo — this project runs locally against your own CSV dataset. See [
 
 ### Movies (`/movies`)
 - Table or grid view, toggled with a `Segmented` control — grid shows poster-style cards, table is the dense sortable list
-- Searchable, filterable catalogue (name, director, actor, genre, production company)
-- Multi-select language, genre, and director filters; year, vote average, runtime, and box-office revenue range sliders
-- Removable filter chips summarising every active filter, plus a one-click reset
+- Always-visible search box (name, director, actor, genre, production company) plus a **Filters** button — clicking it opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue), so the page stays uncluttered until you need it
+- The Filters button shows a small dot when any filter is active
+- Removable filter chips summarising every active filter, plus a one-click "Clear all", shown directly on the page (no need to open the drawer)
 - Filter state persisted across page refreshes (localStorage)
 - Sortable columns, pagination (5 / 10 / 20 / 50 per page) in table view
 - Click any row/card to open a detail drawer with full movie info, vote count, and popularity score
@@ -73,7 +73,7 @@ No hosted demo — this project runs locally against your own CSV dataset. See [
 | HTTP | Axios |
 | Backend | Express.js (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
-| Testing | Playwright (46 E2E tests) |
+| Testing | Playwright (47 E2E tests) |
 | Linting | ESLint (typescript-eslint, react-hooks, unused-imports) |
 
 ---
@@ -212,7 +212,7 @@ movie-dash-v2/
 ├── server/
 │   └── server.ts               # Express API (port 5000)
 ├── tests/
-│   └── app.spec.ts             # Playwright E2E tests (46 tests)
+│   └── app.spec.ts             # Playwright E2E tests (47 tests)
 ├── docs/
 │   └── screenshots/            # README screenshots
 ├── playwright.config.ts        # Playwright configuration
@@ -227,19 +227,22 @@ movie-dash-v2/
 │   │   │                       # RuntimeTab, BoxOfficeTab, ExploreTab
 │   │   ├── Sidebar.tsx
 │   │   ├── TopBar.tsx          # Theme toggle + download template button
-│   │   ├── FiltersPanel.tsx
+│   │   ├── DashboardSection.tsx # Title + content wrapper, standardizes Dashboard sections
+│   │   ├── FiltersDrawer.tsx   # Category/range filters, opened via the Filters button
+│   │   ├── ActiveFilters.tsx   # Removable filter chips + "Clear all"
 │   │   ├── MovieTable.tsx
 │   │   ├── MovieCardGrid.tsx
 │   │   ├── MovieDrawer.tsx
 │   │   ├── StatCard.tsx
 │   │   └── TopNExplorer.tsx
 │   ├── pages/
-│   │   ├── Dashboard.tsx       # landing page: stat cards, highlights, CTAs
+│   │   ├── Dashboard.tsx       # landing page: stat cards, highlights, mini charts, CTAs
 │   │   ├── Movies.tsx          # filterable table/grid catalogue
 │   │   └── Stats.tsx
 │   ├── utils/
 │   │   ├── chartTheme.ts       # Shared palette + getCardStyle(isDark)
-│   │   ├── statsHelpers.ts     # groupByField, parseRevenue, formatRevenue
+│   │   ├── statsHelpers.ts     # groupByField, makeDoughnut, parseRevenue, formatRevenue
+│   │   ├── filterChips.ts      # buildFilterChips, isFiltersActive — shared by the Filters button and chips row
 │   │   ├── exportCsv.ts
 │   │   └── languages.ts        # ISO code → display name
 │   ├── hooks/
@@ -254,10 +257,10 @@ movie-dash-v2/
 
 ## E2E Testing
 
-Playwright tests cover the full user journey across 7 suites (46 tests):
+Playwright tests cover the full user journey across 7 suites (47 tests):
 
 - **Dashboard** — layout, highlight cards, CTA navigation to Movies/Stats
-- **Movies** — layout, table/grid toggle, drawer from row and card, search, language/genre filters, empty state, clear/reset, active-filter indicator, sorting, pagination, page size, filter panel collapse, CSV export
+- **Movies** — layout, table/grid toggle, drawer from row and card, search, filters drawer (open/close, language/genre filters), empty state, clear/reset, active-filter dot indicator, sorting, pagination, page size, CSV export
 - **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title updates
 - **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence
 - **Theme** — default dark, toggle to light, reload persistence

@@ -78,11 +78,16 @@ test.describe('Movies', () => {
     expect(count).toBeGreaterThan(0);
   });
 
-  test('filter panel visible and expanded by default', async ({ page }) => {
-    await expect(page.locator('.ant-collapse')).toBeVisible();
+  test('search and filters button visible by default', async ({ page }) => {
     await expect(page.getByPlaceholder('Search by name, director, actor…')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Filters' })).toBeVisible();
+  });
+
+  test('filters button opens drawer with all filter groups', async ({ page }) => {
+    await page.getByRole('button', { name: 'Filters' }).click();
     await expect(page.getByRole('combobox', { name: 'Language' })).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Genre' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Director' })).toBeVisible();
   });
 
   test('search narrows table results', async ({ page }) => {
@@ -117,25 +122,29 @@ test.describe('Movies', () => {
   test('active filter shows dot indicator', async ({ page }) => {
     await page.getByPlaceholder('Search by name, director, actor…').fill('a');
     await page.waitForTimeout(400);
-    await expect(page.locator('text=●')).toBeVisible();
+    await expect(page.locator('.ant-badge-dot')).toBeVisible();
   });
 
   test('language filter applies', async ({ page }) => {
+    await page.getByRole('button', { name: 'Filters' }).click();
     await page.getByRole('combobox', { name: 'Language' }).click();
     await page.waitForSelector('.ant-select-item-option');
     await page.locator('.ant-select-item-option').first().click();
     await page.keyboard.press('Escape');
+    await page.locator('.ant-drawer-close').click();
     await expect(page.locator('.ant-table')).toBeVisible();
-    await expect(page.locator('text=●')).toBeVisible();
+    await expect(page.locator('.ant-badge-dot')).toBeVisible();
   });
 
   test('genre filter applies', async ({ page }) => {
+    await page.getByRole('button', { name: 'Filters' }).click();
     await page.getByRole('combobox', { name: 'Genre' }).click();
     await page.waitForSelector('.ant-select-item-option');
     await page.locator('.ant-select-item-option').first().click();
     await page.keyboard.press('Escape');
+    await page.locator('.ant-drawer-close').click();
     await expect(page.locator('.ant-table')).toBeVisible();
-    await expect(page.locator('text=●')).toBeVisible();
+    await expect(page.locator('.ant-badge-dot')).toBeVisible();
   });
 
   test('row click opens drawer with movie details', async ({ page }) => {
@@ -191,14 +200,12 @@ test.describe('Movies', () => {
     expect(rows).toBeLessThanOrEqual(5);
   });
 
-  test('filter panel collapses and expands', async ({ page }) => {
-    await page.locator('.ant-collapse-header').first().click();
-    await page.waitForTimeout(300);
-    await expect(page.locator('.ant-collapse-content-box')).not.toBeVisible();
+  test('filters drawer opens and closes', async ({ page }) => {
+    await page.getByRole('button', { name: 'Filters' }).click();
+    await expect(page.getByRole('combobox', { name: 'Language' })).toBeVisible();
 
-    await page.locator('.ant-collapse-header').first().click();
-    await page.waitForTimeout(300);
-    await expect(page.locator('.ant-collapse-content-box')).toBeVisible();
+    await page.locator('.ant-drawer-close').click();
+    await expect(page.getByRole('combobox', { name: 'Language' })).not.toBeVisible();
   });
 });
 
@@ -404,6 +411,7 @@ test.describe('Edge Cases', () => {
     await page.getByPlaceholder('Search by name, director, actor…').fill('a');
     await page.waitForTimeout(400);
 
+    await page.getByRole('button', { name: 'Filters' }).click();
     await page.getByRole('combobox', { name: 'Language' }).click();
     await page.waitForSelector('.ant-select-item-option');
     await page.locator('.ant-select-item-option').first().click();

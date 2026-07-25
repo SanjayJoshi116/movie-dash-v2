@@ -99,7 +99,7 @@ const MovieTable: React.FC<MovieTableProps> = ({ movies, onRowClick }) => {
           pageSizeOptions: ['5', '10', '20', '50'],
           showTotal: (total, range) => `${range[0]}–${range[1]} of ${total} movies`,
         }}
-        scroll={{ x: 'max-content', y: 600 }}
+        scroll={{ x: 'max-content' }}
         sticky
         size="small"
         rowClassName={(_, index) =>

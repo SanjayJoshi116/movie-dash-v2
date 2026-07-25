@@ -5,7 +5,7 @@ Guidance for Claude Code (or any AI agent) working in this repo.
 ## Stack
 - Frontend: React 19, TypeScript, Vite 6, Ant Design v5, Chart.js 4 (+ react-chartjs-2, chartjs-chart-matrix), Framer Motion, React Router v7.
 - Backend: Express (TypeScript, run via `tsx`), serves movie data from a local CSV via `csv-parser`.
-- Testing: Playwright E2E (`tests/app.spec.ts`, 46 tests, 7 suites).
+- Testing: Playwright E2E (`tests/app.spec.ts`, 47 tests, 7 suites).
 - Lint: ESLint (`eslint.config.mjs` — typescript-eslint, react-hooks, unused-imports).
 
 ## Commands
@@ -17,7 +17,9 @@ Guidance for Claude Code (or any AI agent) working in this repo.
 ## Architecture
 - `src/contexts/MoviesContext.tsx` — single source of truth for movie data; fetched once at app root via `useMoviesContext`/`useMovies`. Don't re-fetch per component.
 - `src/contexts/ThemeContext.tsx` — light/dark theme, persisted to `localStorage`.
-- `src/pages/Dashboard.tsx` (`/`) is a summary landing page (stat cards, highlights, CTAs) — the filterable table/grid catalogue lives at `src/pages/Movies.tsx` (`/movies`). `FilterState` (`src/types/movie.ts`) now also carries `directors`, `runtimeRange`, `revenueRange` alongside search/languages/genres/year/vote. `src/components/MovieCardGrid.tsx` is the card-grid alternative to `MovieTable.tsx`, toggled via `Segmented` on the Movies page.
+- `src/pages/Dashboard.tsx` (`/`) is a summary landing page (stat cards, highlights, mini trend/genre/rating charts, recent releases, CTAs) built from `src/components/DashboardSection.tsx` (title + content wrapper, standardizes section spacing) — the filterable table/grid catalogue lives at `src/pages/Movies.tsx` (`/movies`). `FilterState` (`src/types/movie.ts`) carries `directors`, `runtimeRange`, `revenueRange` alongside search/languages/genres/year/vote.
+- `src/components/MovieCardGrid.tsx` is the card-grid alternative to `MovieTable.tsx`, toggled via `Segmented` on the Movies page.
+- Movies page filtering: search is an always-visible `Input` in the page toolbar; category/range filters (language, genre, director, year, vote, runtime, revenue) live in `src/components/FiltersDrawer.tsx`, opened via a `Filters` button (badge dot when active) instead of an inline collapsible panel. `src/components/ActiveFilters.tsx` renders removable chips + "Clear all" directly on the page. Shared chip-building/active-check logic lives in `src/utils/filterChips.ts` (`buildFilterChips`, `isFiltersActive`) so the toolbar badge and the chips row don't duplicate filter-state logic.
 - `src/components/StatsTabs/*` — one component per Stats tab (Overview, People, Ratings, Runtime, BoxOffice, Explore), composed in `src/pages/Stats.tsx`.
 - `src/components/Charts/*` — thin theme-aware wrappers around Chart.js chart types.
 - `src/utils/statsHelpers.ts` — `groupByField`, revenue parsing/formatting helpers reused across stat tabs.

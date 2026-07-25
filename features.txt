@@ -3,14 +3,15 @@ MovieDash v2 — Feature List
 DASHBOARD (/)
 - Landing summary: stat cards (total movies, average rating, average runtime, total box office)
 - Highlight cards: top rated, most popular, newest release
+- Trends & Breakdown: 10-year release trend, top-6 genre breakdown, rating distribution, recent releases list (click to open detail drawer)
 - CTA cards linking to Movies and Stats
+- Standardized section layout (title + spacing) via a shared DashboardSection wrapper
 
 MOVIES (/movies)
 - Table or grid view via Segmented toggle (grid = card layout, table = dense sortable list)
-- Searchable, filterable movie catalogue (name, director, actor, genre, production company)
-- Multi-select language, genre, and director filters
-- Year range, vote average range, runtime range, and box-office revenue range sliders
-- Removable filter chips summarizing active filters, one-click reset
+- Always-visible search box (name, director, actor, genre, production company)
+- Filters button opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue); dot indicator when a filter is active
+- Removable filter chips summarizing active filters, one-click "Clear all" shown directly on the page
 - Filter state persisted across page refreshes (localStorage)
 - Sortable columns (table view)
 - Pagination (5 / 10 / 20 / 50 per page, table view)
@@ -38,6 +39,6 @@ BACKEND / DATA
 
 QUALITY
 - ESLint (typescript-eslint, react-hooks, unused-imports)
-- 46 Playwright E2E tests across 7 suites
+- 47 Playwright E2E tests across 7 suites
 - GitHub Actions CI: lint + build + e2e on push/PR to main
 - MIT licensed

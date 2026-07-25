@@ -1,5 +1,5 @@
-import React from 'react';
-import { Row, Col, Card, Tag, Empty } from 'antd';
+import React, { useState } from 'react';
+import { Row, Col, Card, Tag, Empty, Pagination } from 'antd';
 import { motion } from 'framer-motion';
 import { ClockCircleOutlined } from '@ant-design/icons';
 import type { Movie } from '../types/movie';
@@ -18,6 +18,8 @@ const voteColor = (vote: number): string => (vote >= 7 ? 'green' : vote >= 5 ? '
 
 const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => {
   const { isDark } = useTheme();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
 
   if (movies.length === 0) {
     return (
@@ -27,9 +29,14 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => 
     );
   }
 
+  const totalPages = Math.max(1, Math.ceil(movies.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageMovies = movies.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   return (
+    <>
     <Row gutter={[16, 16]}>
-      {movies.map((movie) => {
+      {pageMovies.map((movie) => {
         const genres = movie.Genres.split(',').map(g => g.trim()).filter(Boolean).slice(0, 3);
         const vote = parseFloat(movie['Vote Average']);
         return (
@@ -82,6 +89,17 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => 
         );
       })}
     </Row>
+    <Pagination
+      current={safePage}
+      pageSize={pageSize}
+      total={movies.length}
+      showSizeChanger
+      pageSizeOptions={['12', '24', '48', '96']}
+      showTotal={(total, range) => `${range[0]}–${range[1]} of ${total} movies`}
+      onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+      style={{ marginTop: 24, textAlign: 'center' }}
+    />
+    </>
   );
 };
 

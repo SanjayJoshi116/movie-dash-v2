@@ -1,14 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { Spin, Alert, Button, Segmented } from 'antd';
-import { DownloadOutlined } from '@ant-design/icons';
+import { Spin, Alert, Button, Segmented, Input, Badge } from 'antd';
+import { DownloadOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons';
 import { useMovies } from '../hooks/useMovies';
 import { useDebounce } from '../hooks/useDebounce';
 import { usePersistedFilters } from '../hooks/usePersistedFilters';
-import FiltersPanel from '../components/FiltersPanel';
+import FiltersDrawer from '../components/FiltersDrawer';
+import ActiveFilters from '../components/ActiveFilters';
 import MovieTable from '../components/MovieTable';
 import MovieCardGrid from '../components/MovieCardGrid';
 import MovieDrawer from '../components/MovieDrawer';
 import { parseRevenue } from '../utils/statsHelpers';
+import { isFiltersActive } from '../utils/filterChips';
 import { exportMoviesToCsv } from '../utils/exportCsv';
 import type { Movie, FilterState } from '../types/movie';
 
@@ -37,8 +39,10 @@ const Movies: React.FC = () => {
   const [filters, setFilters] = usePersistedFilters(DEFAULT_FILTERS);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [view, setView] = useState<'table' | 'grid'>('table');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const debouncedSearch = useDebounce(filters.search, 300);
+  const filtersActive = isFiltersActive(filters);
 
   const filteredMovies = useMemo<Movie[]>(() => {
     return movies.filter((movie) => {
@@ -137,8 +141,6 @@ const Movies: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <FiltersPanel movies={movies} filters={filters} onChange={setFilters} />
-
       <div
         style={{
           display: 'flex',
@@ -157,10 +159,22 @@ const Movies: React.FC = () => {
         <span style={{ color: 'var(--text-primary)', fontSize: 24, fontWeight: 700, letterSpacing: 1 }}>
           🎬 Movie List
         </span>
-        <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-          {view === 'table' ? 'Click a row to view details' : 'Click a card to view details'}
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <Input
+            placeholder="Search by name, director, actor…"
+            prefix={<SearchOutlined />}
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            allowClear
+            onClear={() => setFilters({ ...filters, search: '' })}
+            style={{ maxWidth: 260, flex: '1 1 200px' }}
+          />
+          <Badge dot={filtersActive} offset={[-6, 6]} color="#38bdf8">
+            <Button icon={<FilterOutlined />} onClick={() => setFiltersOpen(true)}>
+              Filters
+            </Button>
+          </Badge>
           <Segmented
             value={view}
             onChange={(val) => setView(val as 'table' | 'grid')}
@@ -179,6 +193,16 @@ const Movies: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      <ActiveFilters filters={filters} onChange={setFilters} onClearAll={() => setFilters(DEFAULT_FILTERS)} />
+
+      <FiltersDrawer
+        movies={movies}
+        filters={filters}
+        onChange={setFilters}
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+      />
 
       {view === 'table' ? (
         <MovieTable movies={filteredMovies} onRowClick={setSelectedMovie} />
