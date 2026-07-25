@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Row, Col, Card, Tag, Empty, Pagination } from 'antd';
+import { Row, Col, Card, Tag, Empty, Pagination, Grid } from 'antd';
 import { motion } from 'framer-motion';
 import { ClockCircleOutlined } from '@ant-design/icons';
 import type { Movie } from '../types/movie';
@@ -18,6 +18,7 @@ const voteColor = (vote: number): string => (vote >= 7 ? 'green' : vote >= 5 ? '
 
 const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => {
   const { isDark } = useTheme();
+  const screens = Grid.useBreakpoint();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
 
@@ -46,6 +47,15 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => 
               transition={{ type: 'spring', stiffness: 300, damping: 20 }}
               hoverable
               onClick={() => onRowClick(movie)}
+              role="button"
+              tabIndex={0}
+              aria-label={`View details for ${movie.Name}`}
+              onKeyDown={(e: React.KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onRowClick(movie);
+                }
+              }}
               style={{ ...getCardStyle(isDark), height: '100%', cursor: 'pointer' }}
               styles={{ body: { padding: 16, display: 'flex', flexDirection: 'column', gap: 8 } }}
             >
@@ -89,16 +99,18 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => 
         );
       })}
     </Row>
-    <Pagination
-      current={safePage}
-      pageSize={pageSize}
-      total={movies.length}
-      showSizeChanger
-      pageSizeOptions={['12', '24', '48', '96']}
-      showTotal={(total, range) => `${range[0]}–${range[1]} of ${total} movies`}
-      onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
-      style={{ marginTop: 24, textAlign: 'center' }}
-    />
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
+      <Pagination
+        current={safePage}
+        pageSize={pageSize}
+        total={movies.length}
+        showSizeChanger={screens.sm}
+        pageSizeOptions={['12', '24', '48', '96']}
+        showTotal={screens.sm ? (total, range) => `${range[0]}–${range[1]} of ${total} movies` : undefined}
+        simple={!screens.sm}
+        onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+      />
+    </div>
     </>
   );
 };

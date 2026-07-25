@@ -4,6 +4,7 @@ import { Layout, Result, Button, Spin, ConfigProvider, Grid, theme as antdTheme 
 import { MoviesProvider } from './contexts/MoviesContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import Sidebar from './components/Sidebar';
+import BottomNav from './components/BottomNav';
 import TopBar from './components/TopBar';
 import Dashboard from './pages/Dashboard';
 import ScrollToTop from './components/ScrollToTop';
@@ -19,12 +20,6 @@ const PageLoader: React.FC = () => (
 );
 
 const { Content } = Layout;
-
-const PAGE_TITLES: Record<string, string> = {
-  '/': 'Dashboard',
-  '/movies': 'Movies',
-  '/stats': 'Statistics Dashboard',
-};
 
 const NotFound: React.FC = () => {
   const navigate = useNavigate();
@@ -94,10 +89,10 @@ const AppContent: React.FC = () => {
       }}
     >
       <Layout style={{ minHeight: '100vh', background: 'var(--bg-gradient)' }}>
-        <Sidebar collapsed={collapsed} onCollapse={setCollapsed} />
+        {screens.sm && <Sidebar collapsed={collapsed} onCollapse={setCollapsed} />}
         <Layout style={{ background: 'transparent' }}>
-          <TopBar title={PAGE_TITLES[location.pathname] ?? 'MovieDash'} />
-          <Content>
+          <TopBar />
+          <Content style={!screens.sm ? { paddingBottom: 64 } : undefined}>
             <ErrorBoundary key={location.pathname}>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
@@ -110,6 +105,7 @@ const AppContent: React.FC = () => {
             </ErrorBoundary>
           </Content>
         </Layout>
+        {!screens.sm && <BottomNav />}
       </Layout>
     </ConfigProvider>
   );

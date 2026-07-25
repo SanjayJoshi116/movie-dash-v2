@@ -23,7 +23,10 @@ Guidance for Claude Code (or any AI agent) working in this repo.
 - `src/components/StatsTabs/*` — one component per Stats tab (Overview, People, Ratings, Runtime, BoxOffice, Explore), composed in `src/pages/Stats.tsx`.
 - `src/components/Charts/*` — thin theme-aware wrappers around Chart.js chart types.
 - `src/utils/statsHelpers.ts` — `groupByField`, revenue parsing/formatting helpers reused across stat tabs.
-- `server/server.ts` — Express API (`/api/health`, `/api/movies`, `/api/movies/:id`), reads `src/movies.csv` on boot, gzip + cache headers. Routes live under `/api` specifically so Vite's dev proxy (`vite.config.ts`, `/api` → `localhost:5000`) can't collide with client-side routes like `/movies` — a bare `/movies` proxy prefix would intercept the browser's page navigation to that route and return raw JSON instead of the SPA.
+- `server/server.ts` — Express API (`/api/health`, `/api/movies`, `/api/movies/:id`), reads `src/movies.csv` on boot, gzip + cache headers. Routes live under `/api` specifically so Vite's dev proxy (`vite.config.ts`, `/api` → `localhost:5000`) can't collide with client-side routes like `/movies` — a bare `/movies` proxy prefix would intercept the browser's page navigation to that route and return raw JSON instead of the SPA. Hardened with `helmet()`, `express-rate-limit` (300 req/min on `/api`), CORS restricted to `CLIENT_ORIGIN` env (defaults `http://localhost:3000` — set this in prod, don't widen back to open `cors()`), `Movie ID` param length validation, and a catch-all error-handling middleware (generic `500` JSON, no stack trace leak).
+- `src/components/LoadingError.tsx` — shared loading-spinner/error-alert wrapper; `Dashboard.tsx`, `Movies.tsx`, `Stats.tsx` each wrap their page body in it instead of duplicating the same loading/error branch. Add new data-driven pages through this wrapper rather than reimplementing the loading/error branch.
+- `src/components/BottomNav.tsx` — fixed bottom nav (Dashboard/Movies/Stats), rendered in `App.tsx` in place of `Sidebar` when `Grid.useBreakpoint().sm` is false. `TopBar` no longer takes a `title` prop — each page renders its own `<Title>` heading now that the header isn't the source of page identity on mobile.
+- `src/utils/formatDate.ts` (`formatDateDDMMYYYY`) — release dates render as `DD-MM-YYYY` in `MovieTable`/`MovieDrawer`; use it for any new UI surfacing `Release Date` rather than printing the raw `YYYY-MM-DD` CSV value.
 
 ## Data
 - `src/movies.csv` is gitignored and never committed — it's the user's own dataset (TMDB-sourced, see README). It won't exist in a fresh checkout.
@@ -32,7 +35,7 @@ Guidance for Claude Code (or any AI agent) working in this repo.
 - `movie-search.py` (Tkinter GUI, `pip install -r requirements.txt`) is an optional tool to search TMDB and append rows to `src/movies.csv` directly. It reads `TMDB_API_KEY` from `.env` via `python-dotenv` — never hardcode the key back into the script; `.env` is gitignored, `.env.example` is the committed placeholder. It skips (doesn't update) rows whose `Movie ID` already exists in the CSV.
 
 ## CI
-- `.github/workflows/ci.yml` runs on push/PR to `main`: `npm ci` → lint → build → seed `src/movies.csv` from `public/movies.template.csv` → `npm run test:e2e`.
+- `.github/workflows/ci.yml` runs on push/PR to `main`: `npm ci` → `npm audit --audit-level=critical` → lint → build → seed `src/movies.csv` from `public/movies.template.csv` → `npm run test:e2e`.
 
 ## Other repo files
 - `LICENSE` — MIT.

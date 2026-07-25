@@ -1,5 +1,5 @@
 import React from 'react';
-import { Typography, Spin, Alert, Tabs, Button } from 'antd';
+import { Typography, Tabs } from 'antd';
 import { useMovies } from '../hooks/useMovies';
 import { useTheme } from '../contexts/ThemeContext';
 import OverviewTab from '../components/StatsTabs/OverviewTab';
@@ -8,28 +8,13 @@ import RatingsTab from '../components/StatsTabs/RatingsTab';
 import RuntimeTab from '../components/StatsTabs/RuntimeTab';
 import ExploreTab from '../components/StatsTabs/ExploreTab';
 import BoxOfficeTab from '../components/StatsTabs/BoxOfficeTab';
+import LoadingError from '../components/LoadingError';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const Stats: React.FC = () => {
   const { movies, loading, error, refetch } = useMovies();
   const { isDark } = useTheme();
-
-  if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}><Spin size="large" /></div>;
-  }
-  if (error) {
-    return (
-      <Alert
-        type="error"
-        message="Failed to load movies"
-        description={error}
-        showIcon
-        style={{ margin: 24 }}
-        action={<Button size="small" onClick={refetch}>Retry</Button>}
-      />
-    );
-  }
 
   const tabItems = [
     { key: 'overview',   label: '📊 Overview',           children: <OverviewTab   movies={movies} /> },
@@ -41,8 +26,12 @@ const Stats: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: 24, background: 'var(--bg-gradient)', minHeight: '100vh' }}>
-      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 24 }}>📊 Statistics Dashboard</Title>
+    <LoadingError loading={loading} error={error} onRetry={refetch}>
+    <div style={{ padding: 24 }}>
+      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}>📊 Statistics Dashboard</Title>
+      <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
+        Deep-dive charts and breakdowns across ratings, people, runtime, box office, and more.
+      </Text>
       <Tabs
         defaultActiveKey="overview"
         items={tabItems}
@@ -50,6 +39,7 @@ const Stats: React.FC = () => {
         style={{ color: isDark ? '#fff' : '#1e1e3f' }}
       />
     </div>
+    </LoadingError>
   );
 };
 

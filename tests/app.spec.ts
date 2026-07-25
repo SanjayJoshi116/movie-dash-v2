@@ -20,7 +20,7 @@ test.describe('Dashboard', () => {
     await expect(page.locator('.ant-layout-sider')).toBeVisible();
     await expect(page.locator('.ant-layout-header')).toBeVisible();
     await expect(page.getByText('Total Movies')).toBeVisible();
-    await expect(page.getByText('Highlights')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Highlights' })).toBeVisible();
   });
 
   test('highlight cards show top rated, most popular, newest', async ({ page }) => {
@@ -49,7 +49,7 @@ test.describe('Movies', () => {
   test('layout renders — header, sidebar, table', async ({ page }) => {
     await expect(page.locator('.ant-layout-sider')).toBeVisible();
     await expect(page.locator('.ant-layout-header')).toBeVisible();
-    await expect(page.getByText('🎬 Movie List')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '🎬 Movies' })).toBeVisible();
     await expect(page.locator('.ant-table')).toBeVisible();
   });
 
@@ -225,14 +225,14 @@ test.describe('Navigation', () => {
     await page.waitForSelector('.ant-layout-sider');
     await page.getByRole('link', { name: 'Movies' }).click();
     await expect(page).toHaveURL('/movies');
-    await expect(page.getByText('🎬 Movie List')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '🎬 Movies' })).toBeVisible();
   });
 
   test('sidebar navigates back to Dashboard', async ({ page }) => {
     await page.goto('/stats');
     await page.getByRole('link', { name: 'Dashboard' }).click();
     await expect(page).toHaveURL('/');
-    await expect(page.getByText('Highlights')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Highlights' })).toBeVisible();
   });
 
   test('404 page for unknown route', async ({ page }) => {
@@ -256,11 +256,11 @@ test.describe('Navigation', () => {
 
   test('page title updates on navigation', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('.ant-layout-header')).toContainText('Dashboard');
+    await expect(page.getByRole('heading', { name: '🏠 Dashboard' })).toBeVisible();
     await page.getByRole('link', { name: 'Movies' }).click();
-    await expect(page.locator('.ant-layout-header')).toContainText('Movies');
+    await expect(page.getByRole('heading', { name: '🎬 Movies' })).toBeVisible();
     await page.getByRole('link', { name: 'Stats' }).click();
-    await expect(page.locator('.ant-layout-header')).toContainText('Statistics Dashboard');
+    await expect(page.getByRole('heading', { name: '📊 Statistics Dashboard' })).toBeVisible();
   });
 });
 

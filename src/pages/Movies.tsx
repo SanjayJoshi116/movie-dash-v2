@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Spin, Alert, Button, Segmented, Input, Badge } from 'antd';
+import { Button, Segmented, Input, Badge, Typography, Grid } from 'antd';
 import { DownloadOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons';
 import { useMovies } from '../hooks/useMovies';
 import { useDebounce } from '../hooks/useDebounce';
@@ -9,10 +9,13 @@ import ActiveFilters from '../components/ActiveFilters';
 import MovieTable from '../components/MovieTable';
 import MovieCardGrid from '../components/MovieCardGrid';
 import MovieDrawer from '../components/MovieDrawer';
+import LoadingError from '../components/LoadingError';
 import { parseRevenue } from '../utils/statsHelpers';
 import { isFiltersActive } from '../utils/filterChips';
 import { exportMoviesToCsv } from '../utils/exportCsv';
 import type { Movie, FilterState } from '../types/movie';
+
+const { Title, Text } = Typography;
 
 const SEARCHABLE_FIELDS: (keyof Movie)[] = [
   'Name',
@@ -36,10 +39,17 @@ const DEFAULT_FILTERS: FilterState = {
 
 const Movies: React.FC = () => {
   const { movies, loading, error, refetch } = useMovies();
+  const screens = Grid.useBreakpoint();
   const [filters, setFilters] = usePersistedFilters(DEFAULT_FILTERS);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [view, setView] = useState<'table' | 'grid'>('table');
+  const [viewDefaulted, setViewDefaulted] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  if (!viewDefaulted && screens.sm !== undefined) {
+    setViewDefaulted(true);
+    if (!screens.sm) setView('grid');
+  }
 
   const debouncedSearch = useDebounce(filters.search, 300);
   const filtersActive = isFiltersActive(filters);
@@ -118,29 +128,13 @@ const Movies: React.FC = () => {
     movies,
   ]);
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert
-        type="error"
-        message="Failed to load movies"
-        description={error}
-        showIcon
-        style={{ margin: 24 }}
-        action={<Button size="small" onClick={refetch}>Retry</Button>}
-      />
-    );
-  }
-
   return (
+    <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: 24 }}>
+      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}>🎬 Movies</Title>
+      <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
+        Browse, search, and filter your full movie catalogue in table or grid view.
+      </Text>
       <div
         style={{
           display: 'flex',
@@ -156,20 +150,16 @@ const Movies: React.FC = () => {
           gap: 12,
         }}
       >
-        <span style={{ color: 'var(--text-primary)', fontSize: 24, fontWeight: 700, letterSpacing: 1 }}>
-          🎬 Movie List
-        </span>
-
+        <Input
+          placeholder="Search by name, director, actor…"
+          prefix={<SearchOutlined />}
+          value={filters.search}
+          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          allowClear
+          onClear={() => setFilters({ ...filters, search: '' })}
+          style={{ maxWidth: 260, flex: '1 1 200px' }}
+        />
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <Input
-            placeholder="Search by name, director, actor…"
-            prefix={<SearchOutlined />}
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-            allowClear
-            onClear={() => setFilters({ ...filters, search: '' })}
-            style={{ maxWidth: 260, flex: '1 1 200px' }}
-          />
           <Badge dot={filtersActive} offset={[-6, 6]} color="#38bdf8">
             <Button icon={<FilterOutlined />} onClick={() => setFiltersOpen(true)}>
               Filters
@@ -185,7 +175,6 @@ const Movies: React.FC = () => {
           />
           <Button
             icon={<DownloadOutlined />}
-            size="small"
             disabled={filteredMovies.length === 0}
             onClick={() => exportMoviesToCsv(filteredMovies, `movies-filtered-${filteredMovies.length}.csv`)}
           >
@@ -212,6 +201,7 @@ const Movies: React.FC = () => {
 
       <MovieDrawer movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
     </div>
+    </LoadingError>
   );
 };
 

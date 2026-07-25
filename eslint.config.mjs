@@ -15,6 +15,7 @@ export default tseslint.config(
       'coverage/**',
       'src/movies.csv',
       'public/**',
+      '.claude/**',
     ],
   },
   js.configs.recommended,

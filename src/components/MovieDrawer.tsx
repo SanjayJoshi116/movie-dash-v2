@@ -1,8 +1,9 @@
 import React from 'react';
-import { Drawer, Descriptions, Tag, Typography } from 'antd';
+import { Drawer, Descriptions, Tag, Typography, Grid } from 'antd';
 import { FireOutlined, LikeOutlined } from '@ant-design/icons';
 import type { Movie } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
+import { formatDateDDMMYYYY } from '../utils/formatDate';
 import { useTheme } from '../contexts/ThemeContext';
 
 const { Title } = Typography;
@@ -14,15 +15,19 @@ interface MovieDrawerProps {
 
 const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
   const { isDark } = useTheme();
+  const screens = Grid.useBreakpoint();
 
   const headerBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.85)';
   const bodyBg = isDark ? 'rgba(13,13,26,0.85)' : 'rgba(245,247,255,0.92)';
-  const labelStyle = isDark
-    ? { color: 'rgba(255,255,255,0.6)', width: 160, background: 'rgba(255,255,255,0.04)' }
-    : { color: 'rgba(30,30,63,0.6)', width: 160, background: 'rgba(129,140,248,0.04)' };
-  const contentStyle = isDark
-    ? { color: '#fff', background: 'rgba(255,255,255,0.02)' }
-    : { color: '#1e1e3f', background: 'rgba(255,255,255,0.6)' };
+  const labelStyle = {
+    color: 'var(--text-secondary)',
+    width: 160,
+    background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(129,140,248,0.04)',
+  };
+  const contentStyle = {
+    color: 'var(--text-primary)',
+    background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.6)',
+  };
 
   const voteCount = movie?.['Vote Count'];
   const popularity = movie?.['Popularity Score'];
@@ -35,7 +40,7 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
         </Title>
       }
       placement="right"
-      width={480}
+      width={screens.sm ? 480 : '100%'}
       open={movie !== null}
       onClose={onClose}
       styles={{
@@ -68,7 +73,9 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
           </Descriptions.Item>
           <Descriptions.Item label="Runtime">{movie.Runtime} mins</Descriptions.Item>
           <Descriptions.Item label="Release Year">{movie['Release Year']}</Descriptions.Item>
-          <Descriptions.Item label="Release Date">{movie['Release Date']}</Descriptions.Item>
+          <Descriptions.Item label="Release Date">
+            {formatDateDDMMYYYY(movie['Release Date'])}
+          </Descriptions.Item>
           <Descriptions.Item label="Genres">
             {movie.Genres.split(',').map(g => g.trim()).filter(Boolean).map((g) => (
               <Tag key={g} color="purple" style={{ marginBottom: 4 }}>
@@ -85,7 +92,7 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
               ⭐ {movie['Vote Average']}
             </Tag>
             {voteCount && voteCount !== '0' && (
-              <span style={{ color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(30,30,63,0.5)', fontSize: 12, marginLeft: 8 }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, marginLeft: 8 }}>
                 <LikeOutlined style={{ marginRight: 3 }} />
                 {parseInt(voteCount).toLocaleString()} votes
               </span>

@@ -56,7 +56,8 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
       }}
       theme={isDark ? 'dark' : 'light'}
     >
-      <div
+      <Link
+        to="/"
         style={{
           height: 64,
           display: 'flex',
@@ -66,6 +67,8 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
           borderBottom: `1px solid var(--glass-border)`,
           gap: 10,
           overflow: 'hidden',
+          color: 'inherit',
+          textDecoration: 'none',
         }}
       >
         <PlayCircleOutlined style={{ fontSize: 22, color: ACCENT, flexShrink: 0 }} />
@@ -74,7 +77,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
             Movie<span style={{ color: ACCENT }}>Dash</span>
           </span>
         )}
-      </div>
+      </Link>
 
       <Menu
         theme={isDark ? 'dark' : 'light'}

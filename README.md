@@ -8,7 +8,7 @@ A full-stack movie analytics dashboard: a React frontend backed by an Express AP
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
 
-**Highlights:** Table/grid movie catalogue · 6 analytics tabs · Express API with gzip + caching · CSV export · 47 Playwright E2E tests · light/dark theme · filter state persisted to `localStorage`
+**Highlights:** Table/grid movie catalogue · 6 analytics tabs · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 47 Playwright E2E tests · light/dark theme · filter state persisted to `localStorage`
 
 No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
 
@@ -40,9 +40,10 @@ No hosted demo — this project runs locally against your own CSV dataset. See [
 - Removable filter chips summarising every active filter, plus a one-click "Clear all", shown directly on the page (no need to open the drawer)
 - Filter state persisted across page refreshes (localStorage)
 - Sortable columns, pagination (5 / 10 / 20 / 50 per page) in table view
-- Click any row/card to open a detail drawer with full movie info, vote count, and popularity score
+- Click any row/card to open a detail drawer with full movie info, vote count, and popularity score — rows/cards are keyboard-accessible (`Enter`/`Space`) with `aria-label`s
 - Export filtered results to CSV
 - Sidebar auto-collapses to icon rail below 768px (Ant Design `md` breakpoint); manual toggle still works within a breakpoint
+- Below the `sm` breakpoint the sidebar is replaced by a fixed bottom nav bar, table/drawer widths go full-screen, grid view is the default, and table columns (Genres, Actors, Production Company, Country) progressively hide to fit narrow viewports
 
 ### Statistics — 6 tabs
 | Tab | Contents |
@@ -226,10 +227,12 @@ movie-dash-v2/
 │   │   ├── StatsTabs/          # OverviewTab, PeopleTab, RatingsTab,
 │   │   │                       # RuntimeTab, BoxOfficeTab, ExploreTab
 │   │   ├── Sidebar.tsx
-│   │   ├── TopBar.tsx          # Theme toggle + download template button
+│   │   ├── TopBar.tsx          # Theme toggle + download template button (no page title — pages render their own heading)
 │   │   ├── DashboardSection.tsx # Title + content wrapper, standardizes Dashboard sections
 │   │   ├── FiltersDrawer.tsx   # Category/range filters, opened via the Filters button
 │   │   ├── ActiveFilters.tsx   # Removable filter chips + "Clear all"
+│   │   ├── LoadingError.tsx    # Shared loading spinner / error alert wrapper (Dashboard, Movies, Stats)
+│   │   ├── BottomNav.tsx       # Fixed mobile nav bar, replaces Sidebar below the `sm` breakpoint
 │   │   ├── MovieTable.tsx
 │   │   ├── MovieCardGrid.tsx
 │   │   ├── MovieDrawer.tsx
@@ -243,6 +246,7 @@ movie-dash-v2/
 │   │   ├── chartTheme.ts       # Shared palette + getCardStyle(isDark)
 │   │   ├── statsHelpers.ts     # groupByField, makeDoughnut, parseRevenue, formatRevenue
 │   │   ├── filterChips.ts      # buildFilterChips, isFiltersActive — shared by the Filters button and chips row
+│   │   ├── formatDate.ts       # formatDateDDMMYYYY — release dates rendered as DD-MM-YYYY
 │   │   ├── exportCsv.ts
 │   │   └── languages.ts        # ISO code → display name
 │   ├── hooks/
@@ -297,9 +301,20 @@ The Express server exposes JSON endpoints:
 |---|---|
 | `GET /api/health` | `{ status: "ok" \| "loading", movies: <count> }` |
 | `GET /api/movies` | All movies as a JSON array. Returns `503 { error: "Data still loading" }` while the CSV is still being read on boot |
-| `GET /api/movies/:id` | A single movie by `Movie ID`. Returns `404 { error: "Movie not found" }` if no match |
+| `GET /api/movies/:id` | A single movie by `Movie ID`. Returns `404 { error: "Movie not found" }` if no match, or `400 { error: "Invalid movie id" }` if the param is missing/too long |
 
 Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: public, max-age=60`. Routes live under `/api` so Vite's dev proxy can forward API calls to Express without colliding with the client-side `/movies` route — a bare `/movies` proxy prefix would intercept the browser's SPA navigation and return raw JSON instead. In development, Vite proxies `/api` requests to the Express server automatically (see `vite.config.ts`).
+
+---
+
+## Security
+
+- **`helmet()`** sets standard security headers on every response.
+- **Rate limiting** — `/api/*` is capped at 300 requests/minute per client (`express-rate-limit`); over the limit returns `429`.
+- **CORS allowlist** — only `CLIENT_ORIGIN` (env var, defaults to `http://localhost:3000`) may call the API cross-origin, instead of an open `cors()` reflecting any origin. Set `CLIENT_ORIGIN` to your deployed frontend's URL in production.
+- **Input validation** — `Movie ID` route params are length-checked before use.
+- **Error handling** — a catch-all Express error-handling middleware returns a generic `500 { error: "Internal server error" }` instead of leaking stack traces; errors are still logged server-side.
+- CI runs `npm audit --audit-level=critical` before lint/build/e2e.
 
 ---
 

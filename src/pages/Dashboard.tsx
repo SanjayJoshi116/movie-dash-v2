@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Row, Col, Typography, Spin, Alert, Button, Tag, List } from 'antd';
+import { Row, Col, Typography, Button, Tag, List, Grid } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import type { ChartData } from 'chart.js';
 import {
@@ -15,6 +15,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import StatCard from '../components/StatCard';
 import DashboardSection from '../components/DashboardSection';
 import MovieDrawer from '../components/MovieDrawer';
+import LoadingError from '../components/LoadingError';
 import LineChart from '../components/Charts/LineChart';
 import BarChart from '../components/Charts/BarChart';
 import DoughnutChart from '../components/Charts/DoughnutChart';
@@ -23,8 +24,6 @@ import { groupByField, makeDoughnut, parseRevenue, formatRevenue } from '../util
 import type { Movie } from '../types/movie';
 
 const { Title, Text } = Typography;
-
-const MINI_CHART_HEIGHT = 240;
 
 interface HighlightCardProps {
   icon: React.ReactNode;
@@ -56,13 +55,14 @@ const HighlightCard: React.FC<HighlightCardProps> = ({ icon, label, movie, detai
 interface MiniChartCardProps {
   title: string;
   isDark: boolean;
+  height: number;
   children: React.ReactNode;
 }
 
-const MiniChartCard: React.FC<MiniChartCardProps> = ({ title, isDark, children }) => (
+const MiniChartCard: React.FC<MiniChartCardProps> = ({ title, isDark, height, children }) => (
   <div style={{ ...getCardStyle(isDark), padding: 20, height: '100%' }}>
     <Text style={{ color: 'var(--text-secondary)', fontSize: 13, display: 'block', marginBottom: 12 }}>{title}</Text>
-    <div style={{ height: MINI_CHART_HEIGHT }}>{children}</div>
+    <div style={{ height }}>{children}</div>
   </div>
 );
 
@@ -85,6 +85,8 @@ const Dashboard: React.FC = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
+  const screens = Grid.useBreakpoint();
+  const miniChartHeight = screens.md ? 240 : 180;
 
   const stats = useMemo(() => {
     const votes = movies.map(m => parseFloat(m['Vote Average'])).filter(v => !isNaN(v) && v > 0);
@@ -164,29 +166,13 @@ const Dashboard: React.FC = () => {
       .slice(0, 5);
   }, [movies]);
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert
-        type="error"
-        message="Failed to load movies"
-        description={error}
-        showIcon
-        style={{ margin: 24 }}
-        action={<Button size="small" onClick={refetch}>Retry</Button>}
-      />
-    );
-  }
-
   return (
+    <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: 24 }}>
+      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}>🏠 Dashboard</Title>
+      <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
+        Snapshot of your movie collection — key stats, highlights, and trends at a glance.
+      </Text>
       <DashboardSection title="Overview">
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12} md={6}><StatCard label="Total Movies" value={stats.totalMovies} color="#818cf8" /></Col>
@@ -234,17 +220,17 @@ const Dashboard: React.FC = () => {
       >
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={12}>
-            <MiniChartCard title="Movies Released — Last 10 Years" isDark={isDark}>
+            <MiniChartCard title="Movies Released — Last 10 Years" isDark={isDark} height={miniChartHeight}>
               <LineChart data={yearTrendData} isDark={isDark} />
             </MiniChartCard>
           </Col>
           <Col xs={24} lg={12}>
-            <MiniChartCard title="Genre Breakdown (Top 6)" isDark={isDark}>
+            <MiniChartCard title="Genre Breakdown (Top 6)" isDark={isDark} height={miniChartHeight}>
               <DoughnutChart data={genreDoughnutData} isDark={isDark} />
             </MiniChartCard>
           </Col>
           <Col xs={24} lg={12}>
-            <MiniChartCard title="Rating Distribution" isDark={isDark}>
+            <MiniChartCard title="Rating Distribution" isDark={isDark} height={miniChartHeight}>
               <BarChart data={ratingBucketData} isDark={isDark} />
             </MiniChartCard>
           </Col>
@@ -308,6 +294,7 @@ const Dashboard: React.FC = () => {
 
       <MovieDrawer movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
     </div>
+    </LoadingError>
   );
 };
 

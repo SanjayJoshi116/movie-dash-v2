@@ -15,9 +15,11 @@ MOVIES (/movies)
 - Filter state persisted across page refreshes (localStorage)
 - Sortable columns (table view)
 - Pagination (5 / 10 / 20 / 50 per page, table view)
-- Row/card click opens detail drawer (full movie info, vote count, popularity score)
+- Row/card click opens detail drawer (full movie info, vote count, popularity score); rows/cards keyboard-activatable (Enter/Space) with aria-labels
 - Export filtered results to CSV
 - Sidebar auto-collapses below 768px viewport width (Ant Design breakpoint hook), manual toggle still works; sidebar sticky-positioned
+- Below the sm breakpoint: sidebar replaced by fixed bottom nav bar (Dashboard/Movies/Stats), grid view default, detail/filters drawers go full-width, table columns hide progressively, pagination switches to simple mode
+- Release dates rendered as DD-MM-YYYY (table + detail drawer)
 
 STATISTICS (6 tabs)
 - Overview: animated stat cards (total movies, avg/longest/shortest runtime, total watch time in minutes/hours/days/years), movies by language, movies per year
@@ -37,8 +39,15 @@ BACKEND / DATA
 - CSV template + TMDB API sourcing guide included
 - movie-search.py: Tkinter GUI to search TMDB (by movie or actor, language filter, pagination) and append picked results to src/movies.csv; TMDB_API_KEY read from .env (never hardcoded)
 
+SECURITY
+- helmet() security headers on all responses
+- Rate limiting on /api/* (300 req/min per client via express-rate-limit)
+- CORS allowlist restricted to CLIENT_ORIGIN env var (default http://localhost:3000), not an open cors()
+- Movie ID route param length-validated before lookup (400 on invalid)
+- Catch-all error-handling middleware returns generic 500 JSON, logs server-side, no stack trace leak
+
 QUALITY
 - ESLint (typescript-eslint, react-hooks, unused-imports)
 - 47 Playwright E2E tests across 7 suites
-- GitHub Actions CI: lint + build + e2e on push/PR to main
+- GitHub Actions CI: npm audit (critical) + lint + build + e2e on push/PR to main
 - MIT licensed

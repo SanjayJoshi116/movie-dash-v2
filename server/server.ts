@@ -1,15 +1,20 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import fs from 'fs';
 import path from 'path';
 import csv from 'csv-parser';
 import cors from 'cors';
 import compression from 'compression';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import type { Movie } from '../src/types/movie';
 
 const app = express();
-app.use(cors());
+app.use(helmet());
+app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:3000' }));
 app.use(compression());
-app.use(express.json());
+
+const apiLimiter = rateLimit({ windowMs: 60000, limit: 300, standardHeaders: true, legacyHeaders: false });
+app.use('/api', apiLimiter);
 
 const movies: Movie[] = [];
 let ready = false;
@@ -50,12 +55,22 @@ app.get('/api/movies', (_req: Request, res: Response<Movie[]>) => {
 });
 
 app.get('/api/movies/:id', (req: Request<{ id: string }>, res: Response) => {
-  const movie = movies.find((m) => m['Movie ID'] === req.params.id);
+  const { id } = req.params;
+  if (!id || id.length > 32) {
+    res.status(400).json({ error: 'Invalid movie id' });
+    return;
+  }
+  const movie = movies.find((m) => m['Movie ID'] === id);
   if (movie) {
     res.json(movie);
   } else {
     res.status(404).json({ error: 'Movie not found' });
   }
+});
+
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;

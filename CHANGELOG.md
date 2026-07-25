@@ -3,6 +3,25 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] - 2026-07-25
+
+### Added
+- Mobile bottom navigation (`src/components/BottomNav.tsx`) — replaces `Sidebar` below the `sm` breakpoint (Ant Design `Grid.useBreakpoint()`); Dashboard/Movies/Stats links with active-route highlighting, safe-area padding for notched devices.
+- `src/components/LoadingError.tsx` — shared loading spinner / error alert wrapper, factored out of `Dashboard.tsx`, `Movies.tsx`, `Stats.tsx` (each previously duplicated the same loading/error branch).
+- `src/utils/formatDate.ts` (`formatDateDDMMYYYY`) — release dates now render as `DD-MM-YYYY` in `MovieTable` and `MovieDrawer`.
+- Backend hardening: `helmet()` for security headers, `express-rate-limit` on `/api` (300 req/min), CORS restricted to `CLIENT_ORIGIN` env var (defaults to `http://localhost:3000`) instead of open `cors()`, `Movie ID` param validated (max length) before lookup, and a catch-all error-handling middleware so unhandled route errors return a `500` JSON body instead of leaking a stack trace.
+- CI: `npm audit --audit-level=critical` step runs before lint/build/e2e.
+- Keyboard accessibility on `MovieTable` rows and `MovieCardGrid` cards — `role="button"`, `tabIndex`, `aria-label`, and Enter/Space activation alongside click.
+- `MovieTable` gained sorters on ID, Genres, Actors, Production Company; `Genres`/`Actors`/`Production Company`/`Country` columns hide progressively on narrower viewports (`responsive: ['md'|'lg']`).
+
+### Changed
+- `TopBar` no longer renders a per-page title — `Dashboard`, `Movies`, and `Stats` each render their own page heading inline instead, matching the mobile bottom-nav pattern of not relying on the header for page identity.
+- Sidebar is now conditionally rendered (`screens.sm`) instead of always-mounted-but-collapsed; its logo links back to `/`.
+- `Movies.tsx` defaults to grid view on first load under the `sm` breakpoint (table view remains default on larger screens).
+- `MovieDrawer` and `FiltersDrawer` go full-width (`100%`) below the `sm` breakpoint instead of a fixed `480`/`400`px width.
+- `MovieCardGrid` pagination switches to Ant's `simple` mode and drops the size-changer/total-count text below `sm`.
+- `eslint.config.mjs` ignores `.claude/**`.
+
 ## [0.3.0] - 2026-07-25
 
 ### Added

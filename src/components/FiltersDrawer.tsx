@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Drawer, Select, Slider, Button, Typography, Space } from 'antd';
+import { Drawer, Select, Slider, Button, Typography, Space, Grid } from 'antd';
 import { ClearOutlined } from '@ant-design/icons';
 import type { Movie, FilterState } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
@@ -50,6 +50,7 @@ const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 const FiltersDrawer: React.FC<FiltersDrawerProps> = ({ movies, filters, onChange, open, onClose }) => {
   const { isDark } = useTheme();
+  const screens = Grid.useBreakpoint();
 
   const {
     languageOptions,
@@ -115,7 +116,7 @@ const FiltersDrawer: React.FC<FiltersDrawerProps> = ({ movies, filters, onChange
     <Drawer
       title={<span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Filters</span>}
       placement="right"
-      width={400}
+      width={screens.sm ? 400 : '100%'}
       open={open}
       onClose={onClose}
       styles={{

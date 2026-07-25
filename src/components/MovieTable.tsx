@@ -1,8 +1,9 @@
 import React from 'react';
-import { Table, Empty } from 'antd';
+import { Table, Empty, Grid } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { Movie } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
+import { formatDateDDMMYYYY } from '../utils/formatDate';
 
 interface MovieTableProps {
   movies: Movie[];
@@ -10,7 +11,13 @@ interface MovieTableProps {
 }
 
 const columns: ColumnsType<Movie> = [
-  { title: 'ID', dataIndex: 'Movie ID', key: 'Movie ID', width: 80 },
+  {
+    title: 'ID',
+    dataIndex: 'Movie ID',
+    key: 'Movie ID',
+    width: 80,
+    sorter: (a, b) => (parseInt(a['Movie ID'], 10) || 0) - (parseInt(b['Movie ID'], 10) || 0),
+  },
   {
     title: 'Name',
     dataIndex: 'Name',
@@ -40,7 +47,14 @@ const columns: ColumnsType<Movie> = [
     width: 80,
     sorter: (a, b) => (parseInt(a['Release Year'], 10) || 0) - (parseInt(b['Release Year'], 10) || 0),
   },
-  { title: 'Genres', dataIndex: 'Genres', key: 'Genres', width: 150 },
+  {
+    title: 'Genres',
+    dataIndex: 'Genres',
+    key: 'Genres',
+    width: 150,
+    sorter: (a, b) => a.Genres.localeCompare(b.Genres),
+    responsive: ['md'],
+  },
   {
     title: 'Director',
     dataIndex: 'Director',
@@ -53,12 +67,16 @@ const columns: ColumnsType<Movie> = [
     dataIndex: 'Actors/Actresses',
     key: 'Actors/Actresses',
     width: 180,
+    sorter: (a, b) => a['Actors/Actresses'].localeCompare(b['Actors/Actresses']),
+    responsive: ['lg'],
   },
   {
     title: 'Production Company',
     dataIndex: 'Production Company',
     key: 'Production Company',
     width: 180,
+    sorter: (a, b) => a['Production Company'].localeCompare(b['Production Company']),
+    responsive: ['lg'],
   },
   {
     title: 'Country',
@@ -66,6 +84,7 @@ const columns: ColumnsType<Movie> = [
     key: 'Production Country',
     width: 100,
     sorter: (a, b) => a['Production Country'].localeCompare(b['Production Country']),
+    responsive: ['md'],
   },
   {
     title: 'Vote Avg',
@@ -79,10 +98,14 @@ const columns: ColumnsType<Movie> = [
     dataIndex: 'Release Date',
     key: 'Release Date',
     width: 120,
+    sorter: (a, b) => a['Release Date'].localeCompare(b['Release Date']),
+    render: (date: string) => formatDateDDMMYYYY(date),
   },
 ];
 
 const MovieTable: React.FC<MovieTableProps> = ({ movies, onRowClick }) => {
+  const screens = Grid.useBreakpoint();
+
   return (
     <div>
       <Table<Movie>
@@ -91,14 +114,27 @@ const MovieTable: React.FC<MovieTableProps> = ({ movies, onRowClick }) => {
         rowKey="Movie ID"
         onRow={(record) => ({
           onClick: () => onRowClick(record),
+          onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onRowClick(record);
+            }
+          },
+          tabIndex: 0,
+          role: 'button',
+          'aria-label': `View details for ${record.Name}`,
           style: { cursor: 'pointer' },
         })}
-        pagination={{
-          defaultPageSize: 10,
-          showSizeChanger: true,
-          pageSizeOptions: ['5', '10', '20', '50'],
-          showTotal: (total, range) => `${range[0]}–${range[1]} of ${total} movies`,
-        }}
+        pagination={
+          screens.sm
+            ? {
+                defaultPageSize: 10,
+                showSizeChanger: true,
+                pageSizeOptions: ['5', '10', '20', '50'],
+                showTotal: (total, range) => `${range[0]}–${range[1]} of ${total} movies`,
+              }
+            : { defaultPageSize: 10, simple: true }
+        }
         scroll={{ x: 'max-content' }}
         sticky
         size="small"
