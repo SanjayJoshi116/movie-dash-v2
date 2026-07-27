@@ -8,7 +8,7 @@ A full-stack movie analytics dashboard: a React frontend backed by an Express AP
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
 
-**Highlights:** Table/grid movie catalogue · 6 analytics tabs · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 47 Playwright E2E tests · light/dark theme · filter state persisted to `localStorage`
+**Highlights:** Table/grid movie catalogue with poster art · 6 analytics tabs · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 47 Playwright E2E tests · light/dark theme · filter state persisted per-session
 
 No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
 
@@ -31,16 +31,18 @@ No hosted demo — this project runs locally against your own CSV dataset. See [
 Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`, `/stats`) rather than one crowded screen — a landing summary, the filterable catalogue, and deep-dive analytics each get their own layout and loading state instead of competing for space. All three, plus every other breakpoint-dependent element (sidebar/bottom-nav, drawer widths, table columns), are responsive via Ant Design's `Grid.useBreakpoint()` — see [Known gotchas](./CLAUDE.md#known-gotchas) for why there are no `@media` queries in the codebase.
 
 ### Dashboard (`/`)
-- Landing summary: stat cards (total movies, average rating, average runtime, total box office)
-- Highlight cards — top rated, most popular, newest release
+- Landing summary: stat cards (total movies — hero-styled, average rating, average runtime, total box office), each with an icon
+- Highlight cards — top rated, most popular, newest release — with a poster thumbnail
+- Recent Releases list with poster thumbnails, keyboard-accessible (`Enter`/`Space`) like the rest of the app
+- Skeleton placeholder layout while data loads, instead of a bare spinner
 - CTA cards linking through to Movies and Stats
 
 ### Movies (`/movies`)
-- Table or grid view, toggled with a `Segmented` control — grid shows poster-style cards, table is the dense sortable list
+- Table or grid view, toggled with a `Segmented` control — grid shows poster cards (up to 6/row on wide screens), table is the dense sortable list
 - Always-visible search box (name, director, actor, genre, production company) plus a **Filters** button — clicking it opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue), so the page stays uncluttered until you need it
 - The Filters button shows a small dot when any filter is active
 - Removable filter chips summarising every active filter, plus a one-click "Clear all", shown directly on the page (no need to open the drawer)
-- Filter state persisted across page refreshes (localStorage)
+- Filter state persisted for the tab/session (`sessionStorage`) — survives navigating away and back, resets on a new tab or browser restart
 - Sortable columns, pagination (5 / 10 / 20 / 50 per page) in table view
 - Click any row/card to open a detail drawer with full movie info, vote count, and popularity score — rows/cards are keyboard-accessible (`Enter`/`Space`) with `aria-label`s
 - Export filtered results to CSV
@@ -63,7 +65,8 @@ Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`,
 - Glassmorphism design system with CSS custom properties
 
 ### Accessibility
-- Table rows and grid cards are keyboard-operable (`Tab` to focus, `Enter`/`Space` to activate) with `role="button"` and `aria-label`s, not click-only
+- Table rows, grid cards, and the Dashboard's Recent Releases list are keyboard-operable (`Tab` to focus, `Enter`/`Space` to activate) with `role="button"` and `aria-label`s, not click-only
+- `BottomNav`'s active link sets `aria-current="page"` for assistive tech
 - Semantic headings (`<Title>`) per page instead of relying on the top bar for page identity
 
 ---
@@ -109,12 +112,13 @@ The expected columns are:
 Movie ID, Name, Language, Runtime, Release Year, Genres, Director,
 Actors/Actresses, Production Company, Production Country,
 Box Office Revenue, Budget, Popularity Score, Vote Average,
-Vote Count, Release Date
+Vote Count, Poster URL, Release Date
 ```
 
 - **Language** — ISO 639-1 code (`en`, `fr`, `ja`, …)
 - **Genres** — comma-separated (`Action, Adventure`)
 - **Box Office Revenue / Budget** — plain numbers (e.g. `150000000`)
+- **Poster URL** — optional, full image URL (e.g. TMDB's `https://image.tmdb.org/t/p/w500/<poster_path>`); leave blank to fall back to a placeholder in the grid view and detail drawer
 - **Release Date** — `YYYY-MM-DD`
 
 A download button in the top bar also lets users grab the template directly from the running app.
@@ -146,6 +150,7 @@ This project was populated using the [TMDB (The Movie Database) API](https://www
 | `Popularity Score` | `popularity` |
 | `Vote Average` | `vote_average` |
 | `Vote Count` | `vote_count` |
+| `Poster URL` | `https://image.tmdb.org/t/p/w500` + `poster_path` |
 | `Release Date` | `release_date` |
 
 `credits` and `keywords` require appending `append_to_response=credits,keywords` to the `/movie/{id}` request.
@@ -167,6 +172,16 @@ TMDB_API_KEY=your_tmdb_api_key_here
 ```
 
 `.env` is gitignored — the key never gets hardcoded or committed.
+
+#### Backfilling posters into an existing CSV
+
+If your `src/movies.csv` predates the `Poster URL` column (or has rows with it blank), `backfill_posters.py` fills them in by looking each row's `Movie ID` up on TMDB:
+
+```bash
+python backfill_posters.py
+```
+
+It checkpoints every 100 rows (safe to interrupt) and prints a specific reason for any row it can't fill (not found on TMDB, no poster on TMDB, timeout, etc.). Back up `src/movies.csv` first — it rewrites the file in place.
 
 ### 3. Run
 
@@ -237,7 +252,7 @@ movie-dash-v2/
 │   │   ├── DashboardSection.tsx # Title + content wrapper, standardizes Dashboard sections
 │   │   ├── FiltersDrawer.tsx   # Category/range filters, opened via the Filters button
 │   │   ├── ActiveFilters.tsx   # Removable filter chips + "Clear all"
-│   │   ├── LoadingError.tsx    # Shared loading spinner / error alert wrapper (Dashboard, Movies, Stats)
+│   │   ├── LoadingError.tsx    # Shared skeleton-loading / error alert wrapper (Dashboard, Movies, Stats)
 │   │   ├── BottomNav.tsx       # Fixed mobile nav bar, replaces Sidebar below the `sm` breakpoint
 │   │   ├── MovieTable.tsx
 │   │   ├── MovieCardGrid.tsx
@@ -274,7 +289,7 @@ Playwright tests cover the full user journey across 7 suites (47 tests):
 - **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title updates
 - **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence
 - **Theme** — default dark, toggle to light, reload persistence
-- **Filter Persistence** — search filter survives route changes via localStorage
+- **Filter Persistence** — search filter survives route changes via `sessionStorage`
 - **Edge Cases** — combined filters, pagination, sort + filter combo
 
 Tests run automatically on every push and pull request to `main` via GitHub Actions (see `.github/workflows/ci.yml`).
@@ -320,7 +335,8 @@ Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: p
 - **CORS allowlist** — only `CLIENT_ORIGIN` (env var, defaults to `http://localhost:3000`) may call the API cross-origin, instead of an open `cors()` reflecting any origin. Set `CLIENT_ORIGIN` to your deployed frontend's URL in production.
 - **Input validation** — `Movie ID` route params are length-checked before use.
 - **Error handling** — a catch-all Express error-handling middleware returns a generic `500 { error: "Internal server error" }` instead of leaking stack traces; errors are still logged server-side.
-- CI runs `npm audit --audit-level=critical` before lint/build/e2e.
+- CI runs `npm audit --audit-level=high` before lint/build/e2e.
+- `movie-search.py` sends the TMDB API key via `requests`' `params=` (never string-interpolated into a URL) and never echoes raw request exceptions — which could include the URL/key — back to the user in an error dialog.
 
 ---
 
@@ -330,7 +346,8 @@ Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: p
 - **HTTP caching** — `/movies` sent with `Cache-Control: public, max-age=60`
 - **Debounced search** — table search input debounced via `useDebounce` to avoid re-filtering on every keystroke
 - **Single fetch, shared context** — movie data fetched once in `MoviesContext` and reused across the dashboard and all stats tabs, not re-fetched per component
-- **Memoization** — derived data (filtered/sorted movie lists, chart datasets, stat aggregations) computed with `useMemo` throughout, so expensive recalculation only happens when the underlying movies or filters actually change
+- **Memoization** — derived data (filtered/sorted movie lists, chart datasets, stat aggregations) computed with `useMemo` throughout, so expensive recalculation only happens when the underlying movies or filters actually change; every chart wrapper in `src/components/Charts/*` also memoizes its Chart.js `options` object, so an unrelated parent re-render doesn't force a full chart rebuild
+- **Tree-shaken Chart.js** — `src/main.tsx` registers only the specific controllers/elements/scales/plugins actually used, instead of Chart.js's `registerables` (the entire library)
 - **Code splitting** — Vite production build splits vendor/chart bundles
 
 ---

@@ -1,9 +1,10 @@
 import React from 'react';
-import { Drawer, Descriptions, Tag, Typography, Grid } from 'antd';
+import { Drawer, Descriptions, Tag, Typography, Grid, Image } from 'antd';
 import { FireOutlined, LikeOutlined } from '@ant-design/icons';
 import type { Movie } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
 import { formatDateDDMMYYYY } from '../utils/formatDate';
+import { POSTER_FALLBACK } from '../utils/poster';
 import { useTheme } from '../contexts/ThemeContext';
 
 const { Title } = Typography;
@@ -60,6 +61,17 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
       }}
     >
       {movie && (
+        <>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <Image
+            src={movie['Poster URL'] || POSTER_FALLBACK}
+            alt={`${movie.Name} poster`}
+            width={200}
+            height={300}
+            style={{ borderRadius: 8, objectFit: 'cover' }}
+            fallback={POSTER_FALLBACK}
+          />
+        </div>
         <Descriptions
           column={1}
           bordered
@@ -107,6 +119,7 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
             </Descriptions.Item>
           )}
         </Descriptions>
+        </>
       )}
     </Drawer>
   );

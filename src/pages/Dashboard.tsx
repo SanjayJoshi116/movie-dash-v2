@@ -9,6 +9,9 @@ import {
   FireOutlined,
   CalendarOutlined,
   ClockCircleOutlined,
+  VideoCameraOutlined,
+  StarOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
 import { useMovies } from '../hooks/useMovies';
 import { useTheme } from '../contexts/ThemeContext';
@@ -21,6 +24,7 @@ import BarChart from '../components/Charts/BarChart';
 import DoughnutChart from '../components/Charts/DoughnutChart';
 import { getCardStyle } from '../utils/chartTheme';
 import { groupByField, makeDoughnut, parseRevenue, formatRevenue } from '../utils/statsHelpers';
+import { POSTER_FALLBACK } from '../utils/poster';
 import type { Movie } from '../types/movie';
 
 const { Title, Text } = Typography;
@@ -40,12 +44,21 @@ const HighlightCard: React.FC<HighlightCardProps> = ({ icon, label, movie, detai
       {label}
     </div>
     {movie ? (
-      <>
-        <div style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 17, marginBottom: 6 }}>
-          {movie.Name}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <img
+          src={movie['Poster URL'] || POSTER_FALLBACK}
+          alt={`${movie.Name} poster`}
+          loading="lazy"
+          onError={(e) => { (e.target as HTMLImageElement).src = POSTER_FALLBACK; }}
+          style={{ width: 48, height: 72, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
+        />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 17, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {movie.Name}
+          </div>
+          <Tag color="blue">{detail}</Tag>
         </div>
-        <Tag color="blue">{detail}</Tag>
-      </>
+      </div>
     ) : (
       <Text style={{ color: 'var(--text-muted)' }}>No data</Text>
     )}
@@ -175,10 +188,16 @@ const Dashboard: React.FC = () => {
       </Text>
       <DashboardSection title="Overview">
         <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} md={6}><StatCard label="Total Movies" value={stats.totalMovies} color="#818cf8" /></Col>
-          <Col xs={24} sm={12} md={6}><StatCard label="Average Rating" value={stats.avgRating.toFixed(1)} color="#34d399" suffix="/ 10" /></Col>
-          <Col xs={24} sm={12} md={6}><StatCard label="Average Runtime" value={stats.avgRuntime} color="#a78bfa" suffix="mins" /></Col>
-          <Col xs={24} sm={12} md={6}><StatCard label="Total Box Office" value={formatRevenue(stats.totalRevenue)} color="#fb923c" /></Col>
+          <Col xs={24} md={12}>
+            <StatCard label="Total Movies" value={stats.totalMovies} color="#818cf8" icon={<VideoCameraOutlined />} hero />
+          </Col>
+          <Col xs={24} md={12}>
+            <Row gutter={[16, 16]} style={{ height: '100%' }}>
+              <Col xs={24} sm={8}><StatCard label="Average Rating" value={stats.avgRating.toFixed(1)} color="#34d399" suffix="/ 10" icon={<StarOutlined />} /></Col>
+              <Col xs={24} sm={8}><StatCard label="Average Runtime" value={stats.avgRuntime} color="#a78bfa" suffix="mins" icon={<ClockCircleOutlined />} /></Col>
+              <Col xs={24} sm={8}><StatCard label="Total Box Office" value={formatRevenue(stats.totalRevenue)} color="#fb923c" icon={<DollarOutlined />} /></Col>
+            </Row>
+          </Col>
         </Row>
       </DashboardSection>
 
@@ -245,15 +264,33 @@ const Dashboard: React.FC = () => {
                 renderItem={(movie) => (
                   <List.Item
                     onClick={() => setSelectedMovie(movie)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`View details for ${movie.Name}`}
+                    onKeyDown={(e: React.KeyboardEvent) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedMovie(movie);
+                      }
+                    }}
                     style={{ cursor: 'pointer', padding: '10px 4px', borderBlockEnd: '1px solid var(--glass-border)' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 12 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ color: 'var(--text-primary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {movie.Name}
-                        </div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <ClockCircleOutlined /> {movie['Release Date']}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        <img
+                          src={movie['Poster URL'] || POSTER_FALLBACK}
+                          alt={`${movie.Name} poster`}
+                          loading="lazy"
+                          onError={(e) => { (e.target as HTMLImageElement).src = POSTER_FALLBACK; }}
+                          style={{ width: 32, height: 48, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                        />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ color: 'var(--text-primary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {movie.Name}
+                          </div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <ClockCircleOutlined /> {movie['Release Date']}
+                          </div>
                         </div>
                       </div>
                       <Tag color="blue" style={{ flexShrink: 0 }}>⭐ {movie['Vote Average']}</Tag>

@@ -27,6 +27,9 @@ session.mount("https://", adapter)
 
 headers = {'User-Agent': 'Mozilla/5.0'}
 
+TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
+CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "movies.csv")
+
 # Global variables for pagination
 current_page = 1
 total_pages = 1
@@ -60,43 +63,43 @@ def search_movie(api_key, movie_name, page=1):
         response = session.get(url, params=params, headers=headers, timeout=10)
         response.raise_for_status()
         return response.json()
-    except requests.exceptions.RequestException as e:
-        messagebox.showerror("Connection Error", f"Failed to fetch data from TMDB:\n{e}")
+    except requests.exceptions.RequestException:
+        messagebox.showerror("Connection Error", "Failed to fetch data from TMDB. Check your connection and try again.")
         return {"results": [], "total_pages": 1}
 
 def fetch_movie_details(api_key, movie_id):
-    url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}"
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}"
     try:
-        response = session.get(url, headers=headers, timeout=10)
+        response = session.get(url, params={"api_key": api_key}, headers=headers, timeout=10)
         response.raise_for_status()
         return response.json()
-    except requests.exceptions.RequestException as e:
-        messagebox.showerror("Error", f"Failed to fetch details:\n{e}")
+    except requests.exceptions.RequestException:
+        messagebox.showerror("Error", "Failed to fetch details. Check your connection and try again.")
         return {}
 
 def fetch_movie_credits(api_key, movie_id):
-    url = f"https://api.themoviedb.org/3/movie/{movie_id}/credits?api_key={api_key}"
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}/credits"
     try:
-        response = session.get(url, headers=headers, timeout=10)
+        response = session.get(url, params={"api_key": api_key}, headers=headers, timeout=10)
         response.raise_for_status()
         return response.json()
-    except requests.exceptions.RequestException as e:
-        messagebox.showerror("Error", f"Failed to fetch credits:\n{e}")
+    except requests.exceptions.RequestException:
+        messagebox.showerror("Error", "Failed to fetch credits. Check your connection and try again.")
         return {}
 
 def fetch_movie_keywords(api_key, movie_id):
-    url = f"https://api.themoviedb.org/3/movie/{movie_id}/keywords?api_key={api_key}"
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}/keywords"
     try:
-        response = session.get(url, headers=headers, timeout=10)
+        response = session.get(url, params={"api_key": api_key}, headers=headers, timeout=10)
         response.raise_for_status()
         return response.json().get("keywords", [])
-    except requests.exceptions.RequestException as e:
-        messagebox.showerror("Error", f"Failed to fetch keywords:\n{e}")
+    except requests.exceptions.RequestException:
+        messagebox.showerror("Error", "Failed to fetch keywords. Check your connection and try again.")
         return []
 
 def is_duplicate(movie_id):
     try:
-        with open("movies.csv", mode="r", encoding="utf-8") as file:
+        with open(CSV_PATH, mode="r", encoding="utf-8") as file:
             reader = csv.DictReader(file)
             for row in reader:
                 if row.get("Movie ID") == str(movie_id):
@@ -106,13 +109,33 @@ def is_duplicate(movie_id):
     return False
 
 def append_to_csv(movie_details):
-    fieldnames = movie_details.keys()
     if is_duplicate(movie_details["Movie ID"]):
         messagebox.showinfo("Duplicate Entry", "This movie is already in the CSV file")
         return
-    with open("movies.csv", mode="a", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        if file.tell() == 0:
+
+    file_exists = os.path.exists(CSV_PATH) and os.path.getsize(CSV_PATH) > 0
+    fieldnames = list(movie_details.keys())
+
+    if file_exists:
+        with open(CSV_PATH, mode="r", newline="", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            existing_fieldnames = list(reader.fieldnames or [])
+            existing_rows = list(reader)
+        missing = [k for k in fieldnames if k not in existing_fieldnames]
+        if missing:
+            # Migrate the CSV in place: keep old rows, add the new column(s) (e.g. "Poster URL")
+            # with blank values, so every future append actually persists them.
+            fieldnames = existing_fieldnames + missing
+            with open(CSV_PATH, mode="w", newline="", encoding="utf-8") as file:
+                writer = csv.DictWriter(file, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(existing_rows)
+        else:
+            fieldnames = existing_fieldnames
+
+    with open(CSV_PATH, mode="a", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames, extrasaction="ignore")
+        if not file_exists:
             writer.writeheader()
         writer.writerow(movie_details)
     messagebox.showinfo("Success", "Movie details appended to CSV file")
@@ -193,6 +216,7 @@ def apply_filter_and_display(event=None):
                 "Popularity Score": details.get("popularity", "N/A"),
                 "Vote Average": details.get("vote_average", "N/A"),
                 "Vote Count": details.get("vote_count", "N/A"),
+                "Poster URL": f"{TMDB_IMAGE_BASE}{details['poster_path']}" if details.get("poster_path") else "",
                 "Keywords/Tags": keywords_list,
                 "Release Date": details.get("release_date", "N/A")
             }
@@ -246,8 +270,8 @@ def search_by_actor(actor_name, movie_name_filter=""):
         )
         r.raise_for_status()
         persons = r.json().get("results", [])
-    except requests.exceptions.RequestException as e:
-        messagebox.showerror("Error", f"Actor search failed:\n{e}")
+    except requests.exceptions.RequestException:
+        messagebox.showerror("Error", "Actor search failed. Check your connection and try again.")
         return False
 
     if not persons:
@@ -264,8 +288,8 @@ def search_by_actor(actor_name, movie_name_filter=""):
         )
         r.raise_for_status()
         movies = r.json().get("cast", [])
-    except requests.exceptions.RequestException as e:
-        messagebox.showerror("Error", f"Failed to fetch credits:\n{e}")
+    except requests.exceptions.RequestException:
+        messagebox.showerror("Error", "Failed to fetch credits. Check your connection and try again.")
         return False
 
     if movie_name_filter:

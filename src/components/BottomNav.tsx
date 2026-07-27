@@ -37,6 +37,7 @@ const BottomNav: React.FC = () => {
           <Link
             key={item.key}
             to={item.key}
+            aria-current={active ? 'page' : undefined}
             style={{
               flex: 1,
               display: 'flex',

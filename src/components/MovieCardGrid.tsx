@@ -5,6 +5,7 @@ import { ClockCircleOutlined } from '@ant-design/icons';
 import type { Movie } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
 import { getCardStyle } from '../utils/chartTheme';
+import { POSTER_FALLBACK } from '../utils/poster';
 import { useTheme } from '../contexts/ThemeContext';
 
 const MotionCard = motion(Card);
@@ -41,7 +42,7 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => 
         const genres = movie.Genres.split(',').map(g => g.trim()).filter(Boolean).slice(0, 3);
         const vote = parseFloat(movie['Vote Average']);
         return (
-          <Col key={movie['Movie ID']} xs={24} sm={12} md={8} lg={6}>
+          <Col key={movie['Movie ID']} xs={24} sm={12} md={8} lg={6} xl={4}>
             <MotionCard
               whileHover={{ scale: 1.02, y: -2 }}
               transition={{ type: 'spring', stiffness: 300, damping: 20 }}
@@ -57,10 +58,19 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => 
                 }
               }}
               style={{ ...getCardStyle(isDark), height: '100%', cursor: 'pointer' }}
-              styles={{ body: { padding: 16, display: 'flex', flexDirection: 'column', gap: 8 } }}
+              styles={{ body: { padding: 12, display: 'flex', flexDirection: 'column', gap: 6 } }}
+              cover={
+                <img
+                  src={movie['Poster URL'] || POSTER_FALLBACK}
+                  alt={`${movie.Name} poster`}
+                  loading="lazy"
+                  onError={(e) => { (e.target as HTMLImageElement).src = POSTER_FALLBACK; }}
+                  style={{ width: '100%', height: 180, objectFit: 'cover', display: 'block' }}
+                />
+              }
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 15, lineHeight: 1.3 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>
                   {movie.Name}
                 </span>
                 {!isNaN(vote) && vote > 0 && (
@@ -70,12 +80,12 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => 
                 )}
               </div>
 
-              <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+              <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
                 {movie['Release Year']} · {getLanguageName(movie.Language)}
               </span>
 
               {movie.Director && (
-                <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   Dir. {movie.Director}
                 </span>
               )}
@@ -89,7 +99,7 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => 
               )}
 
               {movie.Runtime && (
-                <span style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 'auto' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 'auto' }}>
                   <ClockCircleOutlined style={{ marginRight: 4 }} />
                   {movie.Runtime} mins
                 </span>

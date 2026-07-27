@@ -1,18 +1,20 @@
 MovieDash v2 — Feature List
 
 DASHBOARD (/)
-- Landing summary: stat cards (total movies, average rating, average runtime, total box office)
-- Highlight cards: top rated, most popular, newest release
-- Trends & Breakdown: 10-year release trend, top-6 genre breakdown, rating distribution, recent releases list (click to open detail drawer)
+- Landing summary: stat cards (total movies — hero-styled with icon, average rating, average runtime, total box office), each with an icon
+- Highlight cards: top rated, most popular, newest release — with poster thumbnail
+- Trends & Breakdown: 10-year release trend, top-6 genre breakdown, rating distribution, recent releases list with poster thumbnails (click or Enter/Space to open detail drawer)
+- Skeleton placeholder layout while data loads (instead of a bare spinner)
 - CTA cards linking to Movies and Stats
 - Standardized section layout (title + spacing) via a shared DashboardSection wrapper
 
 MOVIES (/movies)
-- Table or grid view via Segmented toggle (grid = card layout, table = dense sortable list)
+- Table or grid view via Segmented toggle (grid = card layout with poster thumbnail, up to 6 cards/row on wide screens; table = dense sortable list)
+- Poster shown in grid cards and the detail drawer when a movie has a Poster URL in the CSV; falls back to a placeholder otherwise
 - Always-visible search box (name, director, actor, genre, production company)
 - Filters button opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue); dot indicator when a filter is active
 - Removable filter chips summarizing active filters, one-click "Clear all" shown directly on the page
-- Filter state persisted across page refreshes (localStorage)
+- Filter state persisted for the tab/session (sessionStorage) — survives nav within the tab, resets on new tab/restart
 - Sortable columns (table view)
 - Pagination (5 / 10 / 20 / 50 per page, table view)
 - Row/card click opens detail drawer (full movie info, vote count, popularity score); rows/cards keyboard-activatable (Enter/Space) with aria-labels
@@ -36,8 +38,10 @@ THEME
 BACKEND / DATA
 - Express API under /api (gzip-compressed, cached) serving movie data from a local CSV
 - /api prefix keeps Vite dev proxy from colliding with client-side routes like /movies
+- CSV path resolved via process.cwd() (not __dirname), so the compiled production server (server/dist/server/server.js) reads the correct src/movies.csv, same as dev
 - CSV template + TMDB API sourcing guide included
-- movie-search.py: Tkinter GUI to search TMDB (by movie or actor, language filter, pagination) and append picked results to src/movies.csv; TMDB_API_KEY read from .env (never hardcoded)
+- movie-search.py: Tkinter GUI to search TMDB (by movie or actor, language filter, pagination) and append picked results (incl. poster URL) to src/movies.csv; TMDB_API_KEY read from .env (never hardcoded), always sent via requests' params= (not URL-interpolated); appends stay column-aligned with an existing CSV's own header, even one predating the Poster URL column
+- backfill_posters.py: one-off script to fill Poster URL for existing CSV rows via TMDB lookup by Movie ID; checkpointed every 100 rows, reports a specific skip reason per row
 
 SECURITY
 - helmet() security headers on all responses
@@ -45,9 +49,10 @@ SECURITY
 - CORS allowlist restricted to CLIENT_ORIGIN env var (default http://localhost:3000), not an open cors()
 - Movie ID route param length-validated before lookup (400 on invalid)
 - Catch-all error-handling middleware returns generic 500 JSON, logs server-side, no stack trace leak
+- movie-search.py never echoes raw request exceptions (could include URL/key) back to the user in error dialogs
 
 QUALITY
 - ESLint (typescript-eslint, react-hooks, unused-imports)
 - 47 Playwright E2E tests across 7 suites
-- GitHub Actions CI: npm audit (critical) + lint + build + e2e on push/PR to main
+- GitHub Actions CI: npm audit (high) + lint + build + e2e on push/PR to main
 - MIT licensed

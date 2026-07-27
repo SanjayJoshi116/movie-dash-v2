@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Chart } from 'react-chartjs-2';
 import { Chart as ChartJS } from 'chart.js';
 import type { TooltipItem, ChartData, ChartOptions } from 'chart.js';
@@ -27,9 +27,6 @@ interface MatrixChartProps {
 
 const MatrixChart: React.FC<MatrixChartProps> = ({ data, xLabels, yLabels, height = 400, isDark = true }) => {
   const maxVal = Math.max(...data.map(d => d.v), 1);
-  const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';
-  const tickColor = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.75)';
-  const labelColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
   const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(129,140,248,0.25)';
 
   const chartData = {
@@ -56,39 +53,45 @@ const MatrixChart: React.FC<MatrixChartProps> = ({ data, xLabels, yLabels, heigh
     ],
   };
 
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: { duration: 0 },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          title: (items: TooltipItem<'matrix'>[]) => {
-            const raw = items[0]?.raw as MatrixDataPoint;
-            return raw ? `${raw.y} — ${raw.x}` : '';
+  const options = useMemo(() => {
+    const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';
+    const tickColor = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.75)';
+    const labelColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
+
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 0 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items: TooltipItem<'matrix'>[]) => {
+              const raw = items[0]?.raw as MatrixDataPoint;
+              return raw ? `${raw.y} — ${raw.x}` : '';
+            },
+            label: (item: TooltipItem<'matrix'>) => `Movies: ${(item.raw as MatrixDataPoint)?.v ?? 0}`,
           },
-          label: (item: TooltipItem<'matrix'>) => `Movies: ${(item.raw as MatrixDataPoint)?.v ?? 0}`,
         },
       },
-    },
-    scales: {
-      x: {
-        type: 'category' as const,
-        labels: xLabels,
-        offset: true,
-        grid: { color: gridColor },
-        ticks: { color: tickColor },
+      scales: {
+        x: {
+          type: 'category' as const,
+          labels: xLabels,
+          offset: true,
+          grid: { color: gridColor },
+          ticks: { color: tickColor },
+        },
+        y: {
+          type: 'category' as const,
+          labels: yLabels,
+          offset: true,
+          grid: { color: gridColor },
+          ticks: { color: labelColor, font: { size: 11 } },
+        },
       },
-      y: {
-        type: 'category' as const,
-        labels: yLabels,
-        offset: true,
-        grid: { color: gridColor },
-        ticks: { color: labelColor, font: { size: 11 } },
-      },
-    },
-  };
+    };
+  }, [isDark, xLabels, yLabels]);
 
   return (
     <div style={{ height }}>

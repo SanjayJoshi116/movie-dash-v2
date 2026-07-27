@@ -3,6 +3,28 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] - 2026-07-27
+
+### Added
+- Poster images throughout the app: `MovieCardGrid` cards, `MovieDrawer`, Dashboard Highlight cards, and Dashboard Recent Releases list. CSV gains an optional `Poster URL` column (`src/types/movie.ts`, `public/movies.template.csv`); `src/utils/poster.ts` exports `POSTER_FALLBACK`, a placeholder shown when a movie has no poster or the image fails to load. `movie-search.py` now writes `Poster URL` on new appends and migrates an existing CSV that predates the column (adds the header, backfills blank).
+- `backfill_posters.py` — one-off script to fill `Poster URL` for rows already in `src/movies.csv` that predate the column. Looks each row up on TMDB by `Movie ID`, checkpoints every 100 rows, and reports a specific skip reason per row (`not_found_on_tmdb (404)`, `no_poster_on_tmdb`, `request_timeout`, `request_error (...)`, `missing_movie_id`).
+- Dashboard: hero-styled "Total Movies" stat card and icons on all Overview stat cards (`StatCard` gained `hero`/`icon` props).
+- `LoadingError.tsx` renders a skeleton placeholder layout (Ant `Skeleton`) instead of a bare spinner while movies are loading.
+- `MovieCardGrid` gains a 6-cards-per-row layout at the `xl` (≥1200px) breakpoint, with denser card padding/fonts/poster height — previously capped at 4/row on all wide screens.
+- `BottomNav`'s active link now sets `aria-current="page"`; Dashboard's Recent Releases list items gained `role="button"`, `tabIndex`, `onKeyDown` (Enter/Space), and `aria-label`, matching the keyboard-accessibility pattern already used by `MovieCardGrid`/`MovieTable`.
+
+### Changed
+- Filter persistence (`usePersistedFilters.ts`) moved from `localStorage` to `sessionStorage` — filters now survive in-app navigation within a tab/session but reset on a new tab or browser restart, instead of surviving indefinitely (including across server restarts, which was the reported surprise).
+- Chart.js registration (`src/main.tsx`) now imports only the specific controllers/elements/scales/plugins actually used by `src/components/Charts/*`, instead of `registerables` (the entire library) — smaller `vendor-charts` bundle.
+- Every `src/components/Charts/*` wrapper memoizes its `options` object via `useMemo`, so an unrelated parent re-render no longer forces the chart to rebuild and re-diff its full options tree on every render.
+- CI dependency-audit gate (`.github/workflows/ci.yml`) tightened from `npm audit --audit-level=critical` to `--audit-level=high`.
+
+### Fixed
+- `server/server.ts` resolved the CSV path via `__dirname`, which pointed at the wrong directory once compiled (`server/dist/server/`) — the compiled production server silently served an empty dataset. Now resolved via `process.cwd()`, correct under both `tsx watch` (dev) and the compiled build.
+- `movie-search.py` was appending to `movies.csv` in the process's working directory instead of `src/movies.csv`, silently diverging from the file the server actually reads. TMDB API key is now always passed via `requests`' `params=` (previously string-interpolated into the URL for 3 of the 5 endpoints); network-error dialogs no longer echo the raw exception back to the user, which could have surfaced the request URL (and key) on-screen.
+- `MovieCardGrid` cover image was missing `width: 100%`, so posters could render at their natural width and break card alignment.
+- `MovieDrawer` now always renders the poster block (with fallback) instead of omitting it entirely when `Poster URL` is blank, and sets a fixed image `height` to stop layout shift while it loads.
+
 ## [0.4.0] - 2026-07-25
 
 ### Added

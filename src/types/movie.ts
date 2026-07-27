@@ -14,6 +14,7 @@ export interface Movie {
   'Popularity Score': string;
   'Vote Average': string;
   'Vote Count': string;
+  'Poster URL'?: string;
   'Release Date': string;
 }
 

@@ -19,7 +19,7 @@ app.use('/api', apiLimiter);
 const movies: Movie[] = [];
 let ready = false;
 
-const csvPath = path.join(__dirname, '..', 'src', 'movies.csv');
+const csvPath = path.join(process.cwd(), 'src', 'movies.csv');
 
 fs.createReadStream(csvPath)
   .on('error', (err) => {
