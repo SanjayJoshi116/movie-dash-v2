@@ -1,7 +1,7 @@
 import React from 'react';
 import { Layout, Menu } from 'antd';
 import { DashboardOutlined, BarChartOutlined, PlayCircleOutlined, UnorderedListOutlined } from '@ant-design/icons';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router';
 import { useTheme } from '../contexts/ThemeContext';
 import type { MenuProps } from 'antd';
 

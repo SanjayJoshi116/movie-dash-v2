@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Row, Col, Typography, Button, Tag, List, Grid } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import {
   UnorderedListOutlined,

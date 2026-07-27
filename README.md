@@ -79,7 +79,7 @@ Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`,
 | UI | Ant Design v5 (dark + light algorithm) |
 | Charts | Chart.js 4 + react-chartjs-2, chartjs-chart-matrix |
 | Animation | Framer Motion |
-| Routing | React Router v7 |
+| Routing | React Router v8 (`react-router` package — `react-router-dom` is deprecated as of v8) |
 | HTTP | Axios |
 | Backend | Express.js (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
@@ -90,7 +90,7 @@ Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`,
 
 ## Getting Started
 
-Requires **Node.js 20+**.
+Requires **Node.js 22.22+** (raised from 20+ — `react-router@8` requires it).
 
 ### 1. Install dependencies
 

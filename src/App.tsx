@@ -1,5 +1,5 @@
 import React, { Suspense, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router';
 import { Layout, Result, Button, Spin, ConfigProvider, Grid, theme as antdTheme } from 'antd';
 import { MoviesProvider } from './contexts/MoviesContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';

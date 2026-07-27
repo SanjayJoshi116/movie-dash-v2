@@ -54,5 +54,6 @@ SECURITY
 QUALITY
 - ESLint (typescript-eslint, react-hooks, unused-imports)
 - 47 Playwright E2E tests across 7 suites
-- GitHub Actions CI: npm audit (high) + lint + build + e2e on push/PR to main
+- GitHub Actions CI: npm audit (high, 0 vulnerabilities) + lint + build + e2e on push/PR to main
+- Requires Node.js 22.22+ (react-router v8 requirement)
 - MIT licensed

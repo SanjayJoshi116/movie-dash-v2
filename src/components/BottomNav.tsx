@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router';
 import { DashboardOutlined, BarChartOutlined, UnorderedListOutlined } from '@ant-design/icons';
 
 const ACCENT = '#818cf8';

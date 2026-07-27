@@ -17,7 +17,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-react': ['react', 'react-dom', 'react-router'],
           'vendor-antd': ['antd', '@ant-design/icons'],
           'vendor-charts': ['chart.js', 'react-chartjs-2', 'chartjs-chart-matrix', 'chartjs-chart-treemap'],
           'vendor-motion': ['framer-motion'],

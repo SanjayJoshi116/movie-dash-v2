@@ -3,7 +3,7 @@
 Guidance for Claude Code (or any AI agent) working in this repo.
 
 ## Stack
-- Frontend: React 19, TypeScript, Vite 6, Ant Design v5, Chart.js 4 (+ react-chartjs-2, chartjs-chart-matrix), Framer Motion, React Router v7.
+- Frontend: React 19, TypeScript, Vite 6, Ant Design v5, Chart.js 4 (+ react-chartjs-2, chartjs-chart-matrix), Framer Motion, React Router v8 (import from `'react-router'` — `react-router-dom` is deprecated/frozen at 7.18.1 as of v8; the base package now includes the DOM bindings, `react-router-dom` was just `export * from "react-router"`).
 - Backend: Express (TypeScript, run via `tsx`), serves movie data from a local CSV via `csv-parser`.
 - Testing: Playwright E2E (`tests/app.spec.ts`, 47 tests, 7 suites).
 - Lint: ESLint (`eslint.config.mjs` — typescript-eslint, react-hooks, unused-imports).
