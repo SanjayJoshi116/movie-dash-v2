@@ -5,9 +5,10 @@ import type { ChartData, ChartOptions } from 'chart.js';
 interface BarChartProps {
   data: ChartData<'bar'>;
   isDark?: boolean;
+  onElementClick?: (index: number) => void;
 }
 
-const BarChart: React.FC<BarChartProps> = ({ data, isDark = true }) => {
+const BarChart: React.FC<BarChartProps> = ({ data, isDark = true, onElementClick }) => {
   const options: ChartOptions<'bar'> = useMemo(() => {
     const textColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
     const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.14)';
@@ -16,6 +17,12 @@ const BarChart: React.FC<BarChartProps> = ({ data, isDark = true }) => {
     return {
       responsive: true,
       maintainAspectRatio: false,
+      onClick: onElementClick
+        ? (_evt, elements) => { if (elements.length) onElementClick(elements[0].index); }
+        : undefined,
+      onHover: onElementClick
+        ? (evt, elements) => { (evt.native?.target as HTMLElement)?.style.setProperty('cursor', elements.length ? 'pointer' : 'default'); }
+        : undefined,
       plugins: {
         legend: {
           position: 'bottom' as const,
@@ -37,7 +44,7 @@ const BarChart: React.FC<BarChartProps> = ({ data, isDark = true }) => {
         },
       },
     };
-  }, [isDark]);
+  }, [isDark, onElementClick]);
 
   return <Bar data={data} options={options} />;
 };

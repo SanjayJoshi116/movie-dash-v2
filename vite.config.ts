@@ -19,7 +19,7 @@ export default defineConfig({
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router'],
           'vendor-antd': ['antd', '@ant-design/icons'],
-          'vendor-charts': ['chart.js', 'react-chartjs-2', 'chartjs-chart-matrix', 'chartjs-chart-treemap'],
+          'vendor-charts': ['chart.js', 'react-chartjs-2', 'chartjs-chart-matrix'],
           'vendor-motion': ['framer-motion'],
         },
       },

@@ -5,9 +5,10 @@ import type { ChartData, ChartOptions } from 'chart.js';
 interface LineChartProps {
   data: ChartData<'line'>;
   isDark?: boolean;
+  onElementClick?: (index: number) => void;
 }
 
-const LineChart: React.FC<LineChartProps> = ({ data, isDark = true }) => {
+const LineChart: React.FC<LineChartProps> = ({ data, isDark = true, onElementClick }) => {
   const options: ChartOptions<'line'> = useMemo(() => {
     const textColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
     const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';
@@ -16,6 +17,12 @@ const LineChart: React.FC<LineChartProps> = ({ data, isDark = true }) => {
     return {
       responsive: true,
       maintainAspectRatio: false,
+      onClick: onElementClick
+        ? (_evt, elements) => { if (elements.length) onElementClick(elements[0].index); }
+        : undefined,
+      onHover: onElementClick
+        ? (evt, elements) => { (evt.native?.target as HTMLElement)?.style.setProperty('cursor', elements.length ? 'pointer' : 'default'); }
+        : undefined,
       plugins: {
         legend: {
           position: 'bottom' as const,
@@ -41,7 +48,7 @@ const LineChart: React.FC<LineChartProps> = ({ data, isDark = true }) => {
         point: { radius: 3, hoverRadius: 6 },
       },
     };
-  }, [isDark]);
+  }, [isDark, onElementClick]);
 
   return <Line data={data} options={options} />;
 };

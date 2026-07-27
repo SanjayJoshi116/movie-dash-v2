@@ -11,14 +11,22 @@ interface StatCardProps {
   suffix?: string;
   icon?: React.ReactNode;
   hero?: boolean;
+  onClick?: () => void;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, color = '#818cf8', suffix, icon, hero }) => {
+const StatCard: React.FC<StatCardProps> = ({ label, value, color = '#818cf8', suffix, icon, hero, onClick }) => {
   return (
     <MotionCard
       whileHover={{ scale: 1.03, y: -2 }}
       transition={{ type: 'spring', stiffness: 300, damping: 20 }}
       className="glass-panel"
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `${label}: view details` : undefined}
+      onKeyDown={onClick ? (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
+      } : undefined}
       style={{
         background: hero ? `linear-gradient(135deg, ${color}26, var(--glass-bg))` : 'var(--glass-bg)',
         backdropFilter: 'blur(12px)',
@@ -28,6 +36,7 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, color = '#818cf8', su
         borderRadius: 12,
         boxShadow: 'var(--glass-shadow)',
         height: '100%',
+        cursor: onClick ? 'pointer' : undefined,
       }}
       styles={{ body: { display: 'flex', alignItems: 'center', gap: 16 } }}
     >

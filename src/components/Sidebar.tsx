@@ -22,17 +22,17 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
     {
       key: '/',
       icon: <DashboardOutlined />,
-      label: <Link to="/">Dashboard</Link>,
+      label: <Link to="/" aria-current={location.pathname === '/' ? 'page' : undefined}>Dashboard</Link>,
     },
     {
       key: '/movies',
       icon: <UnorderedListOutlined />,
-      label: <Link to="/movies">Movies</Link>,
+      label: <Link to="/movies" aria-current={location.pathname === '/movies' ? 'page' : undefined}>Movies</Link>,
     },
     {
       key: '/stats',
       icon: <BarChartOutlined />,
-      label: <Link to="/stats">Stats</Link>,
+      label: <Link to="/stats" aria-current={location.pathname === '/stats' ? 'page' : undefined}>Stats</Link>,
     },
   ];
 

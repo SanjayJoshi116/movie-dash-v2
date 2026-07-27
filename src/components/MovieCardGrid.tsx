@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Row, Col, Card, Tag, Empty, Pagination, Grid } from 'antd';
+import React, { useState, useMemo } from 'react';
+import { Row, Col, Card, Tag, Empty, Pagination, Grid, Select } from 'antd';
 import { motion } from 'framer-motion';
 import { ClockCircleOutlined } from '@ant-design/icons';
 import type { Movie } from '../types/movie';
@@ -17,11 +17,44 @@ interface MovieCardGridProps {
 
 const voteColor = (vote: number): string => (vote >= 7 ? 'green' : vote >= 5 ? 'gold' : 'red');
 
+type SortKey = 'default' | 'name-asc' | 'name-desc' | 'year-desc' | 'year-asc' | 'vote-desc' | 'vote-asc' | 'runtime-desc' | 'runtime-asc';
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'default', label: 'Default order' },
+  { value: 'name-asc', label: 'Name (A–Z)' },
+  { value: 'name-desc', label: 'Name (Z–A)' },
+  { value: 'year-desc', label: 'Year (Newest)' },
+  { value: 'year-asc', label: 'Year (Oldest)' },
+  { value: 'vote-desc', label: 'Rating (High–Low)' },
+  { value: 'vote-asc', label: 'Rating (Low–High)' },
+  { value: 'runtime-desc', label: 'Runtime (Long–Short)' },
+  { value: 'runtime-asc', label: 'Runtime (Short–Long)' },
+];
+
+const sortMovies = (movies: Movie[], sortKey: SortKey): Movie[] => {
+  if (sortKey === 'default') return movies;
+  const sorted = [...movies];
+  switch (sortKey) {
+    case 'name-asc': return sorted.sort((a, b) => a.Name.localeCompare(b.Name));
+    case 'name-desc': return sorted.sort((a, b) => b.Name.localeCompare(a.Name));
+    case 'year-desc': return sorted.sort((a, b) => (parseInt(b['Release Year'], 10) || 0) - (parseInt(a['Release Year'], 10) || 0));
+    case 'year-asc': return sorted.sort((a, b) => (parseInt(a['Release Year'], 10) || 0) - (parseInt(b['Release Year'], 10) || 0));
+    case 'vote-desc': return sorted.sort((a, b) => (parseFloat(b['Vote Average']) || 0) - (parseFloat(a['Vote Average']) || 0));
+    case 'vote-asc': return sorted.sort((a, b) => (parseFloat(a['Vote Average']) || 0) - (parseFloat(b['Vote Average']) || 0));
+    case 'runtime-desc': return sorted.sort((a, b) => (parseFloat(b.Runtime) || 0) - (parseFloat(a.Runtime) || 0));
+    case 'runtime-asc': return sorted.sort((a, b) => (parseFloat(a.Runtime) || 0) - (parseFloat(b.Runtime) || 0));
+    default: return sorted;
+  }
+};
+
 const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => {
   const { isDark } = useTheme();
   const screens = Grid.useBreakpoint();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
+  const [sortKey, setSortKey] = useState<SortKey>('default');
+
+  const sortedMovies = useMemo(() => sortMovies(movies, sortKey), [movies, sortKey]);
 
   if (movies.length === 0) {
     return (
@@ -31,12 +64,21 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => 
     );
   }
 
-  const totalPages = Math.max(1, Math.ceil(movies.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(sortedMovies.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pageMovies = movies.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pageMovies = sortedMovies.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   return (
     <>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+      <Select<SortKey>
+        value={sortKey}
+        onChange={(val) => { setSortKey(val); setPage(1); }}
+        options={SORT_OPTIONS}
+        style={{ width: 200 }}
+        aria-label="Sort"
+      />
+    </div>
     <Row gutter={[16, 16]}>
       {pageMovies.map((movie) => {
         const genres = movie.Genres.split(',').map(g => g.trim()).filter(Boolean).slice(0, 3);

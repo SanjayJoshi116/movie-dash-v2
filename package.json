@@ -11,7 +11,6 @@
     "axios": "^1.7.9",
     "chart.js": "^4.4.7",
     "chartjs-chart-matrix": "^3.0.0",
-    "chartjs-chart-treemap": "^3.1.0",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "csv-parser": "^3.1.0",

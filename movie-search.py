@@ -108,10 +108,23 @@ def is_duplicate(movie_id):
         return False
     return False
 
+FORMULA_PREFIX_CHARS = ("=", "+", "-", "@")
+
+
+def sanitize_csv_value(value):
+    """Prevent CSV/formula injection: Excel/Sheets can execute a cell starting
+    with =, +, -, or @ as a formula when the file is opened later."""
+    if isinstance(value, str) and value.startswith(FORMULA_PREFIX_CHARS):
+        return "'" + value
+    return value
+
+
 def append_to_csv(movie_details):
     if is_duplicate(movie_details["Movie ID"]):
         messagebox.showinfo("Duplicate Entry", "This movie is already in the CSV file")
         return
+
+    movie_details = {k: sanitize_csv_value(v) for k, v in movie_details.items()}
 
     file_exists = os.path.exists(CSV_PATH) and os.path.getsize(CSV_PATH) > 0
     fieldnames = list(movie_details.keys())

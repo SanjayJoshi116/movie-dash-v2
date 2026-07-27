@@ -22,11 +22,13 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
   const bodyBg = isDark ? 'rgba(13,13,26,0.85)' : 'rgba(245,247,255,0.92)';
   const labelStyle = {
     color: 'var(--text-secondary)',
-    width: 160,
+    width: 140,
+    padding: '6px 10px',
     background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(129,140,248,0.04)',
   };
   const contentStyle = {
     color: 'var(--text-primary)',
+    padding: '6px 10px',
     background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.6)',
   };
 
@@ -55,22 +57,36 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
           background: bodyBg,
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
-          padding: 24,
+          padding: 16,
         },
         mask: { backdropFilter: 'blur(4px)' },
       }}
     >
       {movie && (
         <>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 14, marginBottom: 16 }}>
           <Image
             src={movie['Poster URL'] || POSTER_FALLBACK}
             alt={`${movie.Name} poster`}
-            width={200}
-            height={300}
-            style={{ borderRadius: 8, objectFit: 'cover' }}
+            width={90}
+            height={135}
+            style={{ borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
             fallback={POSTER_FALLBACK}
           />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center', minWidth: 0 }}>
+            <div>
+              <span style={{ color: 'var(--text-secondary)', fontSize: 12, marginRight: 6 }}>Language</span>
+              <Tag color="blue">{getLanguageName(movie.Language)}</Tag>
+            </div>
+            <div style={{ color: 'var(--text-primary)', fontSize: 13 }}>
+              <span style={{ color: 'var(--text-secondary)', fontSize: 12, marginRight: 6 }}>Runtime</span>
+              {movie.Runtime} mins
+            </div>
+            <div style={{ color: 'var(--text-primary)', fontSize: 13 }}>
+              <span style={{ color: 'var(--text-secondary)', fontSize: 12, marginRight: 6 }}>Release</span>
+              {formatDateDDMMYYYY(movie['Release Date'])} ({movie['Release Year']})
+            </div>
+          </div>
         </div>
         <Descriptions
           column={1}
@@ -80,14 +96,6 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
           contentStyle={contentStyle}
         >
           <Descriptions.Item label="Movie ID">{movie['Movie ID']}</Descriptions.Item>
-          <Descriptions.Item label="Language">
-            <Tag color="blue">{getLanguageName(movie.Language)}</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Runtime">{movie.Runtime} mins</Descriptions.Item>
-          <Descriptions.Item label="Release Year">{movie['Release Year']}</Descriptions.Item>
-          <Descriptions.Item label="Release Date">
-            {formatDateDDMMYYYY(movie['Release Date'])}
-          </Descriptions.Item>
           <Descriptions.Item label="Genres">
             {movie.Genres.split(',').map(g => g.trim()).filter(Boolean).map((g) => (
               <Tag key={g} color="purple" style={{ marginBottom: 4 }}>

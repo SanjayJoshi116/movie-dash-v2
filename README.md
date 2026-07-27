@@ -8,7 +8,7 @@ A full-stack movie analytics dashboard: a React frontend backed by an Express AP
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
 
-**Highlights:** Table/grid movie catalogue with poster art · 6 analytics tabs · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 47 Playwright E2E tests · light/dark theme · filter state persisted per-session
+**Highlights:** Table/grid movie catalogue with poster art · 6 analytics tabs · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 56 Playwright E2E tests · light/dark theme · filter state persisted per-session
 
 No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
 
@@ -32,13 +32,15 @@ Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`,
 
 ### Dashboard (`/`)
 - Landing summary: stat cards (total movies — hero-styled, average rating, average runtime, total box office), each with an icon
-- Highlight cards — top rated, most popular, newest release — with a poster thumbnail
+- Highlight cards — top rated, most popular, newest release — with a poster thumbnail; clickable/keyboard-activatable to open that movie's detail drawer
+- Total Box Office stat card is clickable, jumping straight to the Stats page's Box Office tab
 - Recent Releases list with poster thumbnails, keyboard-accessible (`Enter`/`Space`) like the rest of the app
+- Trend/breakdown mini-charts (release year, genre, rating distribution) are clickable — clicking a data point/slice/bar jumps to Movies pre-filtered to that year, genre, or rating range
 - Skeleton placeholder layout while data loads, instead of a bare spinner
 - CTA cards linking through to Movies and Stats
 
 ### Movies (`/movies`)
-- Table or grid view, toggled with a `Segmented` control — grid shows poster cards (up to 6/row on wide screens), table is the dense sortable list
+- Table or grid view, toggled with a `Segmented` control — grid shows poster cards (up to 6/row on wide screens) with its own sort dropdown (name, year, rating, runtime), table is the dense sortable list
 - Always-visible search box (name, director, actor, genre, production company) plus a **Filters** button — clicking it opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue), so the page stays uncluttered until you need it
 - The Filters button shows a small dot when any filter is active
 - Removable filter chips summarising every active filter, plus a one-click "Clear all", shown directly on the page (no need to open the drawer)
@@ -83,7 +85,7 @@ Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`,
 | HTTP | Axios |
 | Backend | Express.js (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
-| Testing | Playwright (47 E2E tests) |
+| Testing | Playwright (56 E2E tests) |
 | Linting | ESLint (typescript-eslint, react-hooks, unused-imports) |
 
 ---
@@ -234,7 +236,7 @@ movie-dash-v2/
 ├── server/
 │   └── server.ts               # Express API (port 5000)
 ├── tests/
-│   └── app.spec.ts             # Playwright E2E tests (47 tests)
+│   └── app.spec.ts             # Playwright E2E tests (56 tests)
 ├── docs/
 │   └── screenshots/            # README screenshots
 ├── playwright.config.ts        # Playwright configuration
@@ -282,10 +284,12 @@ movie-dash-v2/
 
 ## E2E Testing
 
-Playwright tests cover the full user journey across 7 suites (47 tests):
+Playwright tests cover the full user journey across 9 suites (56 tests):
 
-- **Dashboard** — layout, highlight cards, CTA navigation to Movies/Stats
+- **Dashboard** — layout, highlight cards (click-to-drawer), CTA navigation to Movies/Stats, Total Box Office stat click-to-tab
 - **Movies** — layout, table/grid toggle, drawer from row and card, search, filters drawer (open/close, language/genre filters), empty state, clear/reset, active-filter dot indicator, sorting, pagination, page size, CSV export
+- **Movies Grid View** — poster image renders (real or fallback), card keyboard-activatable (Enter), grid pagination page-size changer, grid sort control
+- **Movies Advanced Filters** — director filter chip, runtime range slider, revenue range slider
 - **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title updates
 - **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence
 - **Theme** — default dark, toggle to light, reload persistence

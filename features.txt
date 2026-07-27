@@ -2,14 +2,15 @@ MovieDash v2 — Feature List
 
 DASHBOARD (/)
 - Landing summary: stat cards (total movies — hero-styled with icon, average rating, average runtime, total box office), each with an icon
-- Highlight cards: top rated, most popular, newest release — with poster thumbnail
-- Trends & Breakdown: 10-year release trend, top-6 genre breakdown, rating distribution, recent releases list with poster thumbnails (click or Enter/Space to open detail drawer)
+- Highlight cards: top rated, most popular, newest release — with poster thumbnail; click or Enter/Space opens that movie's detail drawer
+- Total Box Office stat card clickable, jumps to Stats page's Box Office tab
+- Trends & Breakdown: 10-year release trend, top-6 genre breakdown, rating distribution (each clickable — jumps to Movies pre-filtered by that year/genre/vote range), recent releases list with poster thumbnails (click or Enter/Space to open detail drawer)
 - Skeleton placeholder layout while data loads (instead of a bare spinner)
 - CTA cards linking to Movies and Stats
 - Standardized section layout (title + spacing) via a shared DashboardSection wrapper
 
 MOVIES (/movies)
-- Table or grid view via Segmented toggle (grid = card layout with poster thumbnail, up to 6 cards/row on wide screens; table = dense sortable list)
+- Table or grid view via Segmented toggle (grid = card layout with poster thumbnail, up to 6 cards/row on wide screens, own sort dropdown for name/year/rating/runtime; table = dense sortable list)
 - Poster shown in grid cards and the detail drawer when a movie has a Poster URL in the CSV; falls back to a placeholder otherwise
 - Always-visible search box (name, director, actor, genre, production company)
 - Filters button opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue); dot indicator when a filter is active
@@ -53,7 +54,7 @@ SECURITY
 
 QUALITY
 - ESLint (typescript-eslint, react-hooks, unused-imports)
-- 47 Playwright E2E tests across 7 suites
+- 56 Playwright E2E tests across 9 suites
 - GitHub Actions CI: npm audit (high, 0 vulnerabilities) + lint + build + e2e on push/PR to main
 - Requires Node.js 22.22+ (react-router v8 requirement)
 - MIT licensed

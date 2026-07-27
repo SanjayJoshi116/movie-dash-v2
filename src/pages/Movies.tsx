@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { Button, Segmented, Input, Badge, Typography, Grid } from 'antd';
-import { DownloadOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Button, Segmented, Input, Badge, Typography, Grid, Tooltip } from 'antd';
+import { useLocation, useNavigate } from 'react-router';
+import { DownloadOutlined, SearchOutlined, FilterOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { useMovies } from '../hooks/useMovies';
 import { useDebounce } from '../hooks/useDebounce';
 import { usePersistedFilters } from '../hooks/usePersistedFilters';
@@ -45,11 +46,23 @@ const Movies: React.FC = () => {
   const [view, setView] = useState<'table' | 'grid'>('table');
   const [viewDefaulted, setViewDefaulted] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   if (!viewDefaulted && screens.sm !== undefined) {
     setViewDefaulted(true);
     if (!screens.sm) setView('grid');
   }
+
+  useEffect(() => {
+    const presetFilters = (location.state as { presetFilters?: Partial<FilterState> } | null)?.presetFilters;
+    if (presetFilters) {
+      setFilters({ ...DEFAULT_FILTERS, ...presetFilters });
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // Consume drill-down filters passed via navigate() state (e.g. from Dashboard chart clicks) exactly once on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const debouncedSearch = useDebounce(filters.search, 300);
   const filtersActive = isFiltersActive(filters);
@@ -138,7 +151,7 @@ const Movies: React.FC = () => {
       <div
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           alignItems: 'center',
           marginBottom: 16,
           padding: '16px 24px',
@@ -157,30 +170,31 @@ const Movies: React.FC = () => {
           onChange={(e) => setFilters({ ...filters, search: e.target.value })}
           allowClear
           onClear={() => setFilters({ ...filters, search: '' })}
-          style={{ maxWidth: 260, flex: '1 1 200px' }}
+          style={{ maxWidth: 360, flex: '1 1 240px' }}
         />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <Badge dot={filtersActive} offset={[-6, 6]} color="#38bdf8">
-            <Button icon={<FilterOutlined />} onClick={() => setFiltersOpen(true)}>
-              Filters
-            </Button>
-          </Badge>
-          <Segmented
-            value={view}
-            onChange={(val) => setView(val as 'table' | 'grid')}
-            options={[
-              { label: 'Table', value: 'table' },
-              { label: 'Grid', value: 'grid' },
-            ]}
-          />
-          <Button
-            icon={<DownloadOutlined />}
-            disabled={filteredMovies.length === 0}
-            onClick={() => exportMoviesToCsv(filteredMovies, `movies-filtered-${filteredMovies.length}.csv`)}
-          >
-            Export CSV
+        <Badge dot={filtersActive} offset={[-6, 6]} color="#38bdf8">
+          <Button icon={<FilterOutlined />} onClick={() => setFiltersOpen(true)}>
+            Filters
           </Button>
-        </div>
+        </Badge>
+        <Segmented
+          value={view}
+          onChange={(val) => setView(val as 'table' | 'grid')}
+          options={[
+            { label: 'Table', value: 'table' },
+            { label: 'Grid', value: 'grid' },
+          ]}
+        />
+        <Button
+          icon={<DownloadOutlined />}
+          disabled={filteredMovies.length === 0}
+          onClick={() => exportMoviesToCsv(filteredMovies, `movies-filtered-${filteredMovies.length}.csv`)}
+        >
+          Export CSV
+        </Button>
+        <Tooltip title="Downloads the movies currently shown (after search/filters/sort) as a CSV file — not the full dataset.">
+          <InfoCircleOutlined style={{ color: 'var(--text-muted)', cursor: 'help' }} />
+        </Tooltip>
       </div>
 
       <ActiveFilters filters={filters} onChange={setFilters} onClearAll={() => setFilters(DEFAULT_FILTERS)} />

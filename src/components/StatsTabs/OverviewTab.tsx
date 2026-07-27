@@ -3,7 +3,6 @@ import { Row, Col, Typography } from 'antd';
 import type { ChartData } from 'chart.js';
 import BarChart from '../Charts/BarChart';
 import LineChart from '../Charts/LineChart';
-import StatCard from '../StatCard';
 import { getCardStyle } from '../../utils/chartTheme';
 import { groupByField } from '../../utils/statsHelpers';
 import { getLanguageName } from '../../utils/languages';
@@ -21,6 +20,34 @@ const ChartBlock: React.FC<{ title: string; height?: number; isDark: boolean; ch
   </div>
 );
 
+interface GroupMetric {
+  key: string;
+  label: string;
+  value: number;
+  suffix?: string;
+  color: string;
+  noGrouping?: boolean;
+}
+
+const MetricGroupCard: React.FC<{ title: string; accentColor: string; metrics: GroupMetric[]; isDark: boolean; colSpan?: number }> = ({
+  title, accentColor, metrics, isDark, colSpan = 12,
+}) => (
+  <div style={{ ...getCardStyle(isDark), padding: 16, height: '100%', borderTop: `3px solid ${accentColor}` }}>
+    <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginBottom: 12 }}>{title}</div>
+    <Row gutter={[12, 14]}>
+      {metrics.map(({ key, label, value, suffix, color, noGrouping }) => (
+        <Col span={colSpan} key={key}>
+          <div style={{ color, fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>
+            {noGrouping ? value : value.toLocaleString()}
+            {suffix && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}>{suffix}</span>}
+          </div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{label}</div>
+        </Col>
+      ))}
+    </Row>
+  </div>
+);
+
 const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
   const [counts, setCounts] = useState<StatsCounters>({
@@ -35,6 +62,26 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
   const longestRuntime  = useMemo(() => validRuntimes.reduce((a, b) => Math.max(a, b), 0), [validRuntimes]);
   const shortestRuntime = useMemo(() => validRuntimes.length ? validRuntimes.reduce((a, b) => Math.min(a, b), Infinity) : 0, [validRuntimes]);
   const totalTimeSpent  = useMemo(() => validRuntimes.reduce((a, b) => a + b, 0), [validRuntimes]);
+
+  const catalogueCounts = useMemo(() => {
+    const languages = new Set<string>();
+    const genres = new Set<string>();
+    const directors = new Set<string>();
+    movies.forEach((m) => {
+      if (m.Language) languages.add(m.Language);
+      if (m.Director) directors.add(m.Director);
+      m.Genres?.split(',').forEach(g => { const t = g.trim(); if (t) genres.add(t); });
+    });
+    return { languages: languages.size, genres: genres.size, directors: directors.size };
+  }, [movies]);
+
+  const yearSpan = useMemo(() => {
+    const years = movies.map(m => parseInt(m['Release Year'], 10)).filter(y => !isNaN(y));
+    return {
+      earliest: years.length ? Math.min(...years) : 0,
+      latest: years.length ? Math.max(...years) : 0,
+    };
+  }, [movies]);
 
   useEffect(() => {
     const targets: StatsCounters = { totalMovies, avgRuntime, longestRuntime, shortestRuntime, totalTimeSpent };
@@ -90,14 +137,58 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
   return (
     <>
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={8}><StatCard label="Total Movies"     value={counts.totalMovies}     color="#818cf8" /></Col>
-        <Col xs={24} sm={12} md={8}><StatCard label="Average Runtime"  value={counts.avgRuntime}      color="#a78bfa" suffix="mins" /></Col>
-        <Col xs={24} sm={12} md={8}><StatCard label="Longest Runtime"  value={counts.longestRuntime}  color="#34d399" suffix="mins" /></Col>
-        <Col xs={24} sm={12} md={8}><StatCard label="Shortest Runtime" value={counts.shortestRuntime} color="#f472b6" suffix="mins" /></Col>
-        <Col xs={24} sm={12} md={8}><StatCard label="Total Time Spent" value={counts.totalTimeSpent}  color="#fb923c" suffix="mins" /></Col>
-        <Col xs={24} sm={12} md={8}><StatCard label="Hours Watched"    value={Math.round((counts.totalTimeSpent / 60) * 10) / 10}     color="#38bdf8" suffix="hrs"  /></Col>
-        <Col xs={24} sm={12} md={8}><StatCard label="Days Watched"     value={Math.round((counts.totalTimeSpent / 1440) * 10) / 10}   color="#fbbf24" suffix="days" /></Col>
-        <Col xs={24} sm={12} md={8}><StatCard label="Years Watched"    value={Math.round((counts.totalTimeSpent / 525600) * 10) / 10} color="#e879f9" suffix="yrs"  /></Col>
+        <Col xs={24} sm={12} lg={6}>
+          <MetricGroupCard
+            title="Movies"
+            accentColor="#818cf8"
+            isDark={isDark}
+            colSpan={24}
+            metrics={[
+              { key: 'total', label: 'Total Movies', value: counts.totalMovies, color: '#818cf8' },
+              { key: 'earliest', label: 'Earliest Release', value: yearSpan.earliest, color: '#34d399', noGrouping: true },
+              { key: 'latest', label: 'Latest Release', value: yearSpan.latest, color: '#f472b6', noGrouping: true },
+            ]}
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <MetricGroupCard
+            title="Runtime"
+            accentColor="#a78bfa"
+            isDark={isDark}
+            colSpan={24}
+            metrics={[
+              { key: 'avg', label: 'Average Runtime', value: Math.round(counts.avgRuntime), suffix: 'mins', color: '#a78bfa' },
+              { key: 'longest', label: 'Longest Runtime', value: counts.longestRuntime, suffix: 'mins', color: '#34d399' },
+              { key: 'shortest', label: 'Shortest Runtime', value: counts.shortestRuntime, suffix: 'mins', color: '#f472b6' },
+            ]}
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <MetricGroupCard
+            title="Watch Time"
+            accentColor="#fb923c"
+            isDark={isDark}
+            metrics={[
+              { key: 'mins', label: 'Total Time Spent', value: Math.round(counts.totalTimeSpent), suffix: 'mins', color: '#fb923c' },
+              { key: 'hrs', label: 'Hours Watched', value: Math.round((counts.totalTimeSpent / 60) * 10) / 10, suffix: 'hrs', color: '#38bdf8' },
+              { key: 'days', label: 'Days Watched', value: Math.round((counts.totalTimeSpent / 1440) * 10) / 10, suffix: 'days', color: '#fbbf24' },
+              { key: 'yrs', label: 'Years Watched', value: Math.round((counts.totalTimeSpent / 525600) * 10) / 10, suffix: 'yrs', color: '#e879f9' },
+            ]}
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <MetricGroupCard
+            title="Catalogue"
+            accentColor="#22d3ee"
+            isDark={isDark}
+            colSpan={24}
+            metrics={[
+              { key: 'languages', label: 'Languages', value: catalogueCounts.languages, color: '#22d3ee' },
+              { key: 'genres', label: 'Genres', value: catalogueCounts.genres, color: '#a3e635' },
+              { key: 'directors', label: 'Directors', value: catalogueCounts.directors, color: '#f87171' },
+            ]}
+          />
+        </Col>
       </Row>
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={12}>

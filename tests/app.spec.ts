@@ -36,6 +36,20 @@ test.describe('Dashboard', () => {
     await page.getByRole('button', { name: 'Go to Stats' }).click();
     await expect(page).toHaveURL('/stats');
   });
+
+  test('highlight card click opens movie drawer', async ({ page }) => {
+    await page.getByText('Top Rated').click();
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByText('Movie ID')).toBeVisible();
+  });
+
+  test('Total Box Office stat card navigates to Stats Box Office tab', async ({ page }) => {
+    await page.getByText('Total Box Office').click();
+    await expect(page).toHaveURL('/stats');
+    await waitForStats(page);
+    await expect(page.getByRole('tab', { name: /Box Office/, selected: true })).toBeVisible();
+  });
 });
 
 // ── Movies ─────────────────────────────────────────────────────────────────
@@ -206,6 +220,104 @@ test.describe('Movies', () => {
 
     await page.locator('.ant-drawer-close').click();
     await expect(page.getByRole('combobox', { name: 'Language' })).not.toBeVisible();
+  });
+});
+
+// ── Movies — Grid View ──────────────────────────────────────────────────────
+
+test.describe('Movies Grid View', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/movies');
+    await waitForTable(page);
+    await page.getByText('Grid', { exact: true }).click();
+    await page.waitForSelector('.ant-card');
+  });
+
+  test('grid cards render a poster image (real or fallback)', async ({ page }) => {
+    const img = page.locator('.ant-card').first().locator('img').first();
+    await expect(img).toBeVisible();
+    const src = await img.getAttribute('src');
+    expect(src).toBeTruthy();
+    await expect(img).toHaveAttribute('alt', /poster/);
+  });
+
+  test('grid card is keyboard-activatable with Enter', async ({ page }) => {
+    const card = page.locator('.ant-card[role="button"]').first();
+    await card.focus();
+    await page.keyboard.press('Enter');
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByText('Movie ID')).toBeVisible();
+  });
+
+  test('grid pagination page-size changer works', async ({ page }) => {
+    await page.locator('.ant-pagination-options .ant-select-selector').click();
+    await page.waitForSelector('.ant-select-dropdown');
+    await page.getByText('24 / page').click();
+    await page.waitForTimeout(300);
+    const cards = await page.locator('.ant-card').count();
+    expect(cards).toBeLessThanOrEqual(24);
+  });
+
+  test('grid sort control reorders cards', async ({ page }) => {
+    await page.locator('.ant-select-selector').first().click();
+    await page.waitForSelector('.ant-select-dropdown');
+    await page.getByText('Name (A–Z)').click();
+    await page.waitForTimeout(200);
+    const firstNameAZ = await page.locator('.ant-card').first().locator('span').first().textContent();
+
+    await page.locator('.ant-select-selector').first().click();
+    await page.waitForSelector('.ant-select-dropdown');
+    await page.getByText('Name (Z–A)').click();
+    await page.waitForTimeout(200);
+    const firstNameZA = await page.locator('.ant-card').first().locator('span').first().textContent();
+
+    expect(firstNameAZ).toBeTruthy();
+    expect(firstNameZA).not.toBe(firstNameAZ);
+  });
+});
+
+// ── Movies — Director & Range Filters ───────────────────────────────────────
+
+test.describe('Movies Advanced Filters', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/movies');
+    await waitForTable(page);
+  });
+
+  test('director filter applies and shows a chip', async ({ page }) => {
+    await page.getByRole('button', { name: 'Filters' }).click();
+    await page.getByRole('combobox', { name: 'Director' }).click();
+    await page.waitForSelector('.ant-select-item-option');
+    await page.locator('.ant-select-item-option').first().click();
+    await page.keyboard.press('Escape');
+    await page.locator('.ant-drawer-close').click();
+
+    await expect(page.locator('.ant-table')).toBeVisible();
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Director:' }).first()).toBeVisible();
+  });
+
+  test('runtime range slider narrows results and shows a chip', async ({ page }) => {
+    await page.getByRole('button', { name: 'Filters' }).click();
+    const runtimeSlider = page.locator('.ant-drawer-body .ant-slider').nth(2);
+    const handle = runtimeSlider.locator('.ant-slider-handle').first();
+    await handle.focus();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    await page.locator('.ant-drawer-close').click();
+
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Runtime:' }).first()).toBeVisible();
+  });
+
+  test('revenue range slider narrows results and shows a chip', async ({ page }) => {
+    await page.getByRole('button', { name: 'Filters' }).click();
+    const revenueSlider = page.locator('.ant-drawer-body .ant-slider').nth(3);
+    const handle = revenueSlider.locator('.ant-slider-handle').first();
+    await handle.focus();
+    await page.keyboard.press('ArrowRight');
+    await page.locator('.ant-drawer-close').click();
+
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Revenue:' }).first()).toBeVisible();
   });
 });
 

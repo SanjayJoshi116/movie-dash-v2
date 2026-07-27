@@ -26,32 +26,34 @@ interface MatrixChartProps {
 }
 
 const MatrixChart: React.FC<MatrixChartProps> = ({ data, xLabels, yLabels, height = 400, isDark = true }) => {
-  const maxVal = Math.max(...data.map(d => d.v), 1);
-  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(129,140,248,0.25)';
+  const chartData = useMemo(() => {
+    const maxVal = Math.max(...data.map(d => d.v), 1);
+    const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(129,140,248,0.25)';
 
-  const chartData = {
-    datasets: [
-      {
-        label: 'Movies',
-        data,
-        backgroundColor: (ctx: ScriptableCtx) => {
-          const v = ctx.raw?.v ?? 0;
-          const alpha = 0.1 + (v / maxVal) * 0.85;
-          return `rgba(129, 140, 248, ${alpha})`;
+    return {
+      datasets: [
+        {
+          label: 'Movies',
+          data,
+          backgroundColor: (ctx: ScriptableCtx) => {
+            const v = ctx.raw?.v ?? 0;
+            const alpha = 0.1 + (v / maxVal) * 0.85;
+            return `rgba(129, 140, 248, ${alpha})`;
+          },
+          borderColor,
+          borderWidth: 1,
+          width: (ctx: ScriptableCtx) => {
+            const area = ctx.chart?.chartArea;
+            return area ? (area.width / xLabels.length) - 2 : 30;
+          },
+          height: (ctx: ScriptableCtx) => {
+            const area = ctx.chart?.chartArea;
+            return area ? (area.height / yLabels.length) - 2 : 30;
+          },
         },
-        borderColor,
-        borderWidth: 1,
-        width: (ctx: ScriptableCtx) => {
-          const area = ctx.chart?.chartArea;
-          return area ? (area.width / xLabels.length) - 2 : 30;
-        },
-        height: (ctx: ScriptableCtx) => {
-          const area = ctx.chart?.chartArea;
-          return area ? (area.height / yLabels.length) - 2 : 30;
-        },
-      },
-    ],
-  };
+      ],
+    };
+  }, [data, xLabels, yLabels, isDark]);
 
   const options = useMemo(() => {
     const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';

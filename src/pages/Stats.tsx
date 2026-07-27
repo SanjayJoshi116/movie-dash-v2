@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Typography, Tabs } from 'antd';
+import { useLocation } from 'react-router';
 import { useMovies } from '../hooks/useMovies';
 import { useTheme } from '../contexts/ThemeContext';
 import OverviewTab from '../components/StatsTabs/OverviewTab';
@@ -15,6 +16,10 @@ const { Title, Text } = Typography;
 const Stats: React.FC = () => {
   const { movies, loading, error, refetch } = useMovies();
   const { isDark } = useTheme();
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(
+    () => (location.state as { tab?: string } | null)?.tab ?? 'overview'
+  );
 
   const tabItems = [
     { key: 'overview',   label: '📊 Overview',           children: <OverviewTab   movies={movies} /> },
@@ -33,7 +38,8 @@ const Stats: React.FC = () => {
         Deep-dive charts and breakdowns across ratings, people, runtime, box office, and more.
       </Text>
       <Tabs
-        defaultActiveKey="overview"
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={tabItems}
         size="large"
         style={{ color: isDark ? '#fff' : '#1e1e3f' }}

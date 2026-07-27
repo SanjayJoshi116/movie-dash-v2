@@ -1,23 +1,11 @@
 import React, { useMemo } from 'react';
-import { Drawer, Select, Slider, Button, Typography, Space, Grid } from 'antd';
-import { ClearOutlined } from '@ant-design/icons';
+import { Drawer, Select, Slider, Button, Typography, Grid } from 'antd';
 import type { Movie, FilterState } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
 import { parseRevenue, formatRevenue } from '../utils/statsHelpers';
 import { useTheme } from '../contexts/ThemeContext';
 
 const { Text } = Typography;
-
-const DEFAULT_FILTERS: FilterState = {
-  search: '',
-  languages: [],
-  genres: [],
-  directors: [],
-  yearRange: null,
-  voteRange: null,
-  runtimeRange: null,
-  revenueRange: null,
-};
 
 interface FiltersDrawerProps {
   movies: Movie[];
@@ -135,14 +123,11 @@ const FiltersDrawer: React.FC<FiltersDrawerProps> = ({ movies, filters, onChange
         mask: { backdropFilter: 'blur(4px)' },
       }}
       footer={
-        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Button icon={<ClearOutlined />} onClick={() => onChange(DEFAULT_FILTERS)}>
-            Clear all
-          </Button>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <Button type="primary" onClick={onClose}>
             Done
           </Button>
-        </Space>
+        </div>
       }
     >
       <SectionLabel first>Categories</SectionLabel>

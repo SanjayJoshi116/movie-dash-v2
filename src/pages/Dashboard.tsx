@@ -35,10 +35,20 @@ interface HighlightCardProps {
   movie: Movie | null;
   detail: string;
   isDark: boolean;
+  onSelect: (movie: Movie) => void;
 }
 
-const HighlightCard: React.FC<HighlightCardProps> = ({ icon, label, movie, detail, isDark }) => (
-  <div style={{ ...getCardStyle(isDark), padding: 20, height: '100%' }}>
+const HighlightCard: React.FC<HighlightCardProps> = ({ icon, label, movie, detail, isDark, onSelect }) => (
+  <div
+    style={{ ...getCardStyle(isDark), padding: 20, height: '100%', cursor: movie ? 'pointer' : undefined }}
+    role={movie ? 'button' : undefined}
+    tabIndex={movie ? 0 : undefined}
+    aria-label={movie ? `View details for ${movie.Name}` : undefined}
+    onClick={movie ? () => onSelect(movie) : undefined}
+    onKeyDown={movie ? (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(movie); }
+    } : undefined}
+  >
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: 'var(--text-secondary)', fontSize: 13 }}>
       {icon}
       {label}
@@ -162,6 +172,8 @@ const Dashboard: React.FC = () => {
     return makeDoughnut(data, 'Genres');
   }, [movies]);
 
+  const RATING_BUCKET_RANGES: [number, number][] = [[0, 2], [2, 4], [4, 6], [6, 8], [8, 10]];
+
   const ratingBucketData = useMemo<ChartData<'bar'>>(() => {
     const buckets = ['0–2', '2–4', '4–6', '6–8', '8–10'];
     const counts = [0, 0, 0, 0, 0];
@@ -179,6 +191,30 @@ const Dashboard: React.FC = () => {
       .slice(0, 5);
   }, [movies]);
 
+  const yearLabels = (yearTrendData.labels ?? []) as string[];
+  const yearRangeTitle = yearLabels.length
+    ? `Movies Released — ${yearLabels[0]}–${yearLabels[yearLabels.length - 1]}`
+    : 'Movies Released';
+
+  const handleGenreClick = (index: number) => {
+    const label = (genreDoughnutData.labels?.[index] ?? null) as string | null;
+    if (!label || label === 'Other') { navigate('/movies'); return; }
+    navigate('/movies', { state: { presetFilters: { genres: [label] } } });
+  };
+
+  const handleRatingBucketClick = (index: number) => {
+    const range = RATING_BUCKET_RANGES[index];
+    if (!range) return;
+    navigate('/movies', { state: { presetFilters: { voteRange: range } } });
+  };
+
+  const handleYearClick = (index: number) => {
+    const year = yearLabels[index];
+    if (!year) return;
+    const y = parseInt(year, 10);
+    navigate('/movies', { state: { presetFilters: { yearRange: [y, y] } } });
+  };
+
   return (
     <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: 24 }}>
@@ -195,7 +231,15 @@ const Dashboard: React.FC = () => {
             <Row gutter={[16, 16]} style={{ height: '100%' }}>
               <Col xs={24} sm={8}><StatCard label="Average Rating" value={stats.avgRating.toFixed(1)} color="#34d399" suffix="/ 10" icon={<StarOutlined />} /></Col>
               <Col xs={24} sm={8}><StatCard label="Average Runtime" value={stats.avgRuntime} color="#a78bfa" suffix="mins" icon={<ClockCircleOutlined />} /></Col>
-              <Col xs={24} sm={8}><StatCard label="Total Box Office" value={formatRevenue(stats.totalRevenue)} color="#fb923c" icon={<DollarOutlined />} /></Col>
+              <Col xs={24} sm={8}>
+                <StatCard
+                  label="Total Box Office"
+                  value={formatRevenue(stats.totalRevenue)}
+                  color="#fb923c"
+                  icon={<DollarOutlined />}
+                  onClick={() => navigate('/stats', { state: { tab: 'boxoffice' } })}
+                />
+              </Col>
             </Row>
           </Col>
         </Row>
@@ -210,6 +254,7 @@ const Dashboard: React.FC = () => {
               movie={highlights.topRated}
               detail={highlights.topRated ? `⭐ ${highlights.topRated['Vote Average']}` : ''}
               isDark={isDark}
+              onSelect={setSelectedMovie}
             />
           </Col>
           <Col xs={24} sm={12} lg={8}>
@@ -219,6 +264,7 @@ const Dashboard: React.FC = () => {
               movie={highlights.mostPopular}
               detail={highlights.mostPopular ? `${parseFloat(highlights.mostPopular['Popularity Score']).toFixed(1)} popularity` : ''}
               isDark={isDark}
+              onSelect={setSelectedMovie}
             />
           </Col>
           <Col xs={24} sm={12} lg={8}>
@@ -228,6 +274,7 @@ const Dashboard: React.FC = () => {
               movie={highlights.newest}
               detail={highlights.newest ? highlights.newest['Release Date'] : ''}
               isDark={isDark}
+              onSelect={setSelectedMovie}
             />
           </Col>
         </Row>
@@ -239,18 +286,18 @@ const Dashboard: React.FC = () => {
       >
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={12}>
-            <MiniChartCard title="Movies Released — Last 10 Years" isDark={isDark} height={miniChartHeight}>
-              <LineChart data={yearTrendData} isDark={isDark} />
+            <MiniChartCard title={yearRangeTitle} isDark={isDark} height={miniChartHeight}>
+              <LineChart data={yearTrendData} isDark={isDark} onElementClick={handleYearClick} />
             </MiniChartCard>
           </Col>
           <Col xs={24} lg={12}>
             <MiniChartCard title="Genre Breakdown (Top 6)" isDark={isDark} height={miniChartHeight}>
-              <DoughnutChart data={genreDoughnutData} isDark={isDark} />
+              <DoughnutChart data={genreDoughnutData} isDark={isDark} onElementClick={handleGenreClick} />
             </MiniChartCard>
           </Col>
           <Col xs={24} lg={12}>
             <MiniChartCard title="Rating Distribution" isDark={isDark} height={miniChartHeight}>
-              <BarChart data={ratingBucketData} isDark={isDark} />
+              <BarChart data={ratingBucketData} isDark={isDark} onElementClick={handleRatingBucketClick} />
             </MiniChartCard>
           </Col>
           <Col xs={24} lg={12}>
