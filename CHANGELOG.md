@@ -3,6 +3,20 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0] - 2026-07-28
+
+### Added
+- **Add Movie from TMDB, in-app.** `src/components/AddMovieModal.tsx` (opened via a new "Add Movie" button in the Movies page toolbar) — search by movie name and/or actor, see poster/year/language per result, one-click import. Backend: `GET /api/tmdb/search` and `POST /api/tmdb/import` in `server/server.ts`, using the same `TMDB_API_KEY` env var as `movie-search.py` (loaded server-side via `process.loadEnvFile('.env')`; the key never reaches the client). Import fetches movie details + credits from TMDB, dedupes against the in-memory catalogue, appends a sanitized row (same formula-injection guard as `movie-search.py`) to `src/movies.csv`, and updates the running app immediately — no restart needed. `movie-search.py` is unchanged and still there for bulk/offline use.
+- **Delete Movie.** `MovieDrawer` gained a `Delete` button (footer, `Popconfirm`-gated, "This can't be undone"). Backend: `DELETE /api/movies/:id` in `server/server.ts` — removes the row from the in-memory catalogue and regenerates `src/movies.csv` from what's left (`rewriteCsvFile()`, write-to-`.tmp`-then-rename so a crash mid-write can't truncate the file; in-memory removal rolls back if the write fails). `.gitignore` gained `src/movies.csv.tmp`.
+- Stats page: a global Release Year Range slider (`src/pages/Stats.tsx`) scopes the movies passed to all 6 tabs at once, instead of each tab always analyzing the full dataset.
+- Stats page: every chart card (`src/components/StatsTabs/ChartBlock.tsx`, deduplicated out of all 6 tab files) gained a PNG-download button — queries the card for a `<canvas>` and calls `toDataURL('image/png')`; hidden automatically on non-chart cards (e.g. the Explore tab's Top N Explorer) since none is found.
+- Drill-down click-through, extended to most of the Stats page (previously only the Dashboard had this): `HorizontalBarChart` and `PolarAreaChart` gained an `onElementClick` prop matching the pattern already used by `BarChart`/`DoughnutChart`/`LineChart`. Wired up: Overview (language bar, year line), People (top directors), Ratings (vote-average bucket, avg-vote-by-year, avg-vote-by-genre), Runtime (genre polar, runtime-length bucket, avg-runtime-by-decade), Box Office (avg-revenue-by-genre), Explore (genre distribution) — each click navigates to `/movies` pre-filtered. Skipped for actor/production-company/country charts since `FilterState` has no matching field.
+- New Stats charts: Box Office gained "Top 20 Most Profitable Films" (revenue − budget) and "Top 20 by ROI" (revenue / budget, floored at a $100K budget to keep tiny-budget outliers from dominating); Ratings gained "Average Vote by Year" (trend line) and a "Vote Count vs Vote Average" scatter plot (new `src/components/Charts/ScatterChart.tsx`, `ScatterController` registered in `src/main.tsx`) to surface few-vote rating outliers; Runtime gained "Avg Runtime by Decade"; People gained "Highest Rated Directors" and "Highest Rated Actors & Actresses" (both floored at 2+ films to avoid one-film outliers dominating).
+- `MovieCardGrid` cover image height raised from `180` to `260` to show more of the poster.
+
+### Changed
+- `server/server.ts`'s TMDB calls now go through `axios` instead of the native `fetch` (undici) — on some Windows setups undici's TLS connection was getting reset mid-handshake by AV/proxy HTTPS inspection, consistently, not just transiently; axios uses Node's classic `http`/`https` core adapter instead, which isn't affected. Also added a retry-with-backoff (3 attempts, 500ms/1000ms, retrying network errors and `429`/`5xx`) mirroring `movie-search.py`'s `Retry(total=3, backoff_factor=2, status_forcelist=[429,500,502,503,504])` — the Node port had dropped that resilience.
+
 ## [0.5.0] - 2026-07-27
 
 ### Added

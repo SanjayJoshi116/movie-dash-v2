@@ -1,29 +1,23 @@
 import React, { useMemo } from 'react';
-import { Row, Col, Typography } from 'antd';
+import { Row, Col } from 'antd';
+import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import MatrixChart from '../Charts/MatrixChart';
 import type { MatrixDataPoint } from '../Charts/MatrixChart';
 import TopNExplorer from '../TopNExplorer';
-import { getCardStyle, CHART_PALETTE } from '../../utils/chartTheme';
+import ChartBlock from './ChartBlock';
+import { CHART_PALETTE } from '../../utils/chartTheme';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
-
-const { Title } = Typography;
 
 interface ExploreTabProps { movies: Movie[] }
 
 const TOP_GENRES_N = 10;
 
-const ChartBlock: React.FC<{ title: string; height?: number; isDark: boolean; children: React.ReactNode }> = ({ title, height, isDark, children }) => (
-  <div style={{ ...getCardStyle(isDark), padding: 24, marginBottom: 24 }}>
-    <Title level={5} style={{ color: 'var(--text-primary)', marginBottom: 16 }}>{title}</Title>
-    <div style={height !== undefined ? { height } : {}}>{children}</div>
-  </div>
-);
-
 const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
 
   const genreBarData = useMemo<ChartData<'bar'>>(() => {
     const counts: Record<string, number> = {};
@@ -87,11 +81,17 @@ const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
     return { matrixData, matrixGenres: topGenres, decadeLabels: decades };
   }, [movies]);
 
+  const handleGenreClick = (index: number) => {
+    const genre = genreBarData.labels?.[index] as string | undefined;
+    if (!genre) return;
+    navigate('/movies', { state: { presetFilters: { genres: [genre] } } });
+  };
+
   return (
     <Row gutter={[24, 24]}>
       <Col xs={24} lg={12}>
         <ChartBlock title="Genre Distribution (Top 20)" height={420} isDark={isDark}>
-          <HorizontalBarChart data={genreBarData} height={420} isDark={isDark} />
+          <HorizontalBarChart data={genreBarData} height={420} isDark={isDark} onElementClick={handleGenreClick} />
         </ChartBlock>
       </Col>
       <Col xs={24} lg={12}>

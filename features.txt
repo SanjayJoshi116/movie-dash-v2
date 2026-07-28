@@ -10,7 +10,7 @@ DASHBOARD (/)
 - Standardized section layout (title + spacing) via a shared DashboardSection wrapper
 
 MOVIES (/movies)
-- Table or grid view via Segmented toggle (grid = card layout with poster thumbnail, up to 6 cards/row on wide screens, own sort dropdown for name/year/rating/runtime; table = dense sortable list)
+- Table or grid view via Segmented toggle (grid = card layout with poster thumbnail, up to 6 cards/row on wide screens, taller cover to show more of the poster, own sort dropdown for name/year/rating/runtime; table = dense sortable list)
 - Poster shown in grid cards and the detail drawer when a movie has a Poster URL in the CSV; falls back to a placeholder otherwise
 - Always-visible search box (name, director, actor, genre, production company)
 - Filters button opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue); dot indicator when a filter is active
@@ -20,16 +20,21 @@ MOVIES (/movies)
 - Pagination (5 / 10 / 20 / 50 per page, table view)
 - Row/card click opens detail drawer (full movie info, vote count, popularity score); rows/cards keyboard-activatable (Enter/Space) with aria-labels
 - Export filtered results to CSV
+- "Add Movie" button opens a modal to search TMDB (by movie name and/or actor) and import a result straight into the running catalogue — no need to leave the browser or use movie-search.py
+- Detail drawer has a Delete button (confirm required) to remove a movie from the catalogue
 - Sidebar auto-collapses below 768px viewport width (Ant Design breakpoint hook), manual toggle still works; sidebar sticky-positioned
 - Below the sm breakpoint: sidebar replaced by fixed bottom nav bar (Dashboard/Movies/Stats), grid view default, detail/filters drawers go full-width, table columns hide progressively, pagination switches to simple mode
 - Release dates rendered as DD-MM-YYYY (table + detail drawer)
 
 STATISTICS (6 tabs)
+- Global Release Year Range slider scopes all 6 tabs to a chosen year span at once
+- Every chart card has a PNG-download button
+- Most charts are clickable — clicking a bar/slice jumps to Movies pre-filtered by that value (genre, language, director, vote range, runtime bucket, decade)
 - Overview: animated stat cards (total movies, avg/longest/shortest runtime, total watch time in minutes/hours/days/years), movies by language, movies per year
-- People: top 15 actors, top 15 directors, movies by production company
-- Ratings: vote distribution, avg vote by language (radar), avg vote by genre
-- Runtime & Geography: movies by country & genre (polar area), avg vote by runtime bucket, top 50 longest films
-- Box Office: top 20 highest-grossing films, top 20 highest-budget films, avg revenue by genre
+- People: top 15 actors, top 15 directors, movies by production company, highest rated directors, highest rated actors & actresses (2+ films)
+- Ratings: vote distribution, avg vote by language (radar), avg vote by year (trend), avg vote by genre, vote count vs vote average (scatter, outlier check)
+- Runtime & Geography: movies by country & genre (polar area), avg vote by runtime bucket, avg runtime by decade, top 50 longest films
+- Box Office: top 20 highest-grossing films, top 20 highest-budget films, top 20 most profitable films (revenue − budget), top 20 by ROI (revenue / budget), avg revenue by genre
 - Explore: genre distribution, year x genre heatmap, Top 10 Explorer (highest rated / longest / most recent / oldest / most popular)
 
 THEME
@@ -38,10 +43,12 @@ THEME
 
 BACKEND / DATA
 - Express API under /api (gzip-compressed, cached) serving movie data from a local CSV
+- GET /api/tmdb/search and POST /api/tmdb/import — server-side TMDB proxy powering the in-app Add Movie modal; TMDB_API_KEY read from .env server-side (process.loadEnvFile), never sent to the client; import calls retry network errors and 429/5xx (3 attempts, backoff) via axios, not the native fetch (undici), which was found to get TLS-reset by AV/proxy HTTPS inspection on some Windows setups
+- DELETE /api/movies/:id — removes a movie from the in-memory catalogue and regenerates src/movies.csv (write-to-temp-then-rename, so a crash mid-write can't truncate the file)
 - /api prefix keeps Vite dev proxy from colliding with client-side routes like /movies
 - CSV path resolved via process.cwd() (not __dirname), so the compiled production server (server/dist/server/server.js) reads the correct src/movies.csv, same as dev
 - CSV template + TMDB API sourcing guide included
-- movie-search.py: Tkinter GUI to search TMDB (by movie or actor, language filter, pagination) and append picked results (incl. poster URL) to src/movies.csv; TMDB_API_KEY read from .env (never hardcoded), always sent via requests' params= (not URL-interpolated); appends stay column-aligned with an existing CSV's own header, even one predating the Poster URL column
+- movie-search.py: Tkinter GUI to search TMDB (by movie or actor, language filter, pagination) and append picked results (incl. poster URL) to src/movies.csv; TMDB_API_KEY read from .env (never hardcoded), always sent via requests' params= (not URL-interpolated); appends stay column-aligned with an existing CSV's own header, even one predating the Poster URL column. Still available for bulk/offline use alongside the in-app Add Movie modal.
 - backfill_posters.py: one-off script to fill Poster URL for existing CSV rows via TMDB lookup by Movie ID; checkpointed every 100 rows, reports a specific skip reason per row
 
 SECURITY
@@ -50,6 +57,9 @@ SECURITY
 - CORS allowlist restricted to CLIENT_ORIGIN env var (default http://localhost:3000), not an open cors()
 - Movie ID route param length-validated before lookup (400 on invalid)
 - Catch-all error-handling middleware returns generic 500 JSON, logs server-side, no stack trace leak
+- TMDB_API_KEY only ever read/used server-side (GET /api/tmdb/search, POST /api/tmdb/import); never sent to the client
+- CSV rows appended via TMDB import are sanitized against formula injection (=, +, -, @ prefixes), same guard as movie-search.py
+- Delete Movie requires an explicit confirm (Popconfirm) before removing a row
 - movie-search.py never echoes raw request exceptions (could include URL/key) back to the user in error dialogs
 
 QUALITY

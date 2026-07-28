@@ -8,7 +8,7 @@ A full-stack movie analytics dashboard: a React frontend backed by an Express AP
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
 
-**Highlights:** Table/grid movie catalogue with poster art · 6 analytics tabs · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 56 Playwright E2E tests · light/dark theme · filter state persisted per-session
+**Highlights:** Table/grid movie catalogue with poster art · add or delete movies without leaving the browser (TMDB search) · 6 analytics tabs with click-to-filter drill-down, a global year-range slider, and per-chart PNG export · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 56 Playwright E2E tests · light/dark theme · filter state persisted per-session
 
 No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
 
@@ -48,17 +48,21 @@ Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`,
 - Sortable columns, pagination (5 / 10 / 20 / 50 per page) in table view
 - Click any row/card to open a detail drawer with full movie info, vote count, and popularity score — rows/cards are keyboard-accessible (`Enter`/`Space`) with `aria-label`s
 - Export filtered results to CSV
+- **Add Movie** button opens a modal to search TMDB (by movie name and/or actor) and import a result straight into the running catalogue — no restart, no leaving the browser. Requires `TMDB_API_KEY` in `.env` (see [Where to get the data](#where-to-get-the-data--tmdb-api)); `movie-search.py` remains available for bulk/offline imports.
+- Detail drawer has a **Delete** button (confirm required) to remove a movie from the catalogue
 - Sidebar auto-collapses to icon rail below 768px (Ant Design `md` breakpoint); manual toggle still works within a breakpoint
 - Below the `sm` breakpoint the sidebar is replaced by a fixed bottom nav bar, table/drawer widths go full-screen, grid view is the default, and table columns (Genres, Actors, Production Company, Country) progressively hide to fit narrow viewports
 
 ### Statistics — 6 tabs
+A global Release Year Range slider at the top of the page scopes every tab to a chosen year span at once. Most charts are clickable — clicking a bar/slice/point jumps to Movies pre-filtered to that value (genre, language, director, vote range, runtime bucket, decade). Every chart card has a PNG-download button.
+
 | Tab | Contents |
 |---|---|
 | 📊 Overview | Animated stat cards (total, avg/longest/shortest runtime, total watch time in mins/hrs/days/yrs) · Movies by language · Movies per year |
-| 🎬 People | Top 15 actors · Top 15 directors · Movies by production company |
-| ⭐ Ratings | Vote distribution · Avg vote by language (radar) · Avg vote by genre |
-| ⏱ Runtime & Geography | Movies by country & genre (polar area) · Avg vote by runtime bucket · Top 50 longest films |
-| 💰 Box Office | Top 20 highest-grossing films · Top 20 highest-budget films · Avg revenue by genre |
+| 🎬 People | Top 15 actors · Top 15 directors · Movies by production company · Highest rated directors · Highest rated actors & actresses (2+ films) |
+| ⭐ Ratings | Vote distribution · Avg vote by language (radar) · Avg vote by year (trend) · Avg vote by genre · Vote count vs vote average (scatter, outlier check) |
+| ⏱ Runtime & Geography | Movies by country & genre (polar area) · Avg vote by runtime bucket · Avg runtime by decade · Top 50 longest films |
+| 💰 Box Office | Top 20 highest-grossing films · Top 20 highest-budget films · Top 20 most profitable films (revenue − budget) · Top 20 by ROI (revenue / budget) · Avg revenue by genre |
 | 🔭 Explore | Genre distribution · Year × genre heatmap · Top 10 Explorer (highest rated, longest, most recent, oldest, most popular) |
 
 ### Theme
@@ -175,6 +179,8 @@ TMDB_API_KEY=your_tmdb_api_key_here
 
 `.env` is gitignored — the key never gets hardcoded or committed.
 
+The same `.env`/`TMDB_API_KEY` also powers the in-app **Add Movie** button on the Movies page (`server/server.ts` reads it directly — no separate config needed). Without it, Add Movie shows a "not configured" error but the rest of the app works normally.
+
 #### Backfilling posters into an existing CSV
 
 If your `src/movies.csv` predates the `Poster URL` column (or has rows with it blank), `backfill_posters.py` fills them in by looking each row's `Movie ID` up on TMDB:
@@ -246,9 +252,10 @@ movie-dash-v2/
 │   │   └── ThemeContext.tsx     # Light/dark theme provider
 │   ├── components/
 │   │   ├── Charts/             # BarChart, LineChart, HorizontalBar, Radar,
-│   │   │                       # PolarArea, Doughnut, Matrix (all theme-aware)
+│   │   │                       # PolarArea, Doughnut, Matrix, Scatter (all theme-aware)
 │   │   ├── StatsTabs/          # OverviewTab, PeopleTab, RatingsTab,
-│   │   │                       # RuntimeTab, BoxOfficeTab, ExploreTab
+│   │   │                       # RuntimeTab, BoxOfficeTab, ExploreTab,
+│   │   │                       # ChartBlock (shared card wrapper + PNG export)
 │   │   ├── Sidebar.tsx
 │   │   ├── TopBar.tsx          # Theme toggle + download template button (no page title — pages render their own heading)
 │   │   ├── DashboardSection.tsx # Title + content wrapper, standardizes Dashboard sections
@@ -258,7 +265,8 @@ movie-dash-v2/
 │   │   ├── BottomNav.tsx       # Fixed mobile nav bar, replaces Sidebar below the `sm` breakpoint
 │   │   ├── MovieTable.tsx
 │   │   ├── MovieCardGrid.tsx
-│   │   ├── MovieDrawer.tsx
+│   │   ├── MovieDrawer.tsx     # Detail drawer + Delete button
+│   │   ├── AddMovieModal.tsx   # TMDB search + import, opened from the Movies toolbar
 │   │   ├── StatCard.tsx
 │   │   └── TopNExplorer.tsx
 │   ├── pages/
@@ -327,6 +335,9 @@ The Express server exposes JSON endpoints — every response, success or error, 
 | `GET /api/health` | `{ status: "ok" \| "loading", movies: <count> }` |
 | `GET /api/movies` | All movies as a JSON array. Returns `503 { error: "Data still loading" }` while the CSV is still being read on boot |
 | `GET /api/movies/:id` | A single movie by `Movie ID`. Returns `404 { error: "Movie not found" }` if no match, or `400 { error: "Invalid movie id" }` if the param is missing/too long |
+| `DELETE /api/movies/:id` | Removes the movie from the catalogue and rewrites `src/movies.csv`. Returns the deleted movie, `404` if no match, or `500` if the file write fails (in-memory state is rolled back in that case) |
+| `GET /api/tmdb/search?query=&actor=` | Proxies a TMDB movie/actor search (server-side only — `TMDB_API_KEY` never reaches the client). Returns `{ results: [...] }`, each flagged `alreadyImported`. `503` if `TMDB_API_KEY` isn't configured, `400` if both `query` and `actor` are empty |
+| `POST /api/tmdb/import` `{ movieId }` | Fetches the movie's details + credits from TMDB and appends it to `src/movies.csv`. Returns the new movie (`201`), `409` if already in the catalogue, `502` if the TMDB request fails after retries |
 
 Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: public, max-age=60`. Routes live under `/api` so Vite's dev proxy can forward API calls to Express without colliding with the client-side `/movies` route — a bare `/movies` proxy prefix would intercept the browser's SPA navigation and return raw JSON instead. In development, Vite proxies `/api` requests to the Express server automatically (see `vite.config.ts`).
 
@@ -339,6 +350,7 @@ Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: p
 - **CORS allowlist** — only `CLIENT_ORIGIN` (env var, defaults to `http://localhost:3000`) may call the API cross-origin, instead of an open `cors()` reflecting any origin. Set `CLIENT_ORIGIN` to your deployed frontend's URL in production.
 - **Input validation** — `Movie ID` route params are length-checked before use.
 - **Error handling** — a catch-all Express error-handling middleware returns a generic `500 { error: "Internal server error" }` instead of leaking stack traces; errors are still logged server-side.
+- **TMDB key stays server-side** — `TMDB_API_KEY` (same `.env` var `movie-search.py` uses) is only ever read in `server/server.ts`; the browser never sees it. CSV rows appended via the in-app Add Movie import are sanitized against formula injection (`=`, `+`, `-`, `@` prefixes), same guard as `movie-search.py`.
 - CI runs `npm audit --audit-level=high` before lint/build/e2e.
 - `movie-search.py` sends the TMDB API key via `requests`' `params=` (never string-interpolated into a URL) and never echoes raw request exceptions — which could include the URL/key — back to the user in an error dialog.
 

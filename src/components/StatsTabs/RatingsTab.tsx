@@ -1,28 +1,23 @@
 import React, { useMemo } from 'react';
-import { Row, Col, Typography } from 'antd';
+import { Row, Col } from 'antd';
+import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import BarChart from '../Charts/BarChart';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import RadarChart from '../Charts/RadarChart';
-import { getCardStyle } from '../../utils/chartTheme';
+import LineChart from '../Charts/LineChart';
+import ScatterChart from '../Charts/ScatterChart';
+import ChartBlock from './ChartBlock';
 import { groupByField } from '../../utils/statsHelpers';
 import { getLanguageName } from '../../utils/languages';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
 
-const { Title } = Typography;
-
 interface RatingsTabProps { movies: Movie[] }
-
-const ChartBlock: React.FC<{ title: string; height?: number; isDark: boolean; children: React.ReactNode }> = ({ title, height, isDark, children }) => (
-  <div style={{ ...getCardStyle(isDark), padding: 24, marginBottom: 24 }}>
-    <Title level={5} style={{ color: 'var(--text-primary)', marginBottom: 16 }}>{title}</Title>
-    <div style={height !== undefined ? { height } : {}}>{children}</div>
-  </div>
-);
 
 const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
 
   const voteDistData = useMemo<ChartData<'bar'>>(() => {
     const buckets: Record<string, number> = {};
@@ -84,16 +79,87 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
     };
   }, [movies, isDark]);
 
+  const avgVoteByYearData = useMemo<ChartData<'line'>>(() => {
+    const sums: Record<string, { sum: number; count: number }> = {};
+    movies.forEach(m => {
+      const v = parseFloat(m['Vote Average']);
+      const y = m['Release Year'];
+      if (!isNaN(v) && y) {
+        if (!sums[y]) sums[y] = { sum: 0, count: 0 };
+        sums[y].sum += v;
+        sums[y].count += 1;
+      }
+    });
+    const sorted = Object.entries(sums).sort(([a], [b]) => parseInt(a) - parseInt(b));
+    return {
+      labels: sorted.map(([y]) => y),
+      datasets: [{
+        label: 'Avg Vote',
+        data: sorted.map(([, { sum, count }]) => parseFloat((sum / count).toFixed(2))),
+        borderColor: '#34d399',
+        backgroundColor: 'rgba(52,211,153,0.15)',
+        fill: true,
+      }],
+    };
+  }, [movies]);
+
+  const { voteScatterData, voteScatterLabels } = useMemo(() => {
+    const points: { name: string; x: number; y: number }[] = [];
+    movies.forEach(m => {
+      const voteCount = parseInt(m['Vote Count'], 10);
+      const voteAvg = parseFloat(m['Vote Average']);
+      if (!isNaN(voteCount) && voteCount > 0 && !isNaN(voteAvg) && voteAvg > 0) {
+        points.push({ name: m.Name, x: voteCount, y: voteAvg });
+      }
+    });
+    const data: ChartData<'scatter'> = {
+      datasets: [{
+        label: 'Movies',
+        data: points.map(p => ({ x: p.x, y: p.y })),
+        backgroundColor: 'rgba(129,140,248,0.5)',
+        hoverBackgroundColor: '#818cf8',
+      }],
+    };
+    return { voteScatterData: data, voteScatterLabels: points.map(p => p.name) };
+  }, [movies]);
+
+  const handleVoteBucketClick = (index: number) => {
+    const label = voteDistData.labels?.[index] as string | undefined;
+    if (!label) return;
+    const [lo, hi] = label.split('–').map(Number);
+    navigate('/movies', { state: { presetFilters: { voteRange: [lo, hi] } } });
+  };
+
+  const handleGenreClick = (index: number) => {
+    const genre = avgVoteByGenreData.labels?.[index] as string | undefined;
+    if (!genre) return;
+    navigate('/movies', { state: { presetFilters: { genres: [genre] } } });
+  };
+
+  const handleYearClick = (index: number) => {
+    const year = parseInt(avgVoteByYearData.labels?.[index] as string, 10);
+    if (isNaN(year)) return;
+    navigate('/movies', { state: { presetFilters: { yearRange: [year, year] } } });
+  };
+
   return (
     <Row gutter={[24, 24]}>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Vote Average Distribution" height={360} isDark={isDark}><BarChart data={voteDistData} isDark={isDark} /></ChartBlock>
+        <ChartBlock title="Vote Average Distribution" height={360} isDark={isDark}><BarChart data={voteDistData} isDark={isDark} onElementClick={handleVoteBucketClick} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
         <ChartBlock title="Average Vote by Language (Top 8)" height={360} isDark={isDark}><RadarChart data={avgVoteByLanguageData} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24}>
-        <ChartBlock title="Average Vote by Genre (Top 15)" height={440} isDark={isDark}><HorizontalBarChart data={avgVoteByGenreData} height={440} isDark={isDark} /></ChartBlock>
+        <ChartBlock title="Average Vote by Year" height={360} isDark={isDark}><LineChart data={avgVoteByYearData} isDark={isDark} onElementClick={handleYearClick} /></ChartBlock>
+      </Col>
+      <Col xs={24}>
+        <ChartBlock title="Average Vote by Genre (Top 15)" height={440} isDark={isDark}><HorizontalBarChart data={avgVoteByGenreData} height={440} isDark={isDark} onElementClick={handleGenreClick} /></ChartBlock>
+      </Col>
+      <Col xs={24}>
+        <ChartBlock title="Vote Count vs Vote Average (outlier check)" height={400} isDark={isDark}>
+          <ScatterChart data={voteScatterData} isDark={isDark} xLabel="Vote Count" yLabel="Vote Average" pointLabels={voteScatterLabels} />
+        </ChartBlock>
       </Col>
     </Row>
   );

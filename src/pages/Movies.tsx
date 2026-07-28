@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Button, Segmented, Input, Badge, Typography, Grid, Tooltip } from 'antd';
 import { useLocation, useNavigate } from 'react-router';
-import { DownloadOutlined, SearchOutlined, FilterOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { DownloadOutlined, SearchOutlined, FilterOutlined, InfoCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { useMovies } from '../hooks/useMovies';
 import { useDebounce } from '../hooks/useDebounce';
 import { usePersistedFilters } from '../hooks/usePersistedFilters';
@@ -10,6 +10,7 @@ import ActiveFilters from '../components/ActiveFilters';
 import MovieTable from '../components/MovieTable';
 import MovieCardGrid from '../components/MovieCardGrid';
 import MovieDrawer from '../components/MovieDrawer';
+import AddMovieModal from '../components/AddMovieModal';
 import LoadingError from '../components/LoadingError';
 import { parseRevenue } from '../utils/statsHelpers';
 import { isFiltersActive } from '../utils/filterChips';
@@ -46,6 +47,7 @@ const Movies: React.FC = () => {
   const [view, setView] = useState<'table' | 'grid'>('table');
   const [viewDefaulted, setViewDefaulted] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [addMovieOpen, setAddMovieOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -195,6 +197,9 @@ const Movies: React.FC = () => {
         <Tooltip title="Downloads the movies currently shown (after search/filters/sort) as a CSV file — not the full dataset.">
           <InfoCircleOutlined style={{ color: 'var(--text-muted)', cursor: 'help' }} />
         </Tooltip>
+        <Button icon={<PlusOutlined />} onClick={() => setAddMovieOpen(true)}>
+          Add Movie
+        </Button>
       </div>
 
       <ActiveFilters filters={filters} onChange={setFilters} onClearAll={() => setFilters(DEFAULT_FILTERS)} />
@@ -214,6 +219,8 @@ const Movies: React.FC = () => {
       )}
 
       <MovieDrawer movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
+
+      <AddMovieModal open={addMovieOpen} onClose={() => setAddMovieOpen(false)} />
     </div>
     </LoadingError>
   );

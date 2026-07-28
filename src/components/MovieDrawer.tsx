@@ -1,11 +1,13 @@
-import React from 'react';
-import { Drawer, Descriptions, Tag, Typography, Grid, Image } from 'antd';
-import { FireOutlined, LikeOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Drawer, Descriptions, Tag, Typography, Grid, Image, Button, Popconfirm, Alert } from 'antd';
+import { FireOutlined, LikeOutlined, DeleteOutlined } from '@ant-design/icons';
+import axios from 'axios';
 import type { Movie } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
 import { formatDateDDMMYYYY } from '../utils/formatDate';
 import { POSTER_FALLBACK } from '../utils/poster';
 import { useTheme } from '../contexts/ThemeContext';
+import { useMovies } from '../hooks/useMovies';
 
 const { Title } = Typography;
 
@@ -14,9 +16,42 @@ interface MovieDrawerProps {
   onClose: () => void;
 }
 
+function extractErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { error?: string } | undefined;
+    return data?.error ?? 'Delete failed';
+  }
+  return 'Delete failed';
+}
+
 const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
   const { isDark } = useTheme();
   const screens = Grid.useBreakpoint();
+  const { refetch } = useMovies();
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [lastMovieId, setLastMovieId] = useState<string | null>(null);
+
+  const currentId = movie?.['Movie ID'] ?? null;
+  if (currentId !== lastMovieId) {
+    setLastMovieId(currentId);
+    if (deleteError) setDeleteError(null);
+  }
+
+  const handleDelete = async () => {
+    if (!movie) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await axios.delete(`/api/movies/${movie['Movie ID']}`);
+      refetch();
+      onClose();
+    } catch (err) {
+      setDeleteError(extractErrorMessage(err));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const headerBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.85)';
   const bodyBg = isDark ? 'rgba(13,13,26,0.85)' : 'rgba(245,247,255,0.92)';
@@ -46,6 +81,23 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
       width={screens.sm ? 480 : '100%'}
       open={movie !== null}
       onClose={onClose}
+      footer={
+        movie && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Popconfirm
+              title="Delete this movie?"
+              description="Removes it from src/movies.csv. This can't be undone."
+              okText="Delete"
+              okType="danger"
+              onConfirm={handleDelete}
+            >
+              <Button danger icon={<DeleteOutlined />} loading={deleting}>
+                Delete
+              </Button>
+            </Popconfirm>
+          </div>
+        )
+      }
       styles={{
         header: {
           background: headerBg,
@@ -64,6 +116,16 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
     >
       {movie && (
         <>
+        {deleteError && (
+          <Alert
+            type="error"
+            message={deleteError}
+            showIcon
+            closable
+            onClose={() => setDeleteError(null)}
+            style={{ marginBottom: 16 }}
+          />
+        )}
         <div style={{ display: 'flex', gap: 14, marginBottom: 16 }}>
           <Image
             src={movie['Poster URL'] || POSTER_FALLBACK}

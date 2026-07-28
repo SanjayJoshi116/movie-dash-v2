@@ -107,7 +107,7 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => 
                   alt={`${movie.Name} poster`}
                   loading="lazy"
                   onError={(e) => { (e.target as HTMLImageElement).src = POSTER_FALLBACK; }}
-                  style={{ width: '100%', height: 180, objectFit: 'cover', display: 'block' }}
+                  style={{ width: '100%', height: 260, objectFit: 'cover', display: 'block' }}
                 />
               }
             >

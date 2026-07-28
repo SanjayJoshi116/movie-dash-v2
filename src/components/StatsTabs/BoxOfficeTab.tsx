@@ -1,25 +1,18 @@
 import React, { useMemo } from 'react';
-import { Row, Col, Typography } from 'antd';
+import { Row, Col } from 'antd';
+import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
-import { getCardStyle } from '../../utils/chartTheme';
+import ChartBlock from './ChartBlock';
 import { parseRevenue, formatRevenue } from '../../utils/statsHelpers';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
 
-const { Title } = Typography;
-
 interface BoxOfficeTabProps { movies: Movie[] }
-
-const ChartBlock: React.FC<{ title: string; height?: number; isDark: boolean; children: React.ReactNode }> = ({ title, height, isDark, children }) => (
-  <div style={{ ...getCardStyle(isDark), padding: 24, marginBottom: 24 }}>
-    <Title level={5} style={{ color: 'var(--text-primary)', marginBottom: 16 }}>{title}</Title>
-    <div style={height !== undefined ? { height } : {}}>{children}</div>
-  </div>
-);
 
 const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
 
   const topGrossingData = useMemo<ChartData<'bar'>>(() => {
     const top = [...movies]
@@ -81,6 +74,57 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
     };
   }, [movies]);
 
+  const topProfitData = useMemo<ChartData<'bar'>>(() => {
+    const top = movies
+      .map(m => ({ name: m.Name, revenue: parseRevenue(m['Box Office Revenue']), budget: parseRevenue(m['Budget']) }))
+      .filter(m => m.revenue > 0 && m.budget > 0)
+      .map(m => ({ name: m.name, profit: m.revenue - m.budget }))
+      .sort((a, b) => b.profit - a.profit)
+      .slice(0, 20);
+    return {
+      labels: top.map(m => m.name),
+      datasets: [{
+        label: 'Profit (Revenue − Budget)',
+        data: top.map(m => m.profit),
+        backgroundColor: top.map(m => (m.profit >= 0 ? '#34d399' : '#f87171')),
+        hoverBackgroundColor: top.map(m => (m.profit >= 0 ? '#10b981' : '#ef4444')),
+      }],
+    };
+  }, [movies]);
+
+  const formatProfit = (n: number): string => {
+    const sign = n < 0 ? '-' : '';
+    return `${sign}${formatRevenue(Math.abs(n))}`;
+  };
+
+  const MIN_BUDGET_FOR_ROI = 100_000;
+
+  const topRoiData = useMemo<ChartData<'bar'>>(() => {
+    const top = movies
+      .map(m => ({ name: m.Name, revenue: parseRevenue(m['Box Office Revenue']), budget: parseRevenue(m['Budget']) }))
+      .filter(m => m.revenue > 0 && m.budget >= MIN_BUDGET_FOR_ROI)
+      .map(m => ({ name: m.name, roi: m.revenue / m.budget }))
+      .sort((a, b) => b.roi - a.roi)
+      .slice(0, 20);
+    return {
+      labels: top.map(m => m.name),
+      datasets: [{
+        label: 'ROI (Revenue / Budget)',
+        data: top.map(m => parseFloat(m.roi.toFixed(2))),
+        backgroundColor: '#22d3ee',
+        hoverBackgroundColor: '#06b6d4',
+      }],
+    };
+  }, [movies]);
+
+  const formatRoi = (n: number): string => `${n.toFixed(1)}x`;
+
+  const handleGenreClick = (index: number) => {
+    const genre = avgRevenueByGenreData.labels?.[index] as string | undefined;
+    if (!genre) return;
+    navigate('/movies', { state: { presetFilters: { genres: [genre] } } });
+  };
+
   return (
     <Row gutter={[24, 24]}>
       <Col xs={24} lg={12}>
@@ -93,9 +137,19 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
           <HorizontalBarChart data={topBudgetData} height={480} isDark={isDark} formatValue={formatRevenue} />
         </ChartBlock>
       </Col>
+      <Col xs={24} lg={12}>
+        <ChartBlock title="Top 20 Most Profitable Films (Revenue − Budget)" height={480} isDark={isDark}>
+          <HorizontalBarChart data={topProfitData} height={480} isDark={isDark} formatValue={formatProfit} />
+        </ChartBlock>
+      </Col>
+      <Col xs={24} lg={12}>
+        <ChartBlock title={`Top 20 by ROI (Revenue / Budget, min $${MIN_BUDGET_FOR_ROI / 1000}K budget)`} height={480} isDark={isDark}>
+          <HorizontalBarChart data={topRoiData} height={480} isDark={isDark} formatValue={formatRoi} />
+        </ChartBlock>
+      </Col>
       <Col xs={24}>
         <ChartBlock title="Average Box Office Revenue by Genre (Top 15)" height={440} isDark={isDark}>
-          <HorizontalBarChart data={avgRevenueByGenreData} height={440} isDark={isDark} formatValue={formatRevenue} />
+          <HorizontalBarChart data={avgRevenueByGenreData} height={440} isDark={isDark} formatValue={formatRevenue} onElementClick={handleGenreClick} />
         </ChartBlock>
       </Col>
     </Row>

@@ -1,26 +1,29 @@
 import React, { useMemo } from 'react';
-import { Row, Col, Typography } from 'antd';
+import { Row, Col } from 'antd';
+import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
+import BarChart from '../Charts/BarChart';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import PolarAreaChart from '../Charts/PolarAreaChart';
-import { getCardStyle } from '../../utils/chartTheme';
+import ChartBlock from './ChartBlock';
 import { groupByField, withOther, makePolar } from '../../utils/statsHelpers';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
 
-const { Title } = Typography;
-
 interface RuntimeTabProps { movies: Movie[] }
 
-const ChartBlock: React.FC<{ title: string; height?: number; isDark: boolean; children: React.ReactNode }> = ({ title, height, isDark, children }) => (
-  <div style={{ ...getCardStyle(isDark), padding: 24, marginBottom: 24 }}>
-    <Title level={5} style={{ color: 'var(--text-primary)', marginBottom: 16 }}>{title}</Title>
-    <div style={height !== undefined ? { height } : {}}>{children}</div>
-  </div>
-);
+const RUNTIME_BUCKETS = [
+  { label: '< 60 min',    min: 0,   max: 60   },
+  { label: '60–90 min',   min: 60,  max: 90   },
+  { label: '90–120 min',  min: 90,  max: 120  },
+  { label: '120–150 min', min: 120, max: 150  },
+  { label: '150–180 min', min: 150, max: 180  },
+  { label: '> 180 min',   min: 180, max: 9999 },
+];
 
 const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
 
   const top50RuntimeData = useMemo<ChartData<'bar'>>(() => {
     const top50 = [...movies]
@@ -34,28 +37,43 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
   }, [movies]);
 
   const runtimeBucketVoteData = useMemo<ChartData<'bar'>>(() => {
-    const buckets = [
-      { label: '< 60 min',    min: 0,   max: 60       },
-      { label: '60–90 min',   min: 60,  max: 90       },
-      { label: '90–120 min',  min: 90,  max: 120      },
-      { label: '120–150 min', min: 120, max: 150      },
-      { label: '150–180 min', min: 150, max: 180      },
-      { label: '> 180 min',   min: 180, max: Infinity },
-    ];
     const sums: Record<string, { sum: number; count: number }> = {};
-    buckets.forEach(b => { sums[b.label] = { sum: 0, count: 0 }; });
+    RUNTIME_BUCKETS.forEach(b => { sums[b.label] = { sum: 0, count: 0 }; });
     movies.forEach(m => {
       const r = parseFloat(m.Runtime);
       const v = parseFloat(m['Vote Average']);
       if (!isNaN(r) && !isNaN(v)) {
-        const bucket = buckets.find(b => r >= b.min && r < b.max);
+        const bucket = RUNTIME_BUCKETS.find(b => r >= b.min && r < b.max);
         if (bucket) { sums[bucket.label].sum += v; sums[bucket.label].count += 1; }
       }
     });
-    const avgs = buckets.map(b => sums[b.label].count ? parseFloat((sums[b.label].sum / sums[b.label].count).toFixed(2)) : 0);
+    const avgs = RUNTIME_BUCKETS.map(b => sums[b.label].count ? parseFloat((sums[b.label].sum / sums[b.label].count).toFixed(2)) : 0);
     return {
-      labels: buckets.map(b => b.label),
+      labels: RUNTIME_BUCKETS.map(b => b.label),
       datasets: [{ label: 'Avg Vote', data: avgs, backgroundColor: '#fbbf24', hoverBackgroundColor: '#f59e0b' }],
+    };
+  }, [movies]);
+
+  const avgRuntimeByDecadeData = useMemo<ChartData<'bar'>>(() => {
+    const sums: Record<string, { sum: number; count: number }> = {};
+    movies.forEach(m => {
+      const r = parseFloat(m.Runtime);
+      const y = parseInt(m['Release Year'], 10);
+      if (isNaN(r) || r <= 0 || isNaN(y)) return;
+      const decade = `${Math.floor(y / 10) * 10}s`;
+      if (!sums[decade]) sums[decade] = { sum: 0, count: 0 };
+      sums[decade].sum += r;
+      sums[decade].count += 1;
+    });
+    const sorted = Object.entries(sums).sort(([a], [b]) => parseInt(a) - parseInt(b));
+    return {
+      labels: sorted.map(([d]) => d),
+      datasets: [{
+        label: 'Avg Runtime (mins)',
+        data: sorted.map(([, { sum, count }]) => Math.round(sum / count)),
+        backgroundColor: '#a78bfa',
+        hoverBackgroundColor: '#8b5cf6',
+      }],
     };
   }, [movies]);
 
@@ -69,16 +87,39 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
     [movies]
   );
 
+  const handleGenreClick = (index: number) => {
+    const genre = genrePolarData.labels?.[index] as string | undefined;
+    if (!genre || genre === 'Other') return;
+    navigate('/movies', { state: { presetFilters: { genres: [genre] } } });
+  };
+
+  const handleRuntimeBucketClick = (index: number) => {
+    const bucket = RUNTIME_BUCKETS[index];
+    if (!bucket) return;
+    navigate('/movies', { state: { presetFilters: { runtimeRange: [bucket.min, bucket.max] } } });
+  };
+
+  const handleDecadeClick = (index: number) => {
+    const decade = avgRuntimeByDecadeData.labels?.[index] as string | undefined;
+    if (!decade) return;
+    const start = parseInt(decade, 10);
+    if (isNaN(start)) return;
+    navigate('/movies', { state: { presetFilters: { yearRange: [start, start + 9] } } });
+  };
+
   return (
     <Row gutter={[24, 24]}>
       <Col xs={24} lg={12}>
         <ChartBlock title="Movies by Country" height={400} isDark={isDark}><PolarAreaChart data={countryPolarData} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Movies by Genre" height={400} isDark={isDark}><PolarAreaChart data={genrePolarData} isDark={isDark} /></ChartBlock>
+        <ChartBlock title="Movies by Genre" height={400} isDark={isDark}><PolarAreaChart data={genrePolarData} isDark={isDark} onElementClick={handleGenreClick} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Avg Vote by Runtime Length" height={320} isDark={isDark}><HorizontalBarChart data={runtimeBucketVoteData} height={320} isDark={isDark} /></ChartBlock>
+        <ChartBlock title="Avg Vote by Runtime Length" height={320} isDark={isDark}><HorizontalBarChart data={runtimeBucketVoteData} height={320} isDark={isDark} onElementClick={handleRuntimeBucketClick} /></ChartBlock>
+      </Col>
+      <Col xs={24} lg={12}>
+        <ChartBlock title="Avg Runtime by Decade" height={320} isDark={isDark}><BarChart data={avgRuntimeByDecadeData} isDark={isDark} onElementClick={handleDecadeClick} /></ChartBlock>
       </Col>
       <Col xs={24}>
         <ChartBlock title="Top 50 Longest Films" height={500} isDark={isDark}><HorizontalBarChart data={top50RuntimeData} height={500} isDark={isDark} /></ChartBlock>

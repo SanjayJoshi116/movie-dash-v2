@@ -7,9 +7,10 @@ interface HorizontalBarChartProps {
   height?: number;
   isDark?: boolean;
   formatValue?: (n: number) => string;
+  onElementClick?: (index: number) => void;
 }
 
-const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 400, isDark = true, formatValue }) => {
+const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 400, isDark = true, formatValue, onElementClick }) => {
   const options: ChartOptions<'bar'> = useMemo(() => {
     const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';
     const tickColor = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.75)';
@@ -19,6 +20,12 @@ const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 
       indexAxis: 'y' as const,
       responsive: true,
       maintainAspectRatio: false,
+      onClick: onElementClick
+        ? (_evt, elements) => { if (elements.length) onElementClick(elements[0].index); }
+        : undefined,
+      onHover: onElementClick
+        ? (evt, elements) => { (evt.native?.target as HTMLElement)?.style.setProperty('cursor', elements.length ? 'pointer' : 'default'); }
+        : undefined,
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -45,7 +52,7 @@ const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 
         },
       },
     };
-  }, [isDark, formatValue]);
+  }, [isDark, formatValue, onElementClick]);
 
   return (
     <div style={{ height }}>

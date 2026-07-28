@@ -17,6 +17,7 @@
 
 # data
 src/movies.csv
+src/movies.csv.tmp
 
 # editor
 .vscode/*
