@@ -37,24 +37,25 @@ Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`,
 - Recent Releases list with poster thumbnails, keyboard-accessible (`Enter`/`Space`) like the rest of the app
 - Trend/breakdown mini-charts (release year, genre, rating distribution) are clickable — clicking a data point/slice/bar jumps to Movies pre-filtered to that year, genre, or rating range
 - Skeleton placeholder layout while data loads, instead of a bare spinner
+- Empty state (0 movies) shows a "Go to Movies" CTA instead of zeroed-out stat cards/charts
 - CTA cards linking through to Movies and Stats
 
 ### Movies (`/movies`)
 - Table or grid view, toggled with a `Segmented` control — grid shows poster cards (up to 6/row on wide screens) with its own sort dropdown (name, year, rating, runtime), table is the dense sortable list
-- Always-visible search box (name, director, actor, genre, production company) plus a **Filters** button — clicking it opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue), so the page stays uncluttered until you need it
+- Always-visible search box (name, director, actor, genre, production company/country, release year, language) plus a **Filters** button — clicking it opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue), so the page stays uncluttered until you need it
 - The Filters button shows a small dot when any filter is active
 - Removable filter chips summarising every active filter, plus a one-click "Clear all", shown directly on the page (no need to open the drawer)
 - Filter state persisted for the tab/session (`sessionStorage`) — survives navigating away and back, resets on a new tab or browser restart
 - Sortable columns, pagination (5 / 10 / 20 / 50 per page) in table view
 - Click any row/card to open a detail drawer with full movie info, vote count, and popularity score — rows/cards are keyboard-accessible (`Enter`/`Space`) with `aria-label`s
 - Export filtered results to CSV
-- **Add Movie** button opens a modal to search TMDB (by movie name and/or actor) and import a result straight into the running catalogue — no restart, no leaving the browser. Requires `TMDB_API_KEY` in `.env` (see [Where to get the data](#where-to-get-the-data--tmdb-api)); `movie-search.py` remains available for bulk/offline imports.
+- **Add Movie** button opens a modal to search TMDB (by movie name and/or actor, optionally narrowed by release year) and import a result straight into the running catalogue — no restart, no leaving the browser. Requires `TMDB_API_KEY` in `.env` (see [Where to get the data](#where-to-get-the-data--tmdb-api)); `movie-search.py` remains available for bulk/offline imports.
 - Detail drawer has a **Delete** button (confirm required) to remove a movie from the catalogue
 - Sidebar auto-collapses to icon rail below 768px (Ant Design `md` breakpoint); manual toggle still works within a breakpoint
 - Below the `sm` breakpoint the sidebar is replaced by a fixed bottom nav bar, table/drawer widths go full-screen, grid view is the default, and table columns (Genres, Actors, Production Company, Country) progressively hide to fit narrow viewports
 
 ### Statistics — 6 tabs
-A global Release Year Range slider at the top of the page scopes every tab to a chosen year span at once. Most charts are clickable — clicking a bar/slice/point jumps to Movies pre-filtered to that value (genre, language, director, vote range, runtime bucket, decade). Every chart card has a PNG-download button.
+A global Release Year Range slider at the top of the page scopes every tab to a chosen year span at once, with a "Reset" button once it's been narrowed. Most charts are clickable — clicking a bar/slice/point jumps to Movies pre-filtered to that value (genre, language, director, vote range, runtime bucket, decade). Every chart card has a PNG-download button. The active tab is synced to a `?tab=` URL query param, so a reload or shared link lands back on the same tab.
 
 | Tab | Contents |
 |---|---|
@@ -266,7 +267,8 @@ movie-dash-v2/
 │   │   ├── MovieTable.tsx
 │   │   ├── MovieCardGrid.tsx
 │   │   ├── MovieDrawer.tsx     # Detail drawer + Delete button
-│   │   ├── AddMovieModal.tsx   # TMDB search + import, opened from the Movies toolbar
+│   │   ├── AddMovieModal.tsx   # TMDB search (name/actor/year) + import, opened from the Movies toolbar
+│   │   ├── PosterThumb.tsx     # Shared poster <img> w/ fallback-on-error, used by Dashboard
 │   │   ├── StatCard.tsx
 │   │   └── TopNExplorer.tsx
 │   ├── pages/
@@ -336,7 +338,7 @@ The Express server exposes JSON endpoints — every response, success or error, 
 | `GET /api/movies` | All movies as a JSON array. Returns `503 { error: "Data still loading" }` while the CSV is still being read on boot |
 | `GET /api/movies/:id` | A single movie by `Movie ID`. Returns `404 { error: "Movie not found" }` if no match, or `400 { error: "Invalid movie id" }` if the param is missing/too long |
 | `DELETE /api/movies/:id` | Removes the movie from the catalogue and rewrites `src/movies.csv`. Returns the deleted movie, `404` if no match, or `500` if the file write fails (in-memory state is rolled back in that case) |
-| `GET /api/tmdb/search?query=&actor=` | Proxies a TMDB movie/actor search (server-side only — `TMDB_API_KEY` never reaches the client). Returns `{ results: [...] }`, each flagged `alreadyImported`. `503` if `TMDB_API_KEY` isn't configured, `400` if both `query` and `actor` are empty |
+| `GET /api/tmdb/search?query=&actor=&year=` | Proxies a TMDB movie/actor search (server-side only — `TMDB_API_KEY` never reaches the client). `year` (4 digits) narrows by release year. Returns `{ results: [...] }`, each flagged `alreadyImported`. `503` if `TMDB_API_KEY` isn't configured, `400` if both `query` and `actor` are empty |
 | `POST /api/tmdb/import` `{ movieId }` | Fetches the movie's details + credits from TMDB and appends it to `src/movies.csv`. Returns the new movie (`201`), `409` if already in the catalogue, `502` if the TMDB request fails after retries |
 
 Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: public, max-age=60`. Routes live under `/api` so Vite's dev proxy can forward API calls to Express without colliding with the client-side `/movies` route — a bare `/movies` proxy prefix would intercept the browser's SPA navigation and return raw JSON instead. In development, Vite proxies `/api` requests to the Express server automatically (see `vite.config.ts`).

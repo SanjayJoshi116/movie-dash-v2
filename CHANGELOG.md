@@ -3,6 +3,23 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.0] - 2026-07-29
+
+### Added
+- **Add Movie year filter.** `AddMovieModal.tsx` gained an optional Year input alongside name/actor. Backend: `GET /api/tmdb/search` accepts `year` (validated `\d{4}`), passed as `primary_release_year` to TMDB's `/search/movie`, and applied as a `release_date` prefix filter when searching by actor credits — narrows results when a common title/actor returns too many hits.
+- **Dashboard empty state.** `Dashboard.tsx` now renders an `Empty` (Ant Design, `PRESENTED_IMAGE_SIMPLE`) with a "Go to Movies" CTA instead of stat cards/charts full of zeros when the catalogue has 0 movies.
+- **Movies search widened.** `SEARCHABLE_FIELDS` gained `Production Country` and `Release Year`; search also matches the human-readable language name via `getLanguageName` (not just the raw ISO code), so e.g. "french" or "2019" now matches.
+- **Stats tab deep-linking via URL.** `Stats.tsx`'s active tab is now synced to a `?tab=` query param (`useSearchParams`, `replace: true`) in addition to the existing `location.state` hand-off from Dashboard/Movies drill-down clicks — the current tab survives a page reload or a shared/bookmarked link.
+- **Year Range reset button.** `Stats.tsx`'s Release Year Range slider shows a small "Reset" button next to the current range/count once it's been narrowed from the full dataset span.
+- `PosterThumb.tsx` — poster `<img>` (with fallback-on-error) extracted out of `Dashboard.tsx`'s two duplicated inline copies (Highlight cards, Recent Releases) into one shared component.
+
+### Fixed
+- `OverviewTab.tsx`'s count-up animation effect captured `intervalsRef.current` in a local variable at the top of the effect instead of re-reading the ref repeatedly inside callbacks/cleanup — avoids a stale-ref read if the ref's contents changed between the effect running and its cleanup firing.
+
+### Changed
+- `useMoviesContext`/`useTheme` hook exports now carry an explicit `eslint-disable-next-line react-refresh/only-export-components` (with a reason comment) instead of silently relying on lint config — both are intentionally co-located with their provider in the same file.
+- Movies page toolbar restructured: search stays left-aligned, Filters/view-toggle/Export/Add Movie now grouped in a wrapping flex container on the right (`justifyContent: 'space-between'` on the row) instead of everything jammed into one `flex-end` group — holds up better at narrow widths.
+
 ## [0.6.0] - 2026-07-28
 
 ### Added

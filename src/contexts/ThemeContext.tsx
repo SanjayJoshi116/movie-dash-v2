@@ -7,6 +7,7 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue>({ isDark: true, toggleTheme: () => {} });
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its provider, same as MoviesContext
 export const useTheme = () => useContext(ThemeContext);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

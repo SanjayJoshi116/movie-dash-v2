@@ -219,6 +219,8 @@ app.get('/api/tmdb/search', async (req: Request, res: Response) => {
   }
   const query = typeof req.query.query === 'string' ? req.query.query.trim() : '';
   const actor = typeof req.query.actor === 'string' ? req.query.actor.trim() : '';
+  const yearParam = typeof req.query.year === 'string' ? req.query.year.trim() : '';
+  const year = /^\d{4}$/.test(yearParam) ? yearParam : '';
   if (!query && !actor) {
     res.status(400).json({ error: 'query or actor is required' });
     return;
@@ -234,11 +236,14 @@ app.get('/api/tmdb/search', async (req: Request, res: Response) => {
         return;
       }
       const creditsRes = await tmdbGet<TmdbPersonCreditsResponse>(`/person/${person.id}/movie_credits`);
-      results = query
-        ? creditsRes.cast.filter((m) => m.title.toLowerCase().includes(query.toLowerCase()))
-        : creditsRes.cast;
+      results = creditsRes.cast
+        .filter((m) => !query || m.title.toLowerCase().includes(query.toLowerCase()))
+        .filter((m) => !year || m.release_date?.slice(0, 4) === year);
     } else {
-      const searchRes = await tmdbGet<TmdbSearchMovieResponse>('/search/movie', { query });
+      const searchRes = await tmdbGet<TmdbSearchMovieResponse>('/search/movie', {
+        query,
+        ...(year ? { primary_release_year: year } : {}),
+      });
       results = searchRes.results;
     }
 

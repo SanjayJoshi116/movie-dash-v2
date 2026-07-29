@@ -34,6 +34,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
   const { refetch } = useMovies();
   const [query, setQuery] = useState('');
   const [actor, setActor] = useState('');
+  const [year, setYear] = useState('');
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<TmdbSearchResult[]>([]);
@@ -48,7 +49,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
     setError(null);
     try {
       const res = await axios.get<{ results: TmdbSearchResult[] }>('/api/tmdb/search', {
-        params: { query: query.trim(), actor: actor.trim() },
+        params: { query: query.trim(), actor: actor.trim(), year: year.trim() },
       });
       setResults(res.data.results);
     } catch (err) {
@@ -101,6 +102,15 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
           onPressEnter={handleSearch}
           allowClear
           style={{ maxWidth: 200 }}
+        />
+        <Input
+          placeholder="Year (optional)"
+          value={year}
+          onChange={(e) => setYear(e.target.value)}
+          onPressEnter={handleSearch}
+          allowClear
+          inputMode="numeric"
+          style={{ maxWidth: 120 }}
         />
         <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch} loading={searching}>
           Search

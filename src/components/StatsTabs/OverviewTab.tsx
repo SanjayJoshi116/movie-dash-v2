@@ -77,6 +77,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
   }, [movies]);
 
   useEffect(() => {
+    const intervals = intervalsRef.current;
     const targets: StatsCounters = { totalMovies, avgRuntime, longestRuntime, shortestRuntime, totalTimeSpent };
     const prev = prevTargetsRef.current;
     const unchanged = prev !== null && (Object.keys(targets) as (keyof StatsCounters)[])
@@ -86,22 +87,22 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
 
     const animate = (key: keyof StatsCounters, value: number, speed = 10) => {
       const step = Math.ceil(value / 100);
-      intervalsRef.current[key] = setInterval(() => {
+      intervals[key] = setInterval(() => {
         setCounts(prev => {
-          if (prev[key] >= value) { clearInterval(intervalsRef.current[key]); return { ...prev, [key]: value }; }
+          if (prev[key] >= value) { clearInterval(intervals[key]); return { ...prev, [key]: value }; }
           return { ...prev, [key]: Math.min(prev[key] + step, value) };
         });
       }, speed);
     };
     setCounts({ totalMovies: 0, avgRuntime: 0, longestRuntime: 0, shortestRuntime: 0, totalTimeSpent: 0 });
-    Object.values(intervalsRef.current).forEach(clearInterval);
+    Object.values(intervals).forEach(clearInterval);
     if (totalMovies     > 0) animate('totalMovies', totalMovies);
     if (avgRuntime      > 0) animate('avgRuntime', Math.round(avgRuntime), 20);
     if (longestRuntime  > 0) animate('longestRuntime', longestRuntime);
     if (shortestRuntime > 0) animate('shortestRuntime', shortestRuntime);
     if (totalTimeSpent  > 0) animate('totalTimeSpent', Math.round(totalTimeSpent));
     return () => {
-      Object.values(intervalsRef.current).forEach(clearInterval);
+      Object.values(intervals).forEach(clearInterval);
       prevTargetsRef.current = null;
     };
   }, [totalMovies, avgRuntime, longestRuntime, shortestRuntime, totalTimeSpent]);

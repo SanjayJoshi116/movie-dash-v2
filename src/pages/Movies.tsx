@@ -15,6 +15,7 @@ import LoadingError from '../components/LoadingError';
 import { parseRevenue } from '../utils/statsHelpers';
 import { isFiltersActive } from '../utils/filterChips';
 import { exportMoviesToCsv } from '../utils/exportCsv';
+import { getLanguageName } from '../utils/languages';
 import type { Movie, FilterState } from '../types/movie';
 
 const { Title, Text } = Typography;
@@ -26,6 +27,8 @@ const SEARCHABLE_FIELDS: (keyof Movie)[] = [
   'Genres',
   'Actors/Actresses',
   'Production Company',
+  'Production Country',
+  'Release Year',
 ];
 
 const DEFAULT_FILTERS: FilterState = {
@@ -76,7 +79,7 @@ const Movies: React.FC = () => {
         const lower = debouncedSearch.toLowerCase();
         const matchesText = SEARCHABLE_FIELDS.some((key) =>
           movie[key]?.toLowerCase().includes(lower)
-        );
+        ) || getLanguageName(movie.Language).toLowerCase().includes(lower);
         if (!matchesText) return false;
       }
 
@@ -153,7 +156,7 @@ const Movies: React.FC = () => {
       <div
         style={{
           display: 'flex',
-          justifyContent: 'flex-end',
+          justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: 16,
           padding: '16px 24px',
@@ -166,7 +169,7 @@ const Movies: React.FC = () => {
         }}
       >
         <Input
-          placeholder="Search by name, director, actor…"
+          placeholder="Search by name, director, actor, year, language, country…"
           prefix={<SearchOutlined />}
           value={filters.search}
           onChange={(e) => setFilters({ ...filters, search: e.target.value })}
@@ -174,32 +177,34 @@ const Movies: React.FC = () => {
           onClear={() => setFilters({ ...filters, search: '' })}
           style={{ maxWidth: 360, flex: '1 1 240px' }}
         />
-        <Badge dot={filtersActive} offset={[-6, 6]} color="#38bdf8">
-          <Button icon={<FilterOutlined />} onClick={() => setFiltersOpen(true)}>
-            Filters
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <Badge dot={filtersActive} offset={[-6, 6]} color="#38bdf8">
+            <Button icon={<FilterOutlined />} onClick={() => setFiltersOpen(true)}>
+              Filters
+            </Button>
+          </Badge>
+          <Segmented
+            value={view}
+            onChange={(val) => setView(val as 'table' | 'grid')}
+            options={[
+              { label: 'Table', value: 'table' },
+              { label: 'Grid', value: 'grid' },
+            ]}
+          />
+          <Button
+            icon={<DownloadOutlined />}
+            disabled={filteredMovies.length === 0}
+            onClick={() => exportMoviesToCsv(filteredMovies, `movies-filtered-${filteredMovies.length}.csv`)}
+          >
+            Export CSV
           </Button>
-        </Badge>
-        <Segmented
-          value={view}
-          onChange={(val) => setView(val as 'table' | 'grid')}
-          options={[
-            { label: 'Table', value: 'table' },
-            { label: 'Grid', value: 'grid' },
-          ]}
-        />
-        <Button
-          icon={<DownloadOutlined />}
-          disabled={filteredMovies.length === 0}
-          onClick={() => exportMoviesToCsv(filteredMovies, `movies-filtered-${filteredMovies.length}.csv`)}
-        >
-          Export CSV
-        </Button>
-        <Tooltip title="Downloads the movies currently shown (after search/filters/sort) as a CSV file — not the full dataset.">
-          <InfoCircleOutlined style={{ color: 'var(--text-muted)', cursor: 'help' }} />
-        </Tooltip>
-        <Button icon={<PlusOutlined />} onClick={() => setAddMovieOpen(true)}>
-          Add Movie
-        </Button>
+          <Tooltip title="Downloads the movies currently shown (after search/filters/sort) as a CSV file — not the full dataset.">
+            <InfoCircleOutlined style={{ color: 'var(--text-muted)', cursor: 'help' }} />
+          </Tooltip>
+          <Button icon={<PlusOutlined />} onClick={() => setAddMovieOpen(true)}>
+            Add Movie
+          </Button>
+        </div>
       </div>
 
       <ActiveFilters filters={filters} onChange={setFilters} onClearAll={() => setFilters(DEFAULT_FILTERS)} />

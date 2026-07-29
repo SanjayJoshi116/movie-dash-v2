@@ -6,13 +6,14 @@ DASHBOARD (/)
 - Total Box Office stat card clickable, jumps to Stats page's Box Office tab
 - Trends & Breakdown: 10-year release trend, top-6 genre breakdown, rating distribution (each clickable — jumps to Movies pre-filtered by that year/genre/vote range), recent releases list with poster thumbnails (click or Enter/Space to open detail drawer)
 - Skeleton placeholder layout while data loads (instead of a bare spinner)
+- Empty state (0 movies): Empty component + "Go to Movies" CTA instead of zeroed-out stats/charts
 - CTA cards linking to Movies and Stats
 - Standardized section layout (title + spacing) via a shared DashboardSection wrapper
 
 MOVIES (/movies)
 - Table or grid view via Segmented toggle (grid = card layout with poster thumbnail, up to 6 cards/row on wide screens, taller cover to show more of the poster, own sort dropdown for name/year/rating/runtime; table = dense sortable list)
 - Poster shown in grid cards and the detail drawer when a movie has a Poster URL in the CSV; falls back to a placeholder otherwise
-- Always-visible search box (name, director, actor, genre, production company)
+- Always-visible search box (name, director, actor, genre, production company/country, release year, language name)
 - Filters button opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue); dot indicator when a filter is active
 - Removable filter chips summarizing active filters, one-click "Clear all" shown directly on the page
 - Filter state persisted for the tab/session (sessionStorage) — survives nav within the tab, resets on new tab/restart
@@ -20,14 +21,15 @@ MOVIES (/movies)
 - Pagination (5 / 10 / 20 / 50 per page, table view)
 - Row/card click opens detail drawer (full movie info, vote count, popularity score); rows/cards keyboard-activatable (Enter/Space) with aria-labels
 - Export filtered results to CSV
-- "Add Movie" button opens a modal to search TMDB (by movie name and/or actor) and import a result straight into the running catalogue — no need to leave the browser or use movie-search.py
+- "Add Movie" button opens a modal to search TMDB (by movie name and/or actor, optional release-year narrowing) and import a result straight into the running catalogue — no need to leave the browser or use movie-search.py
 - Detail drawer has a Delete button (confirm required) to remove a movie from the catalogue
 - Sidebar auto-collapses below 768px viewport width (Ant Design breakpoint hook), manual toggle still works; sidebar sticky-positioned
 - Below the sm breakpoint: sidebar replaced by fixed bottom nav bar (Dashboard/Movies/Stats), grid view default, detail/filters drawers go full-width, table columns hide progressively, pagination switches to simple mode
 - Release dates rendered as DD-MM-YYYY (table + detail drawer)
 
 STATISTICS (6 tabs)
-- Global Release Year Range slider scopes all 6 tabs to a chosen year span at once
+- Global Release Year Range slider scopes all 6 tabs to a chosen year span at once, with a Reset button once narrowed
+- Active tab synced to a ?tab= URL query param — survives reload, shareable/bookmarkable
 - Every chart card has a PNG-download button
 - Most charts are clickable — clicking a bar/slice jumps to Movies pre-filtered by that value (genre, language, director, vote range, runtime bucket, decade)
 - Overview: animated stat cards (total movies, avg/longest/shortest runtime, total watch time in minutes/hours/days/years), movies by language, movies per year
@@ -43,7 +45,7 @@ THEME
 
 BACKEND / DATA
 - Express API under /api (gzip-compressed, cached) serving movie data from a local CSV
-- GET /api/tmdb/search and POST /api/tmdb/import — server-side TMDB proxy powering the in-app Add Movie modal; TMDB_API_KEY read from .env server-side (process.loadEnvFile), never sent to the client; import calls retry network errors and 429/5xx (3 attempts, backoff) via axios, not the native fetch (undici), which was found to get TLS-reset by AV/proxy HTTPS inspection on some Windows setups
+- GET /api/tmdb/search (name/actor/year) and POST /api/tmdb/import — server-side TMDB proxy powering the in-app Add Movie modal; TMDB_API_KEY read from .env server-side (process.loadEnvFile), never sent to the client; import calls retry network errors and 429/5xx (3 attempts, backoff) via axios, not the native fetch (undici), which was found to get TLS-reset by AV/proxy HTTPS inspection on some Windows setups
 - DELETE /api/movies/:id — removes a movie from the in-memory catalogue and regenerates src/movies.csv (write-to-temp-then-rename, so a crash mid-write can't truncate the file)
 - /api prefix keeps Vite dev proxy from colliding with client-side routes like /movies
 - CSV path resolved via process.cwd() (not __dirname), so the compiled production server (server/dist/server/server.js) reads the correct src/movies.csv, same as dev

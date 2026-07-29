@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Row, Col, Typography, Button, Tag, List, Grid } from 'antd';
+import { Row, Col, Typography, Button, Tag, List, Grid, Empty } from 'antd';
 import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import {
@@ -22,9 +22,9 @@ import LoadingError from '../components/LoadingError';
 import LineChart from '../components/Charts/LineChart';
 import BarChart from '../components/Charts/BarChart';
 import DoughnutChart from '../components/Charts/DoughnutChart';
+import PosterThumb from '../components/PosterThumb';
 import { getCardStyle } from '../utils/chartTheme';
 import { groupByField, makeDoughnut, parseRevenue, formatRevenue } from '../utils/statsHelpers';
-import { POSTER_FALLBACK } from '../utils/poster';
 import type { Movie } from '../types/movie';
 
 const { Title, Text } = Typography;
@@ -55,13 +55,7 @@ const HighlightCard: React.FC<HighlightCardProps> = ({ icon, label, movie, detai
     </div>
     {movie ? (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <img
-          src={movie['Poster URL'] || POSTER_FALLBACK}
-          alt={`${movie.Name} poster`}
-          loading="lazy"
-          onError={(e) => { (e.target as HTMLImageElement).src = POSTER_FALLBACK; }}
-          style={{ width: 48, height: 72, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
-        />
+        <PosterThumb movie={movie} width={48} height={72} />
         <div style={{ minWidth: 0 }}>
           <div style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 17, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {movie.Name}
@@ -222,6 +216,17 @@ const Dashboard: React.FC = () => {
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
         Snapshot of your movie collection — key stats, highlights, and trends at a glance.
       </Text>
+      {movies.length === 0 ? (
+        <div style={{ ...getCardStyle(isDark), padding: '48px 24px' }}>
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="No movies yet — add one to see stats and trends here."
+          >
+            <Button type="primary" onClick={() => navigate('/movies')}>Go to Movies</Button>
+          </Empty>
+        </div>
+      ) : (
+      <>
       <DashboardSection title="Overview">
         <Row gutter={[16, 16]}>
           <Col xs={24} md={12}>
@@ -324,13 +329,7 @@ const Dashboard: React.FC = () => {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                        <img
-                          src={movie['Poster URL'] || POSTER_FALLBACK}
-                          alt={`${movie.Name} poster`}
-                          loading="lazy"
-                          onError={(e) => { (e.target as HTMLImageElement).src = POSTER_FALLBACK; }}
-                          style={{ width: 32, height: 48, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
-                        />
+                        <PosterThumb movie={movie} width={32} height={48} radius={4} />
                         <div style={{ minWidth: 0 }}>
                           <div style={{ color: 'var(--text-primary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {movie.Name}
@@ -375,6 +374,8 @@ const Dashboard: React.FC = () => {
           </Col>
         </Row>
       </DashboardSection>
+      </>
+      )}
 
       <MovieDrawer movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
     </div>

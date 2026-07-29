@@ -54,6 +54,7 @@ export const MoviesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its provider, same as ThemeContext
 export function useMoviesContext(): MoviesState {
   return useContext(MoviesContext);
 }

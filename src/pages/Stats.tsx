@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Typography, Tabs, Slider } from 'antd';
-import { useLocation } from 'react-router';
+import { Typography, Tabs, Slider, Button } from 'antd';
+import { useLocation, useSearchParams } from 'react-router';
 import { useMovies } from '../hooks/useMovies';
 import { useTheme } from '../contexts/ThemeContext';
 import OverviewTab from '../components/StatsTabs/OverviewTab';
@@ -19,10 +19,20 @@ const Stats: React.FC = () => {
   const { movies, loading, error, refetch } = useMovies();
   const { isDark } = useTheme();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(
-    () => (location.state as { tab?: string } | null)?.tab ?? 'overview'
+    () => (location.state as { tab?: string } | null)?.tab ?? searchParams.get('tab') ?? 'overview'
   );
   const [yearRange, setYearRange] = useState<[number, number] | null>(null);
+
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', key);
+      return next;
+    }, { replace: true });
+  };
 
   const { yearMin, yearMax } = useMemo(() => {
     let lo = Infinity, hi = -Infinity;
@@ -66,9 +76,14 @@ const Stats: React.FC = () => {
           <Text style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase' }}>
             Release Year Range
           </Text>
-          <Text style={{ color: 'var(--text-primary)', fontSize: 12 }}>
-            {(yearRange ?? [yearMin, yearMax]).join(' – ')} · {scopedMovies.length.toLocaleString()} movies
-          </Text>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Text style={{ color: 'var(--text-primary)', fontSize: 12 }}>
+              {(yearRange ?? [yearMin, yearMax]).join(' – ')} · {scopedMovies.length.toLocaleString()} movies
+            </Text>
+            {yearRange !== null && (
+              <Button size="small" onClick={() => setYearRange(null)}>Reset</Button>
+            )}
+          </div>
         </div>
         <Slider
           range
@@ -85,7 +100,7 @@ const Stats: React.FC = () => {
       </div>
       <Tabs
         activeKey={activeTab}
-        onChange={setActiveTab}
+        onChange={handleTabChange}
         items={tabItems}
         size="large"
         style={{ color: isDark ? '#fff' : '#1e1e3f' }}
