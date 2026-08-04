@@ -1,27 +1,25 @@
 import type React from 'react';
 
 export const CHART_PALETTE = [
-  '#38bdf8', '#818cf8', '#34d399', '#f472b6', '#fb923c',
-  '#fbbf24', '#a3e635', '#e879f9', '#22d3ee', '#f87171',
-  '#4ade80', '#facc15', '#60a5fa', '#c084fc', '#fb7185',
+  '#7C93E0', // muted indigo
+  '#5FB3A3', // muted teal
+  '#D98E73', // muted terracotta
+  '#C9A15C', // muted amber
+  '#8E8FC7', // muted violet
+  '#6FA8C9', // muted sky
+  '#B08BC4', // muted plum
+  '#82A87A', // muted sage
 ];
 
-const CHART_CARD_STYLE: React.CSSProperties = {
-  background: 'rgba(255, 255, 255, 0.05)',
+export const SPACING = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 } as const;
+export const FONT_SIZE = { label: 13, body: 14, value: 28, hero: 40 } as const;
+
+// _isDark kept for call-site compatibility; theme switching is now driven by CSS vars
+export const getCardStyle = (_isDark: boolean): React.CSSProperties => ({
+  background: 'var(--glass-bg)',
   backdropFilter: 'blur(12px)',
   WebkitBackdropFilter: 'blur(12px)',
-  border: '1px solid rgba(255, 255, 255, 0.12)',
+  border: '1px solid var(--glass-border)',
   borderRadius: 12,
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-};
-
-export const getCardStyle = (isDark: boolean): React.CSSProperties => isDark
-  ? CHART_CARD_STYLE
-  : {
-      background: 'rgba(255, 255, 255, 0.75)',
-      backdropFilter: 'blur(12px)',
-      WebkitBackdropFilter: 'blur(12px)',
-      border: '1px solid rgba(129, 140, 248, 0.18)',
-      borderRadius: 12,
-      boxShadow: '0 4px 16px rgba(100, 100, 200, 0.12)',
-    };
+  boxShadow: 'var(--glass-shadow)',
+});

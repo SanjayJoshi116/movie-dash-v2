@@ -3,6 +3,14 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.0] - 2026-08-04
+
+### Changed
+- **Design system refinement.** `src/utils/chartTheme.ts`'s `getCardStyle` no longer hardcodes its own per-theme `rgba(...)` values — it now builds from the same CSS custom properties (`var(--glass-bg/border/shadow)`, `src/index.css`) every other glass surface (`StatCard`, `Sidebar`, `TopBar`, `BottomNav`) already used, closing a drift where Dashboard cards looked subtly different from the rest of the app. Token values themselves were also tuned for a calmer look: lower-contrast borders, softer shadows (both themes), and a toned-down hero stat card gradient/border on `StatCard`.
+- `CHART_PALETTE` (`chartTheme.ts`) cut from 15 bright/saturated colors to 8 muted ones — every current chart consumer already caps at ≤8 categories via "top N + Other" grouping, so nothing lost distinguishability.
+- New `SPACING`/`FONT_SIZE` constants in `chartTheme.ts`, applied wherever a component's existing raw spacing/font-size number already matched one of the new values exactly (`Sidebar`, `TopBar`, `DashboardSection`, `Dashboard.tsx` and its `HighlightCard`/`MiniChartCard`/`CtaCard`) — a light formalization of already-repeated values, not a new scale invented from scratch. `BottomNav.tsx` needed no changes; none of its raw numbers matched.
+- Scope was deliberately the app shell + Dashboard only — `Movies.tsx`/`Stats.tsx` page-specific styling untouched. No routing, data-flow, or interactive/drill-down behavior changed.
+
 ## [0.7.0] - 2026-07-29
 
 ### Added

@@ -3,6 +3,7 @@ import { Layout, Badge, Spin, Button } from 'antd';
 import { SunOutlined, MoonOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useMovies } from '../hooks/useMovies';
 import { useTheme } from '../contexts/ThemeContext';
+import { SPACING } from '../utils/chartTheme';
 
 const { Header } = Layout;
 
@@ -22,13 +23,13 @@ const TopBar: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
-        padding: '0 24px',
+        padding: `0 ${SPACING.xxl}px`,
         position: 'sticky',
         top: 0,
         zIndex: 100,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm }}>
         {loading ? (
           <Spin size="small" />
         ) : (
@@ -41,7 +42,7 @@ const TopBar: React.FC = () => {
               border: '1px solid rgba(129,140,248,0.3)',
               fontWeight: 600,
               fontSize: 12,
-              padding: '0 8px',
+              padding: `0 ${SPACING.sm}px`,
             }}
           />
         )}

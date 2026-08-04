@@ -41,7 +41,7 @@ STATISTICS (6 tabs)
 
 THEME
 - Light / dark toggle, preference persisted to localStorage
-- Glassmorphism design system via CSS custom properties
+- Refined glassmorphism design system — shared surface/spacing/typography tokens (CSS custom properties + chartTheme.ts) applied consistently to sidebar, top bar, bottom nav, and every page; calmer border/shadow, muted 8-color chart palette
 
 BACKEND / DATA
 - Express API under /api (gzip-compressed, cached) serving movie data from a local CSV

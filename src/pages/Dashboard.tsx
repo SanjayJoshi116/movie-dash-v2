@@ -23,7 +23,7 @@ import LineChart from '../components/Charts/LineChart';
 import BarChart from '../components/Charts/BarChart';
 import DoughnutChart from '../components/Charts/DoughnutChart';
 import PosterThumb from '../components/PosterThumb';
-import { getCardStyle } from '../utils/chartTheme';
+import { getCardStyle, SPACING, FONT_SIZE } from '../utils/chartTheme';
 import { groupByField, makeDoughnut, parseRevenue, formatRevenue } from '../utils/statsHelpers';
 import type { Movie } from '../types/movie';
 
@@ -40,7 +40,7 @@ interface HighlightCardProps {
 
 const HighlightCard: React.FC<HighlightCardProps> = ({ icon, label, movie, detail, isDark, onSelect }) => (
   <div
-    style={{ ...getCardStyle(isDark), padding: 20, height: '100%', cursor: movie ? 'pointer' : undefined }}
+    style={{ ...getCardStyle(isDark), padding: SPACING.xl, height: '100%', cursor: movie ? 'pointer' : undefined }}
     role={movie ? 'button' : undefined}
     tabIndex={movie ? 0 : undefined}
     aria-label={movie ? `View details for ${movie.Name}` : undefined}
@@ -49,12 +49,12 @@ const HighlightCard: React.FC<HighlightCardProps> = ({ icon, label, movie, detai
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(movie); }
     } : undefined}
   >
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: 'var(--text-secondary)', fontSize: 13 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md, color: 'var(--text-secondary)', fontSize: FONT_SIZE.label }}>
       {icon}
       {label}
     </div>
     {movie ? (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.md }}>
         <PosterThumb movie={movie} width={48} height={72} />
         <div style={{ minWidth: 0 }}>
           <div style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 17, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -77,8 +77,8 @@ interface MiniChartCardProps {
 }
 
 const MiniChartCard: React.FC<MiniChartCardProps> = ({ title, isDark, height, children }) => (
-  <div style={{ ...getCardStyle(isDark), padding: 20, height: '100%' }}>
-    <Text style={{ color: 'var(--text-secondary)', fontSize: 13, display: 'block', marginBottom: 12 }}>{title}</Text>
+  <div style={{ ...getCardStyle(isDark), padding: SPACING.xl, height: '100%' }}>
+    <Text style={{ color: 'var(--text-secondary)', fontSize: FONT_SIZE.label, display: 'block', marginBottom: SPACING.md }}>{title}</Text>
     <div style={{ height }}>{children}</div>
   </div>
 );
@@ -86,7 +86,7 @@ const MiniChartCard: React.FC<MiniChartCardProps> = ({ title, isDark, height, ch
 const CtaCard: React.FC<{ title: string; text: string; buttonText: string; icon: React.ReactNode; primary?: boolean; onClick: () => void; isDark: boolean }> = ({
   title, text, buttonText, icon, primary, onClick, isDark,
 }) => (
-  <div style={{ ...getCardStyle(isDark), padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', height: '100%' }}>
+  <div style={{ ...getCardStyle(isDark), padding: SPACING.xxl, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.lg, flexWrap: 'wrap', height: '100%' }}>
     <div>
       <Title level={5} style={{ color: 'var(--text-primary)', margin: 0 }}>{title}</Title>
       <Text style={{ color: 'var(--text-secondary)' }}>{text}</Text>
@@ -211,13 +211,13 @@ const Dashboard: React.FC = () => {
 
   return (
     <LoadingError loading={loading} error={error} onRetry={refetch}>
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: SPACING.xxl }}>
       <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}>🏠 Dashboard</Title>
-      <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
+      <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: SPACING.xxl }}>
         Snapshot of your movie collection — key stats, highlights, and trends at a glance.
       </Text>
       {movies.length === 0 ? (
-        <div style={{ ...getCardStyle(isDark), padding: '48px 24px' }}>
+        <div style={{ ...getCardStyle(isDark), padding: `48px ${SPACING.xxl}px` }}>
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description="No movies yet — add one to see stats and trends here."
@@ -228,12 +228,12 @@ const Dashboard: React.FC = () => {
       ) : (
       <>
       <DashboardSection title="Overview">
-        <Row gutter={[16, 16]}>
+        <Row gutter={[SPACING.lg, SPACING.lg]}>
           <Col xs={24} md={12}>
             <StatCard label="Total Movies" value={stats.totalMovies} color="#818cf8" icon={<VideoCameraOutlined />} hero />
           </Col>
           <Col xs={24} md={12}>
-            <Row gutter={[16, 16]} style={{ height: '100%' }}>
+            <Row gutter={[SPACING.lg, SPACING.lg]} style={{ height: '100%' }}>
               <Col xs={24} sm={8}><StatCard label="Average Rating" value={stats.avgRating.toFixed(1)} color="#34d399" suffix="/ 10" icon={<StarOutlined />} /></Col>
               <Col xs={24} sm={8}><StatCard label="Average Runtime" value={stats.avgRuntime} color="#a78bfa" suffix="mins" icon={<ClockCircleOutlined />} /></Col>
               <Col xs={24} sm={8}>
@@ -251,7 +251,7 @@ const Dashboard: React.FC = () => {
       </DashboardSection>
 
       <DashboardSection title="Highlights">
-        <Row gutter={[16, 16]}>
+        <Row gutter={[SPACING.lg, SPACING.lg]}>
           <Col xs={24} sm={12} lg={8}>
             <HighlightCard
               icon={<TrophyOutlined />}
@@ -289,7 +289,7 @@ const Dashboard: React.FC = () => {
         title="Trends & Breakdown"
         action={<Button type="link" icon={<BarChartOutlined />} onClick={() => navigate('/stats')}>Full analytics</Button>}
       >
-        <Row gutter={[16, 16]}>
+        <Row gutter={[SPACING.lg, SPACING.lg]}>
           <Col xs={24} lg={12}>
             <MiniChartCard title={yearRangeTitle} isDark={isDark} height={miniChartHeight}>
               <LineChart data={yearTrendData} isDark={isDark} onElementClick={handleYearClick} />
@@ -306,8 +306,8 @@ const Dashboard: React.FC = () => {
             </MiniChartCard>
           </Col>
           <Col xs={24} lg={12}>
-            <div style={{ ...getCardStyle(isDark), padding: 20, height: '100%' }}>
-              <Text style={{ color: 'var(--text-secondary)', fontSize: 13, display: 'block', marginBottom: 12 }}>
+            <div style={{ ...getCardStyle(isDark), padding: SPACING.xl, height: '100%' }}>
+              <Text style={{ color: 'var(--text-secondary)', fontSize: FONT_SIZE.label, display: 'block', marginBottom: SPACING.md }}>
                 Recent Releases
               </Text>
               <List
@@ -327,14 +327,14 @@ const Dashboard: React.FC = () => {
                     }}
                     style={{ cursor: 'pointer', padding: '10px 4px', borderBlockEnd: '1px solid var(--glass-border)' }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: SPACING.md }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                         <PosterThumb movie={movie} width={32} height={48} radius={4} />
                         <div style={{ minWidth: 0 }}>
                           <div style={{ color: 'var(--text-primary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {movie.Name}
                           </div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: SPACING.xs }}>
                             <ClockCircleOutlined /> {movie['Release Date']}
                           </div>
                         </div>
@@ -350,7 +350,7 @@ const Dashboard: React.FC = () => {
       </DashboardSection>
 
       <DashboardSection title="Explore More">
-        <Row gutter={[16, 16]}>
+        <Row gutter={[SPACING.lg, SPACING.lg]}>
           <Col xs={24} sm={12}>
             <CtaCard
               title="Browse the full catalogue"

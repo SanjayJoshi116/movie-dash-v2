@@ -15,8 +15,8 @@ code {
 :root {
   --bg-gradient: linear-gradient(135deg, #0d0d1a 0%, #1a1030 50%, #0d0d1a 100%);
   --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
   --text-primary: #fff;
   --text-secondary: rgba(255, 255, 255, 0.6);
   --text-muted: rgba(255, 255, 255, 0.4);
@@ -31,8 +31,8 @@ code {
 [data-theme="light"] {
   --bg-gradient: linear-gradient(135deg, #f5f7ff 0%, #eef1ff 50%, #f5f7ff 100%);
   --glass-bg: rgba(255, 255, 255, 0.92);
-  --glass-border: rgba(129, 140, 248, 0.35);
-  --glass-shadow: 0 2px 20px rgba(100, 100, 200, 0.22);
+  --glass-border: rgba(129, 140, 248, 0.22);
+  --glass-shadow: 0 2px 16px rgba(100, 100, 200, 0.14);
   --text-primary: #1e1e3f;
   --text-secondary: rgba(30, 30, 63, 0.6);
   --text-muted: rgba(30, 30, 63, 0.4);

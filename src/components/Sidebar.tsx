@@ -3,6 +3,7 @@ import { Layout, Menu } from 'antd';
 import { DashboardOutlined, BarChartOutlined, PlayCircleOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { Link, useLocation } from 'react-router';
 import { useTheme } from '../contexts/ThemeContext';
+import { SPACING } from '../utils/chartTheme';
 import type { MenuProps } from 'antd';
 
 const { Sider } = Layout;
@@ -63,7 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: collapsed ? 'center' : 'flex-start',
-          padding: collapsed ? 0 : '0 20px',
+          padding: collapsed ? 0 : `0 ${SPACING.xl}px`,
           borderBottom: `1px solid var(--glass-border)`,
           gap: 10,
           overflow: 'hidden',
@@ -86,7 +87,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
         style={{
           background: 'transparent',
           border: 'none',
-          marginTop: 8,
+          marginTop: SPACING.sm,
         }}
       />
     </Sider>

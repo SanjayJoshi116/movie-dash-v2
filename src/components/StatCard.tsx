@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, Statistic } from 'antd';
 import { motion } from 'framer-motion';
+import { SPACING, FONT_SIZE } from '../utils/chartTheme';
 
 const MotionCard = motion(Card);
 
@@ -28,26 +29,26 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, color = '#818cf8', su
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
       } : undefined}
       style={{
-        background: hero ? `linear-gradient(135deg, ${color}26, var(--glass-bg))` : 'var(--glass-bg)',
+        background: hero ? `linear-gradient(135deg, ${color}14, var(--glass-bg))` : 'var(--glass-bg)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
-        border: hero ? `1px solid ${color}55` : '1px solid var(--glass-border)',
+        border: hero ? `1px solid ${color}33` : '1px solid var(--glass-border)',
         borderTop: `3px solid ${color}`,
         borderRadius: 12,
         boxShadow: 'var(--glass-shadow)',
         height: '100%',
         cursor: onClick ? 'pointer' : undefined,
       }}
-      styles={{ body: { display: 'flex', alignItems: 'center', gap: 16 } }}
+      styles={{ body: { display: 'flex', alignItems: 'center', gap: SPACING.lg } }}
     >
       {icon && (
-        <span style={{ fontSize: hero ? 40 : 28, color, opacity: 0.85, flexShrink: 0 }}>{icon}</span>
+        <span style={{ fontSize: hero ? FONT_SIZE.hero : FONT_SIZE.value, color, opacity: 0.85, flexShrink: 0 }}>{icon}</span>
       )}
       <Statistic
-        title={<span style={{ color: 'var(--text-secondary)', fontSize: hero ? 14 : 13 }}>{label}</span>}
+        title={<span style={{ color: 'var(--text-secondary)', fontSize: hero ? FONT_SIZE.body : FONT_SIZE.label }}>{label}</span>}
         value={value}
-        suffix={suffix ? <span style={{ fontSize: hero ? 16 : 14, color: 'var(--text-muted)' }}>{suffix}</span> : undefined}
-        valueStyle={{ color, fontWeight: 700, fontSize: hero ? 40 : 28 }}
+        suffix={suffix ? <span style={{ fontSize: hero ? 16 : FONT_SIZE.body, color: 'var(--text-muted)' }}>{suffix}</span> : undefined}
+        valueStyle={{ color, fontWeight: 700, fontSize: hero ? FONT_SIZE.hero : FONT_SIZE.value }}
       />
     </MotionCard>
   );
