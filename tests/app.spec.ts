@@ -4,6 +4,12 @@ async function waitForTable(page: Page) {
   await page.waitForSelector('.ant-table-row', { timeout: 30000 });
 }
 
+// Resolve the Movies search box by its accessible name, not its placeholder copy,
+// so wording tweaks to the placeholder can't break the suite.
+function searchBox(page: Page) {
+  return page.getByRole('textbox', { name: 'Search movies' });
+}
+
 async function waitForStats(page: Page) {
   await page.waitForSelector('.ant-tabs-content-holder', { timeout: 30000 });
 }
@@ -93,7 +99,7 @@ test.describe('Movies', () => {
   });
 
   test('search and filters button visible by default', async ({ page }) => {
-    await expect(page.getByPlaceholder('Search by name, director, actor…')).toBeVisible();
+    await expect(searchBox(page)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Filters' })).toBeVisible();
   });
 
@@ -106,7 +112,7 @@ test.describe('Movies', () => {
 
   test('search narrows table results', async ({ page }) => {
     const before = await page.locator('.ant-table-row').count();
-    await page.getByPlaceholder('Search by name, director, actor…').fill('the');
+    await searchBox(page).fill('the');
     await page.waitForTimeout(400);
     const after = await page.locator('.ant-table-row').count();
     // results changed or both are same (small dataset) — table still visible
@@ -115,13 +121,13 @@ test.describe('Movies', () => {
   });
 
   test('search with no match shows empty state', async ({ page }) => {
-    await page.getByPlaceholder('Search by name, director, actor…').fill('ZZZNOMATCH999QQQ');
+    await searchBox(page).fill('ZZZNOMATCH999QQQ');
     await page.waitForTimeout(400);
     await expect(page.getByText('No movies match your filters')).toBeVisible();
   });
 
   test('clear button appears when filtered and resets', async ({ page }) => {
-    await page.getByPlaceholder('Search by name, director, actor…').fill('action');
+    await searchBox(page).fill('action');
     await page.waitForTimeout(400);
 
     const clearBtn = page.locator('button[title="Clear all filters"]');
@@ -129,12 +135,12 @@ test.describe('Movies', () => {
 
     await clearBtn.click();
     await page.waitForTimeout(200);
-    await expect(page.getByPlaceholder('Search by name, director, actor…')).toHaveValue('');
+    await expect(searchBox(page)).toHaveValue('');
     await expect(clearBtn).not.toBeVisible();
   });
 
   test('active filter shows dot indicator', async ({ page }) => {
-    await page.getByPlaceholder('Search by name, director, actor…').fill('a');
+    await searchBox(page).fill('a');
     await page.waitForTimeout(400);
     await expect(page.locator('.ant-badge-dot')).toBeVisible();
   });
@@ -186,7 +192,7 @@ test.describe('Movies', () => {
   });
 
   test('Export CSV button disabled when no results', async ({ page }) => {
-    await page.getByPlaceholder('Search by name, director, actor…').fill('ZZZNOMATCH999QQQ');
+    await searchBox(page).fill('ZZZNOMATCH999QQQ');
     await page.waitForTimeout(400);
     await expect(page.getByRole('button', { name: /Export CSV/i })).toBeDisabled();
   });
@@ -499,14 +505,14 @@ test.describe('Filter Persistence', () => {
     await page.goto('/movies');
     await waitForTable(page);
 
-    await page.getByPlaceholder('Search by name, director, actor…').fill('drama');
+    await searchBox(page).fill('drama');
     await page.waitForTimeout(400);
 
     await page.getByRole('link', { name: 'Stats' }).click();
     await page.getByRole('link', { name: 'Movies' }).click();
     await waitForTable(page);
 
-    await expect(page.getByPlaceholder('Search by name, director, actor…')).toHaveValue('drama');
+    await expect(searchBox(page)).toHaveValue('drama');
 
     // Cleanup
     await page.locator('button[title="Clear all filters"]').click();
@@ -520,7 +526,7 @@ test.describe('Edge Cases', () => {
     await page.goto('/movies');
     await waitForTable(page);
 
-    await page.getByPlaceholder('Search by name, director, actor…').fill('a');
+    await searchBox(page).fill('a');
     await page.waitForTimeout(400);
 
     await page.getByRole('button', { name: 'Filters' }).click();
@@ -554,7 +560,7 @@ test.describe('Edge Cases', () => {
     await expect(page.locator('th.ant-table-column-sort')).toBeVisible();
 
     // Apply filter
-    await page.getByPlaceholder('Search by name, director, actor…').fill('a');
+    await searchBox(page).fill('a');
     await page.waitForTimeout(400);
 
     // Sort indicator persists

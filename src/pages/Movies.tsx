@@ -170,6 +170,7 @@ const Movies: React.FC = () => {
       >
         <Input
           placeholder="Search by name, director, actor, year, language, country…"
+          aria-label="Search movies"
           prefix={<SearchOutlined />}
           value={filters.search}
           onChange={(e) => setFilters({ ...filters, search: e.target.value })}

@@ -24,6 +24,9 @@ jobs:
 
       - run: npm run lint
 
+      - name: Type-check server
+        run: npm run type-check:server
+
       - run: npm run build
 
       - name: Seed CSV fixture
