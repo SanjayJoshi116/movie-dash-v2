@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Modal, Input, Button, Space, List, Alert, Avatar, Tag, Typography } from 'antd';
 import { SearchOutlined, CheckOutlined, PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
@@ -35,33 +35,46 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
   const [query, setQuery] = useState('');
   const [actor, setActor] = useState('');
   const [year, setYear] = useState('');
+  // The server silently ignores a year that isn't 4 digits, which would look like the year
+  // was applied — so reject it here instead of searching without it.
+  const yearInvalid = year.trim() !== '' && !/^\d{4}$/.test(year.trim());
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<TmdbSearchResult[]>([]);
-  const [importingId, setImportingId] = useState<number | null>(null);
+  const [importingIds, setImportingIds] = useState<ReadonlySet<number>>(new Set());
+  // Only the latest search's response may update results — guards against out-of-order replies.
+  const searchIdRef = useRef(0);
 
   const handleSearch = async () => {
+    if (searching) return;
     if (!query.trim() && !actor.trim()) {
       setError('Enter a movie name or actor name');
       return;
     }
+    if (yearInvalid) {
+      setError('Year must be 4 digits, e.g. 1999');
+      return;
+    }
+    const searchId = ++searchIdRef.current;
     setSearching(true);
     setError(null);
     try {
       const res = await axios.get<{ results: TmdbSearchResult[] }>('/api/tmdb/search', {
         params: { query: query.trim(), actor: actor.trim(), year: year.trim() },
       });
+      if (searchId !== searchIdRef.current) return;
       setResults(res.data.results);
     } catch (err) {
+      if (searchId !== searchIdRef.current) return;
       setError(extractErrorMessage(err));
       setResults([]);
     } finally {
-      setSearching(false);
+      if (searchId === searchIdRef.current) setSearching(false);
     }
   };
 
   const handleImport = async (movieId: number) => {
-    setImportingId(movieId);
+    setImportingIds((prev) => new Set(prev).add(movieId));
     setError(null);
     try {
       await axios.post('/api/tmdb/import', { movieId });
@@ -70,7 +83,11 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
     } catch (err) {
       setError(extractErrorMessage(err));
     } finally {
-      setImportingId(null);
+      setImportingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(movieId);
+        return next;
+      });
     }
   };
 
@@ -110,6 +127,9 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
           onPressEnter={handleSearch}
           allowClear
           inputMode="numeric"
+          status={yearInvalid ? 'error' : undefined}
+          aria-label="Release year (optional, 4 digits)"
+          aria-invalid={yearInvalid}
           style={{ maxWidth: 120 }}
         />
         <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch} loading={searching}>
@@ -134,7 +154,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
                   key="import"
                   size="small"
                   icon={<PlusOutlined />}
-                  loading={importingId === item.id}
+                  loading={importingIds.has(item.id)}
                   onClick={() => handleImport(item.id)}
                 >
                   Import
@@ -143,7 +163,19 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
             ]}
           >
             <List.Item.Meta
-              avatar={<Avatar shape="square" size={48} src={item.posterUrl || POSTER_FALLBACK} />}
+              avatar={
+                <Avatar
+                  shape="square"
+                  size={48}
+                  src={
+                    <img
+                      src={item.posterUrl || POSTER_FALLBACK}
+                      alt=""
+                      onError={(e) => { (e.target as HTMLImageElement).src = POSTER_FALLBACK; }}
+                    />
+                  }
+                />
+              }
               title={<span style={{ color: 'var(--text-primary)' }}>{item.title}</span>}
               description={
                 <Text style={{ color: 'var(--text-secondary)', fontSize: 12 }}>

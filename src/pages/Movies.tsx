@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Button, Segmented, Input, Badge, Typography, Grid, Tooltip } from 'antd';
 import { useLocation, useNavigate } from 'react-router';
 import { DownloadOutlined, SearchOutlined, FilterOutlined, InfoCircleOutlined, PlusOutlined } from '@ant-design/icons';
@@ -16,6 +16,7 @@ import { parseRevenue } from '../utils/statsHelpers';
 import { isFiltersActive } from '../utils/filterChips';
 import { exportMoviesToCsv } from '../utils/exportCsv';
 import { getLanguageName } from '../utils/languages';
+import { computeFilterSpans, clampFiltersToSpans } from '../utils/filterSpans';
 import type { Movie, FilterState } from '../types/movie';
 
 const { Title, Text } = Typography;
@@ -53,6 +54,18 @@ const Movies: React.FC = () => {
   const [addMovieOpen, setAddMovieOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  // Rows in the order the active view shows them (it reports them) — what Export CSV writes.
+  const displayedRef = useRef<Movie[]>([]);
+  const handleDisplayedChange = useCallback((rows: Movie[]) => { displayedRef.current = rows; }, []);
+
+  // Once the catalogue has loaded, clamp ranges restored from sessionStorage to the current data
+  // span (it may have changed since they were saved). Render-phase, once per mount — not an effect.
+  const [rangesClamped, setRangesClamped] = useState(false);
+  if (!rangesClamped && !loading && movies.length > 0) {
+    setRangesClamped(true);
+    const clamped = clampFiltersToSpans(filters, computeFilterSpans(movies));
+    if (clamped !== filters) setFilters(clamped);
+  }
 
   if (!viewDefaulted && screens.sm !== undefined) {
     setViewDefaulted(true);
@@ -70,6 +83,8 @@ const Movies: React.FC = () => {
   }, []);
 
   const debouncedSearch = useDebounce(filters.search, 300);
+  // Changes whenever the effective filters do (debounced search) — the views reset to page 1 on it.
+  const filtersKey = useMemo(() => JSON.stringify({ ...filters, search: debouncedSearch }), [filters, debouncedSearch]);
   const filtersActive = isFiltersActive(filters);
 
   const filteredMovies = useMemo<Movie[]>(() => {
@@ -108,10 +123,10 @@ const Movies: React.FC = () => {
         }
       }
 
-      // Vote range filter
+      // Vote range filter — 0 means unrated (charts skip it too), so it never matches a range
       if (filters.voteRange !== null) {
         const vote = parseFloat(movie['Vote Average']);
-        if (isNaN(vote) || vote < filters.voteRange[0] || vote > filters.voteRange[1]) {
+        if (isNaN(vote) || vote <= 0 || vote < filters.voteRange[0] || vote > filters.voteRange[1]) {
           return false;
         }
       }
@@ -124,10 +139,11 @@ const Movies: React.FC = () => {
         }
       }
 
-      // Revenue range filter
+      // Revenue range filter — 0/blank means unknown (most of the dataset), so like a missing
+      // runtime it's excluded while the filter is active rather than passing a range from $0
       if (filters.revenueRange !== null) {
         const revenue = parseRevenue(movie['Box Office Revenue']);
-        if (revenue < filters.revenueRange[0] || revenue > filters.revenueRange[1]) {
+        if (revenue <= 0 || revenue < filters.revenueRange[0] || revenue > filters.revenueRange[1]) {
           return false;
         }
       }
@@ -149,7 +165,7 @@ const Movies: React.FC = () => {
   return (
     <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: 24 }}>
-      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}>🎬 Movies</Title>
+      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}><span aria-hidden="true">🎬 </span>Movies</Title>
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
         Browse, search, and filter your full movie catalogue in table or grid view.
       </Text>
@@ -180,7 +196,8 @@ const Movies: React.FC = () => {
         />
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <Badge dot={filtersActive} offset={[-6, 6]} color="#38bdf8">
-            <Button icon={<FilterOutlined />} onClick={() => setFiltersOpen(true)}>
+            {/* The badge dot is colour-only — say it in the accessible name too. */}
+            <Button icon={<FilterOutlined />} onClick={() => setFiltersOpen(true)} aria-label={filtersActive ? 'Filters, active' : 'Filters'}>
               Filters
             </Button>
           </Badge>
@@ -195,7 +212,7 @@ const Movies: React.FC = () => {
           <Button
             icon={<DownloadOutlined />}
             disabled={filteredMovies.length === 0}
-            onClick={() => exportMoviesToCsv(filteredMovies, `movies-filtered-${filteredMovies.length}.csv`)}
+            onClick={() => exportMoviesToCsv(displayedRef.current, `movies-filtered-${displayedRef.current.length}.csv`)}
           >
             Export CSV
           </Button>
@@ -219,9 +236,9 @@ const Movies: React.FC = () => {
       />
 
       {view === 'table' ? (
-        <MovieTable movies={filteredMovies} onRowClick={setSelectedMovie} />
+        <MovieTable movies={filteredMovies} onRowClick={setSelectedMovie} filtersKey={filtersKey} onDisplayedChange={handleDisplayedChange} />
       ) : (
-        <MovieCardGrid movies={filteredMovies} onRowClick={setSelectedMovie} />
+        <MovieCardGrid movies={filteredMovies} onRowClick={setSelectedMovie} filtersKey={filtersKey} onDisplayedChange={handleDisplayedChange} />
       )}
 
       <MovieDrawer movie={selectedMovie} onClose={() => setSelectedMovie(null)} />

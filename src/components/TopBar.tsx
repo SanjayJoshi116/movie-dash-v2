@@ -1,6 +1,6 @@
 import React from 'react';
-import { Layout, Badge, Spin, Button } from 'antd';
-import { SunOutlined, MoonOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Layout, Badge, Spin, Button, Tooltip } from 'antd';
+import { SunOutlined, MoonOutlined, DownloadOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { useMovies } from '../hooks/useMovies';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING } from '../utils/chartTheme';
@@ -8,7 +8,7 @@ import { SPACING } from '../utils/chartTheme';
 const { Header } = Layout;
 
 const TopBar: React.FC = () => {
-  const { movies, loading } = useMovies();
+  const { movies, loading, refreshing, refreshError, refetch } = useMovies();
   const { isDark, toggleTheme } = useTheme();
 
   return (
@@ -36,6 +36,8 @@ const TopBar: React.FC = () => {
           <Badge
             count={movies.length.toLocaleString()}
             overflowCount={999999}
+            showZero
+            title={`${movies.length.toLocaleString()} movies in catalogue`}
             style={{
               backgroundColor: 'rgba(129,140,248,0.15)',
               color: '#818cf8',
@@ -46,18 +48,35 @@ const TopBar: React.FC = () => {
             }}
           />
         )}
-        <a href="/movies.template.csv" download="movies.template.csv" title="Download CSV template">
-          <Button
-            type="text"
-            icon={<DownloadOutlined />}
-            style={{ color: 'var(--text-secondary)', fontSize: 16 }}
-          />
-        </a>
+        {/* Background refetch after add/delete: the page stays mounted, so signal it here instead. */}
+        {refreshing && <Spin size="small" aria-label="Refreshing catalogue" />}
+        {refreshError && (
+          <Tooltip title={`Couldn't refresh the catalogue (${refreshError}) — showing the last loaded data. Click to retry.`}>
+            <Button
+              type="text"
+              danger
+              icon={<ExclamationCircleOutlined />}
+              onClick={refetch}
+              aria-label="Catalogue refresh failed — retry"
+            />
+          </Tooltip>
+        )}
+        {/* One focusable link-button (not a <Button> nested in an <a>), with an accessible name. */}
+        <Button
+          type="text"
+          href="/movies.template.csv"
+          download="movies.template.csv"
+          title="Download CSV template"
+          aria-label="Download CSV template"
+          icon={<DownloadOutlined />}
+          style={{ color: 'var(--text-secondary)', fontSize: 16 }}
+        />
         <Button
           type="text"
           icon={isDark ? <SunOutlined /> : <MoonOutlined />}
           onClick={toggleTheme}
           title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           style={{ color: 'var(--text-secondary)', fontSize: 16 }}
         />
       </div>

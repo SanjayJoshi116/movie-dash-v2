@@ -26,9 +26,19 @@ const ChartBlock: React.FC<ChartBlockProps> = ({ title, height, isDark, children
   const handleExport = () => {
     const canvas = containerRef.current?.querySelector('canvas');
     if (!canvas) return;
+    // Chart.js canvases are transparent; exported as-is, dark-theme charts (light text) are
+    // unreadable in most image viewers. Composite onto the theme's solid background first.
+    const out = document.createElement('canvas');
+    out.width = canvas.width;
+    out.height = canvas.height;
+    const ctx = out.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--export-bg').trim() || (isDark ? '#0d0d1a' : '#f5f7ff');
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(canvas, 0, 0);
     const link = document.createElement('a');
     link.download = `${slugify(title)}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.href = out.toDataURL('image/png');
     link.click();
   };
 

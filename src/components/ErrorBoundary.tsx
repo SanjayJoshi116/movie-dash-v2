@@ -3,6 +3,8 @@ import { Result, Button } from 'antd';
 
 interface Props {
   children: React.ReactNode;
+  /** Runs before the boundary re-renders its children on "Try Again" (App wires the catalogue refetch). */
+  onReset?: () => void;
 }
 
 interface State {
@@ -21,14 +23,21 @@ class ErrorBoundary extends React.Component<Props, State> {
     return { hasError: true, message };
   }
 
+  componentDidCatch(error: unknown, info: React.ErrorInfo) {
+    console.error('Page crashed:', error, info.componentStack);
+  }
+
+  // App mounts this with key={location.pathname}, so navigating to another section already gives a
+  // fresh boundary; "Try Again" additionally reloads the catalogue before re-rendering the page.
   handleReset = () => {
+    this.props.onReset?.();
     this.setState({ hasError: false, message: '' });
   };
 
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '48px 24px' }}>
           <Result
             status="error"
             title="Something went wrong"

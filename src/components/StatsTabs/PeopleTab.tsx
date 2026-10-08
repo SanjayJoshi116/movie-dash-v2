@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import { Row, Col } from 'antd';
-import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import DoughnutChart from '../Charts/DoughnutChart';
 import ChartBlock from './ChartBlock';
-import { groupByField, withOther, makeDoughnut } from '../../utils/statsHelpers';
+import { groupByField, topNWithOther, makeDoughnut, isDrillableLabel } from '../../utils/statsHelpers';
+import { useDrillDown } from '../../contexts/DrilldownContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
 
@@ -15,7 +15,7 @@ const MIN_FILMS = 2;
 
 const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
-  const navigate = useNavigate();
+  const drillDown = useDrillDown();
 
   const topActorsData = useMemo<ChartData<'bar'>>(() => {
     const counts: Record<string, number> = {};
@@ -42,7 +42,7 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
   }, [movies]);
 
   const companyDoughnutData = useMemo(
-    () => makeDoughnut(withOther(groupByField(movies, 'Production Company'), 10), 'Movies by Company'),
+    () => makeDoughnut(topNWithOther(groupByField(movies, 'Production Company')), 'Movies by Company'),
     [movies]
   );
 
@@ -92,14 +92,14 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
 
   const handleDirectorClick = (index: number) => {
     const name = topDirectorsData.labels?.[index] as string | undefined;
-    if (!name) return;
-    navigate('/movies', { state: { presetFilters: { directors: [name] } } });
+    if (!isDrillableLabel(name)) return;
+    drillDown({ directors: [name] });
   };
 
   const handleAvgVoteDirectorClick = (index: number) => {
     const name = avgVoteByDirectorData.labels?.[index] as string | undefined;
-    if (!name) return;
-    navigate('/movies', { state: { presetFilters: { directors: [name] } } });
+    if (!isDrillableLabel(name)) return;
+    drillDown({ directors: [name] });
   };
 
   return (
@@ -108,7 +108,7 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
         <ChartBlock title="Top 15 Actors & Actresses" height={480} isDark={isDark}><HorizontalBarChart data={topActorsData} height={480} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Top 15 Directors" height={480} isDark={isDark}><HorizontalBarChart data={topDirectorsData} height={480} isDark={isDark} onElementClick={handleDirectorClick} /></ChartBlock>
+        <ChartBlock title="Top 15 Directors" height={480} isDark={isDark}><HorizontalBarChart data={topDirectorsData} height={480} isDark={isDark} onElementClick={handleDirectorClick} isClickable={(i) => isDrillableLabel(topDirectorsData.labels?.[i] as string | undefined)} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
         <ChartBlock title={`Highest Rated Directors (${MIN_FILMS}+ films)`} height={440} isDark={isDark}>

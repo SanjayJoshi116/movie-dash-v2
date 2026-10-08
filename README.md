@@ -8,7 +8,7 @@ A full-stack movie analytics dashboard: a React frontend backed by an Express AP
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
 
-**Highlights:** Table/grid movie catalogue with poster art · add or delete movies without leaving the browser (TMDB search) · 6 analytics tabs with click-to-filter drill-down, a global year-range slider, and per-chart PNG export · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 56 Playwright E2E tests · light/dark theme · filter state persisted per-session
+**Highlights:** Table/grid movie catalogue with poster art · add or delete movies without leaving the browser (TMDB search) · 6 analytics tabs with click-to-filter drill-down, a global year-range slider, and per-chart PNG export · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 59 Playwright E2E + 44 server API tests · light/dark theme · filter state persisted per-session
 
 No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
 
@@ -72,7 +72,9 @@ A global Release Year Range slider at the top of the page scopes every tab to a 
 - Refined glassmorphism design system — shared surface, spacing, and typography tokens (CSS custom properties + `src/utils/chartTheme.ts`) applied consistently across the sidebar/top bar and every page, with a calmer border/shadow and a muted 8-color chart palette
 
 ### Accessibility
-- Table rows, grid cards, and the Dashboard's Recent Releases list are keyboard-operable (`Tab` to focus, `Enter`/`Space` to activate) with `role="button"` and `aria-label`s, not click-only
+- Keyboard-operable movie lists: each table row's movie name is a real button (rows keep their table semantics for screen readers), grid cards and the Dashboard's Recent Releases are focusable with `aria-label`s — `Tab` to focus, `Enter`/`Space` to open
+- Icon-only buttons (theme toggle, template download, chart PNG download) have accessible names; the Filters button announces when filters are active; decorative heading/tab emoji are hidden from screen readers
+- Readable in both themes (Top-10 ranks, chart PNG exports on an opaque background); release dates consistently DD-MM-YYYY
 - `BottomNav`'s active link sets `aria-current="page"` for assistive tech
 - Semantic headings (`<Title>`) per page instead of relying on the top bar for page identity
 
@@ -90,7 +92,7 @@ A global Release Year Range slider at the top of the page scopes every tab to a 
 | HTTP | Axios |
 | Backend | Express.js (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
-| Testing | Playwright (56 E2E tests) |
+| Testing | Playwright (59 E2E tests), Node `node:test` via tsx (44 server API tests) |
 | Linting | ESLint (typescript-eslint, react-hooks, unused-imports) |
 
 ---
@@ -150,8 +152,8 @@ This project was populated using the [TMDB (The Movie Database) API](https://www
 | `Genres` | `genres[].name` joined with `, ` |
 | `Director` | `credits.crew` where `job == "Director"` |
 | `Actors/Actresses` | `credits.cast[0..4].name` joined with `, ` |
-| `Production Company` | `production_companies[0].name` |
-| `Production Country` | `production_countries[0].iso_3166_1` |
+| `Production Company` | `production_companies[].name` joined with `, ` |
+| `Production Country` | `production_countries[].name` joined with `, ` (full country names, e.g. `United Kingdom, United States of America` — not ISO codes) |
 | `Box Office Revenue` | `revenue` |
 | `Budget` | `budget` |
 | `Popularity Score` | `popularity` |
@@ -159,6 +161,8 @@ This project was populated using the [TMDB (The Movie Database) API](https://www
 | `Vote Count` | `vote_count` |
 | `Poster URL` | `https://image.tmdb.org/t/p/w500` + `poster_path` |
 | `Release Date` | `release_date` |
+
+Leave a field **empty** when TMDB has no value — don't write a placeholder like `N/A` (the app reads a legacy `N/A` as empty, but it would otherwise show up in charts as a director/year called "N/A"). Multi-value columns (`Genres`, `Actors/Actresses`, `Production Company`, `Production Country`) are split on commas in the charts, so a UK/US co-production counts toward both countries. This is the same format the in-app **Add Movie** import and `movie-search.py` write.
 
 `credits` and `keywords` require appending `append_to_response=credits,keywords` to the `/movie/{id}` request.
 
@@ -182,6 +186,8 @@ TMDB_API_KEY=your_tmdb_api_key_here
 
 The same `.env`/`TMDB_API_KEY` also powers the in-app **Add Movie** button on the Movies page (`server/server.ts` reads it directly — no separate config needed). Without it, Add Movie shows a "not configured" error but the rest of the app works normally.
 
+**Running the Python tools while the server is up:** the server notices when `src/movies.csv` changes on disk and reloads it before its next import or delete, so rows added by `movie-search.py` or `backfill_posters.py` aren't overwritten. Avoid adding or deleting movies in the app *while* a script is actively writing, though — two processes writing at the exact same moment can still race.
+
 #### Backfilling posters into an existing CSV
 
 If your `src/movies.csv` predates the `Poster URL` column (or has rows with it blank), `backfill_posters.py` fills them in by looking each row's `Movie ID` up on TMDB:
@@ -190,7 +196,7 @@ If your `src/movies.csv` predates the `Poster URL` column (or has rows with it b
 python backfill_posters.py
 ```
 
-It checkpoints every 100 rows (safe to interrupt) and prints a specific reason for any row it can't fill (not found on TMDB, no poster on TMDB, timeout, etc.). Back up `src/movies.csv` first — it rewrites the file in place.
+It checkpoints every 100 rows and prints a specific reason for any row it can't fill (not found on TMDB, no poster on TMDB, timeout, etc.). Each checkpoint is written to a temp file and atomically swapped in, so interrupting it leaves a complete CSV (progress since the last checkpoint is lost). Backing up `src/movies.csv` first is still a good idea.
 
 ### 3. Run
 
@@ -217,11 +223,13 @@ Opens the frontend at **http://localhost:3000** and the API at **http://localhos
 | `npm run build:server` | Compile Express backend to `server/dist/` |
 | `npm run server:prod` | Run the compiled backend in production |
 | `npm run type-check` | Run TypeScript type checking without emitting files |
+| `npm run type-check:server` | Type-check the Express server (`server/tsconfig.json`) |
 
 ### Testing
 | Script | Description |
 |---|---|
 | `npm run lint` | Run ESLint across the project |
+| `npm run test:server` | Run server API tests (temp CSVs + stubbed TMDB — never touches `src/movies.csv`) |
 | `npm run test:e2e` | Run Playwright E2E tests (headless) |
 | `npm run test:e2e:ui` | Run Playwright E2E tests with interactive UI |
 | `npm run test:e2e:report` | Open the last Playwright HTML report |
@@ -241,16 +249,25 @@ movie-dash-v2/
 ├── public/
 │   └── movies.template.csv     # CSV template for your own data
 ├── server/
-│   └── server.ts               # Express API (port 5000)
+│   ├── server.ts               # Entry point: env, createApp(), listen (port 5000)
+│   ├── app.ts                  # createApp() — routes + CSV catalogue store
+│   ├── tmdb.ts                 # TMDB client (axios + retries)
+│   └── __tests__/              # Server API tests (node:test, 44 tests)
 ├── tests/
-│   └── app.spec.ts             # Playwright E2E tests (56 tests)
+│   └── app.spec.ts             # Playwright E2E tests (59 tests)
 ├── docs/
-│   └── screenshots/            # README screenshots
+│   ├── screenshots/            # README screenshots
+│   └── audit-findings-2026-10-08.md  # Codebase audit; findings tracked as OpenSpec changes
+├── openspec/
+│   ├── specs/                  # Current behaviour specs (catalog-persistence, catalog-data-format,
+│   │                           # analytics-drilldown, movie-browsing, accessible-ui)
+│   └── changes/                # In-flight changes; archive/ holds completed ones
 ├── playwright.config.ts        # Playwright configuration
 ├── src/
 │   ├── contexts/
-│   │   ├── MoviesContext.tsx    # Global movie data provider
-│   │   └── ThemeContext.tsx     # Light/dark theme provider
+│   │   ├── MoviesContext.tsx    # Global movie data provider (first-load vs background refresh)
+│   │   ├── ThemeContext.tsx     # Light/dark theme provider (follows OS preference on first visit)
+│   │   └── DrilldownContext.tsx # useDrillDown(): chart click → /movies pre-filtered (+ Stats year scope)
 │   ├── components/
 │   │   ├── Charts/             # BarChart, LineChart, HorizontalBar, Radar,
 │   │   │                       # PolarArea, Doughnut, Matrix, Scatter (all theme-aware)
@@ -258,9 +275,10 @@ movie-dash-v2/
 │   │   │                       # RuntimeTab, BoxOfficeTab, ExploreTab,
 │   │   │                       # ChartBlock (shared card wrapper + PNG export)
 │   │   ├── Sidebar.tsx
-│   │   ├── TopBar.tsx          # Theme toggle + download template button (no page title — pages render their own heading)
+│   │   ├── TopBar.tsx          # Catalogue count, refresh indicator, template download, theme toggle (pages render their own heading)
 │   │   ├── DashboardSection.tsx # Title + content wrapper, standardizes Dashboard sections
 │   │   ├── FiltersDrawer.tsx   # Category/range filters, opened via the Filters button
+│   │   ├── RangeSlider.tsx     # Range slider that applies on release (filters drawer, Stats year range)
 │   │   ├── ActiveFilters.tsx   # Removable filter chips + "Clear all"
 │   │   ├── LoadingError.tsx    # Shared skeleton-loading / error alert wrapper (Dashboard, Movies, Stats)
 │   │   ├── BottomNav.tsx       # Fixed mobile nav bar, replaces Sidebar below the `sm` breakpoint
@@ -277,15 +295,17 @@ movie-dash-v2/
 │   │   └── Stats.tsx
 │   ├── utils/
 │   │   ├── chartTheme.ts       # Shared palette, getCardStyle(isDark), SPACING/FONT_SIZE tokens
-│   │   ├── statsHelpers.ts     # groupByField, makeDoughnut, parseRevenue, formatRevenue
+│   │   ├── statsHelpers.ts     # groupByField, topNWithOther, chart bucket helpers, parseRevenue, formatRevenue
 │   │   ├── filterChips.ts      # buildFilterChips, isFiltersActive — shared by the Filters button and chips row
 │   │   ├── formatDate.ts       # formatDateDDMMYYYY — release dates rendered as DD-MM-YYYY
-│   │   ├── exportCsv.ts
+│   │   ├── exportCsv.ts        # Export in on-screen order, all catalogue columns, formula-safe
+│   │   ├── filterSpans.ts      # Data min/max for range sliders + clamping restored ranges
+│   │   ├── path.ts             # normalizePath — trailing-slash-safe nav highlighting
 │   │   └── languages.ts        # ISO code → display name
 │   ├── hooks/
 │   │   ├── useMovies.ts
 │   │   ├── useDebounce.ts
-│   │   └── usePersistedFilters.ts
+│   │   └── usePersistedFilters.ts  # sessionStorage filters, validated on restore
 │   └── types/
 │       └── movie.ts
 ```
@@ -294,7 +314,7 @@ movie-dash-v2/
 
 ## E2E Testing
 
-Playwright tests cover the full user journey across 9 suites (56 tests):
+Playwright tests cover the full user journey across 10 suites (59 tests):
 
 - **Dashboard** — layout, highlight cards (click-to-drawer), CTA navigation to Movies/Stats, Total Box Office stat click-to-tab
 - **Movies** — layout, table/grid toggle, drawer from row and card, search, filters drawer (open/close, language/genre filters), empty state, clear/reset, active-filter dot indicator, sorting, pagination, page size, CSV export
@@ -305,6 +325,7 @@ Playwright tests cover the full user journey across 9 suites (56 tests):
 - **Theme** — default dark, toggle to light, reload persistence
 - **Filter Persistence** — search filter survives route changes via `sessionStorage`
 - **Edge Cases** — combined filters, pagination, sort + filter combo
+- **Drill-down consistency** — clicking a Dashboard rating bar opens exactly the movies it counted (and opening the filters drawer doesn't rewrite the range); a Stats drill-down carries the Release Year Range scope; `?tab=bogus` falls back to Overview. Bars are located on the canvas via the pointer cursor the chart wrappers set over clickable elements; expected counts come from `/api/movies`, so the tests work on any dataset
 
 Tests run automatically on every push and pull request to `main` via GitHub Actions (see `.github/workflows/ci.yml`).
 
@@ -324,7 +345,15 @@ npm run test:e2e:ui
 npm run test:e2e:report
 ```
 
-Tests require both the Vite frontend (port 3000) and Express backend (port 5000) to be reachable. The Playwright config starts `npm run dev` automatically if no server is already running.
+Tests require both the Vite frontend (port 3000) and Express backend (port 5000) to be reachable. The Playwright config starts `npm run dev` automatically if no server is already running — locally it will *reuse* whatever is already listening on port 3000, so stop other dev servers first (or run with `CI=1` to force a fresh one).
+
+### Server API tests
+
+```bash
+npm run test:server
+```
+
+44 tests (Node's built-in `node:test`, run via `tsx --test`, ~3s) exercise the Express API through `createApp()` (`server/app.ts`). Each test gets its own CSV in an OS temp directory — **they never read or write `src/movies.csv`** — and TMDB is stubbed, so no network or API key is needed. Coverage includes every route, helmet headers, rate limiting, TMDB retry/backoff, and the catalogue-safety guarantees: serialized writes (concurrent deletes, import during delete), duplicate-import rejection, external edits surviving in-app writes, BOM / missing-trailing-newline files, formula-escaping round-trips, failed-write rollback, and accurate error codes. Runs in CI before e2e.
 
 ---
 
@@ -335,13 +364,13 @@ The Express server exposes JSON endpoints — every response, success or error, 
 | Endpoint | Description |
 |---|---|
 | `GET /api/health` | `{ status: "ok" \| "loading", movies: <count> }` |
-| `GET /api/movies` | All movies as a JSON array. Returns `503 { error: "Data still loading" }` while the CSV is still being read on boot |
+| `GET /api/movies` | All movies as a JSON array. Returns `503 { error: "Data still loading" }` while the CSV is still being read on boot. Sent with `Cache-Control: no-cache` + `ETag` (`304` when unchanged). Re-reads the CSV first if another tool changed it on disk |
 | `GET /api/movies/:id` | A single movie by `Movie ID`. Returns `404 { error: "Movie not found" }` if no match, or `400 { error: "Invalid movie id" }` if the param is missing/too long |
-| `DELETE /api/movies/:id` | Removes the movie from the catalogue and rewrites `src/movies.csv`. Returns the deleted movie, `404` if no match, or `500` if the file write fails (in-memory state is rolled back in that case) |
+| `DELETE /api/movies/:id` | Removes the movie from the catalogue and rewrites `src/movies.csv`. Returns the deleted movie, `404` if no match, or `500` if the file write fails (the file and the served catalogue are left unchanged) |
 | `GET /api/tmdb/search?query=&actor=&year=` | Proxies a TMDB movie/actor search (server-side only — `TMDB_API_KEY` never reaches the client). `year` (4 digits) narrows by release year. Returns `{ results: [...] }`, each flagged `alreadyImported`. `503` if `TMDB_API_KEY` isn't configured, `400` if both `query` and `actor` are empty |
-| `POST /api/tmdb/import` `{ movieId }` | Fetches the movie's details + credits from TMDB and appends it to `src/movies.csv`. Returns the new movie (`201`), `409` if already in the catalogue, `502` if the TMDB request fails after retries |
+| `POST /api/tmdb/import` `{ movieId }` | Fetches the movie's details + credits from TMDB and appends it to `src/movies.csv`. Returns the new movie (`201`); `409` if already in the catalogue (including a duplicate import still in flight); `404` if TMDB has no such movie; `502` if the TMDB request fails after retries; `500 { error: "Failed to save movie" }` if the CSV write fails; `503` while the CSV is still loading; `400` for an invalid `movieId` |
 
-Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: public, max-age=60`. Routes live under `/api` so Vite's dev proxy can forward API calls to Express without colliding with the client-side `/movies` route — a bare `/movies` proxy prefix would intercept the browser's SPA navigation and return raw JSON instead. In development, Vite proxies `/api` requests to the Express server automatically (see `vite.config.ts`).
+Responses are gzip-compressed; `/api/movies` is sent with `Cache-Control: no-cache` plus an `ETag`, so browsers revalidate (cheap `304` when nothing changed) and always see a just-added or just-deleted movie. Routes live under `/api` so Vite's dev proxy can forward API calls to Express without colliding with the client-side `/movies` route — a bare `/movies` proxy prefix would intercept the browser's SPA navigation and return raw JSON instead. In development, Vite proxies `/api` requests to the Express server automatically (see `vite.config.ts`).
 
 ---
 
@@ -351,9 +380,9 @@ Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: p
 - **Rate limiting** — `/api/*` is capped at 300 requests/minute per client (`express-rate-limit`); over the limit returns `429`.
 - **CORS allowlist** — only `CLIENT_ORIGIN` (env var, defaults to `http://localhost:3000`) may call the API cross-origin, instead of an open `cors()` reflecting any origin. Set `CLIENT_ORIGIN` to your deployed frontend's URL in production.
 - **Input validation** — `Movie ID` route params are length-checked before use.
-- **Error handling** — a catch-all Express error-handling middleware returns a generic `500 { error: "Internal server error" }` instead of leaking stack traces; errors are still logged server-side.
-- **TMDB key stays server-side** — `TMDB_API_KEY` (same `.env` var `movie-search.py` uses) is only ever read in `server/server.ts`; the browser never sees it. CSV rows appended via the in-app Add Movie import are sanitized against formula injection (`=`, `+`, `-`, `@` prefixes), same guard as `movie-search.py`.
-- CI runs `npm audit --audit-level=high` before lint/build/e2e.
+- **Error handling** — a catch-all Express error-handling middleware returns a generic `500 { error: "Internal server error" }` instead of leaking stack traces; errors are still logged server-side. Client errors from body parsing pass through as their real status (`400` malformed JSON, `413` body over 10 KB).
+- **TMDB key stays server-side** — `TMDB_API_KEY` (same `.env` var `movie-search.py` uses) is only ever read in `server/server.ts`; the browser never sees it. CSV rows appended via the in-app Add Movie import are sanitized against formula injection (`=`, `+`, `-`, `@` prefixes get a leading `'`), same guard as `movie-search.py`; the server strips that `'` when reading, so the UI shows the original title and rewrites never double-escape.
+- CI runs `npm audit --audit-level=high` (currently 0 vulnerabilities; `shell-quote` is pinned via `overrides`) before lint, server type-check, build, server tests and e2e.
 - `movie-search.py` sends the TMDB API key via `requests`' `params=` (never string-interpolated into a URL) and never echoes raw request exceptions — which could include the URL/key — back to the user in an error dialog.
 
 ---
@@ -361,7 +390,7 @@ Responses are gzip-compressed and `/api/movies` is cached with `Cache-Control: p
 ## Performance
 
 - **gzip compression** on all API responses (`compression` middleware)
-- **HTTP caching** — `/movies` sent with `Cache-Control: public, max-age=60`
+- **HTTP caching** — `/api/movies` sent with `Cache-Control: no-cache` + `ETag` (revalidates with a `304` when unchanged)
 - **Debounced search** — table search input debounced via `useDebounce` to avoid re-filtering on every keystroke
 - **Single fetch, shared context** — movie data fetched once in `MoviesContext` and reused across the dashboard and all stats tabs, not re-fetched per component
 - **Memoization** — derived data (filtered/sorted movie lists, chart datasets, stat aggregations) computed with `useMemo` throughout, so expensive recalculation only happens when the underlying movies or filters actually change; every chart wrapper in `src/components/Charts/*` also memoizes its Chart.js `options` object, so an unrelated parent re-render doesn't force a full chart rebuild
@@ -394,7 +423,7 @@ Ideas under consideration, not commitments:
 
 1. Fork the repo and create a branch off `main`.
 2. Make your changes, keeping with the existing code style (`npm run lint`).
-3. Run `npm run lint` and `npm run test:e2e` before opening a PR.
+3. Run `npm run lint`, `npm run test:server` and `npm run test:e2e` before opening a PR.
 4. Open a PR describing the change and why.
 
 ---

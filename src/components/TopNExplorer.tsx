@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Select, Typography } from 'antd';
 import type { Movie } from '../types/movie';
+import { formatDateDDMMYYYY } from '../utils/formatDate';
 
 const { Text } = Typography;
 
@@ -28,7 +29,7 @@ function getMetricValue(movie: Movie, metric: Metric): { raw: number; display: s
     case 'most_recent': {
       const d = new Date(movie['Release Date']);
       if (isNaN(d.getTime())) return { raw: -Infinity, display: movie['Release Date'] || movie['Release Year'] };
-      return { raw: d.getTime(), display: movie['Release Date'] };
+      return { raw: d.getTime(), display: formatDateDDMMYYYY(movie['Release Date']) };
     }
     case 'oldest':
       return { raw: -(parseInt(movie['Release Year'], 10) || 9999), display: movie['Release Year'] };
@@ -40,18 +41,33 @@ function getMetricValue(movie: Movie, metric: Metric): { raw: number; display: s
 }
 
 const RANK_COLORS = ['#e879f9', '#818cf8', '#38bdf8', '#34d399', '#fbbf24'];
+// Ranks 6–10: a theme token, not a fixed white (which was nearly invisible in light theme).
+// --text-secondary, not --text-muted: muted is ~2.3:1 on the light background, secondary ~4.4:1.
+const RANK_COLOR_REST = 'var(--text-secondary)';
+
+// A 10/10 from a single vote shouldn't top "Highest Rated". Tiny datasets (e.g. the template CSV)
+// may have too few qualifying movies — then the cutoff is dropped so the list isn't empty.
+const MIN_VOTES_FOR_RATING = 50;
+const MIN_QUALIFYING_FOR_CUTOFF = 10;
 
 const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies, isDark = true }) => {
   const [metric, setMetric] = useState<Metric>('highest_rated');
 
-  const topMovies = useMemo(() => {
-    return [...movies]
+  const { topMovies, voteCutoffApplied } = useMemo(() => {
+    let pool = movies;
+    let cutoff = false;
+    if (metric === 'highest_rated') {
+      const qualifying = movies.filter(m => (parseInt(m['Vote Count'], 10) || 0) >= MIN_VOTES_FOR_RATING);
+      if (qualifying.length >= MIN_QUALIFYING_FOR_CUTOFF) { pool = qualifying; cutoff = true; }
+    }
+    const top = [...pool]
       .filter(m => {
         const v = getMetricValue(m, metric).raw;
         return !isNaN(v) && v !== 0 && isFinite(v);
       })
       .sort((a, b) => getMetricValue(b, metric).raw - getMetricValue(a, metric).raw)
       .slice(0, 10);
+    return { topMovies: top, voteCutoffApplied: cutoff };
   }, [movies, metric]);
 
   const textPrimary = isDark ? '#fff' : '#1e1e3f';
@@ -70,13 +86,17 @@ const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies, isDark = true }) =>
           onChange={setMetric}
           options={METRIC_OPTIONS}
           style={{ width: 200 }}
+          aria-label="Top 10 metric"
         />
+        {voteCutoffApplied && (
+          <Text style={{ color: textMuted, fontSize: 12 }}>min. {MIN_VOTES_FOR_RATING} votes</Text>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {topMovies.map((movie, index) => {
           const { display } = getMetricValue(movie, metric);
-          const rankColor = RANK_COLORS[index] ?? 'rgba(255,255,255,0.3)';
+          const rankColor = RANK_COLORS[index] ?? RANK_COLOR_REST;
           const isTop3 = index < 3;
 
           return (
@@ -106,7 +126,7 @@ const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies, isDark = true }) =>
                   justifyContent: 'center',
                   fontWeight: 700,
                   fontSize: isTop3 ? 15 : 13,
-                  color: isTop3 ? rankColor : textMuted,
+                  color: isTop3 ? rankColor : 'var(--text-secondary)',
                   flexShrink: 0,
                 }}
               >

@@ -17,7 +17,8 @@
 
 # data
 src/movies.csv
-src/movies.csv.tmp
+# atomic-write temp files: server rewrites (movies.csv.<pid>.<ts>.tmp) and the Python tools (movies.csv.tmp)
+src/movies.csv*.tmp
 
 # editor
 .vscode/*
@@ -39,8 +40,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# throwaway scripts (e.g. one-off screenshot capture)
+# throwaway scripts (e.g. one-off screenshot capture, ad-hoc verification specs/configs)
 *.tmp.mjs
+*.tmp.spec.ts
+*.tmp.config.ts
 
 # python (movie-search.py)
 __pycache__/

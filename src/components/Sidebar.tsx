@@ -2,6 +2,7 @@ import React from 'react';
 import { Layout, Menu } from 'antd';
 import { DashboardOutlined, BarChartOutlined, PlayCircleOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { Link, useLocation } from 'react-router';
+import { normalizePath } from '../utils/path';
 import { useTheme } from '../contexts/ThemeContext';
 import { SPACING } from '../utils/chartTheme';
 import type { MenuProps } from 'antd';
@@ -17,23 +18,24 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
   const location = useLocation();
+  const path = normalizePath(location.pathname);
   const { isDark } = useTheme();
 
   const items: MenuProps['items'] = [
     {
       key: '/',
       icon: <DashboardOutlined />,
-      label: <Link to="/" aria-current={location.pathname === '/' ? 'page' : undefined}>Dashboard</Link>,
+      label: <Link to="/" aria-current={path === '/' ? 'page' : undefined}>Dashboard</Link>,
     },
     {
       key: '/movies',
       icon: <UnorderedListOutlined />,
-      label: <Link to="/movies" aria-current={location.pathname === '/movies' ? 'page' : undefined}>Movies</Link>,
+      label: <Link to="/movies" aria-current={path === '/movies' ? 'page' : undefined}>Movies</Link>,
     },
     {
       key: '/stats',
       icon: <BarChartOutlined />,
-      label: <Link to="/stats" aria-current={location.pathname === '/stats' ? 'page' : undefined}>Stats</Link>,
+      label: <Link to="/stats" aria-current={path === '/stats' ? 'page' : undefined}>Stats</Link>,
     },
   ];
 
@@ -82,7 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
 
       <Menu
         theme={isDark ? 'dark' : 'light'}
-        selectedKeys={[location.pathname]}
+        selectedKeys={[path]}
         items={items}
         style={{
           background: 'transparent',

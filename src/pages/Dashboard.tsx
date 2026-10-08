@@ -24,8 +24,21 @@ import BarChart from '../components/Charts/BarChart';
 import DoughnutChart from '../components/Charts/DoughnutChart';
 import PosterThumb from '../components/PosterThumb';
 import { getCardStyle, SPACING, FONT_SIZE } from '../utils/chartTheme';
-import { groupByField, makeDoughnut, parseRevenue, formatRevenue } from '../utils/statsHelpers';
+import { groupByField, makeDoughnut, parseRevenue, formatRevenue, isDrillableLabel, countIntoBuckets, bucketToRange, VOTE_STEP, VOTE_MAX, type Bucket } from '../utils/statsHelpers';
+import { useDrillDown } from '../contexts/DrilldownContext';
+import { formatDateDDMMYYYY } from '../utils/formatDate';
 import type { Movie } from '../types/movie';
+
+// Half-open; the last bucket also takes 10.0. Shared by the chart count and the click filter.
+const RATING_BUCKETS: Bucket[] = [
+  { label: '0–2', min: 0, maxExclusive: 2 },
+  { label: '2–4', min: 2, maxExclusive: 4 },
+  { label: '4–6', min: 4, maxExclusive: 6 },
+  { label: '6–8', min: 6, maxExclusive: 8 },
+  { label: '8–10', min: 8, maxExclusive: Infinity },
+];
+
+const TREND_YEARS = 10;
 
 const { Title, Text } = Typography;
 
@@ -101,6 +114,7 @@ const Dashboard: React.FC = () => {
   const { movies, loading, error, refetch } = useMovies();
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const drillDown = useDrillDown();
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const screens = Grid.useBreakpoint();
   const miniChartHeight = screens.md ? 240 : 180;
@@ -139,11 +153,17 @@ const Dashboard: React.FC = () => {
   }, [movies]);
 
   const yearTrendData = useMemo<ChartData<'line'>>(() => {
+    // A continuous span of the last TREND_YEARS calendar years ending at the latest release year;
+    // years with no releases show as 0 instead of being skipped, so the axis and title stay honest.
     const g = groupByField(movies, 'Release Year');
-    const sorted = Object.entries(g)
-      .filter(([y]) => !isNaN(parseInt(y, 10)))
-      .sort(([a], [b]) => parseInt(a, 10) - parseInt(b, 10))
-      .slice(-10);
+    const years = Object.keys(g).map((y) => parseInt(y, 10)).filter((y) => !isNaN(y));
+    const latest = years.length ? Math.max(...years) : null;
+    const sorted: [string, number][] = latest === null
+      ? []
+      : Array.from({ length: TREND_YEARS }, (_, i) => {
+          const y = String(latest - TREND_YEARS + 1 + i);
+          return [y, g[y] ?? 0];
+        });
     return {
       labels: sorted.map(([y]) => y),
       datasets: [{
@@ -166,16 +186,11 @@ const Dashboard: React.FC = () => {
     return makeDoughnut(data, 'Genres');
   }, [movies]);
 
-  const RATING_BUCKET_RANGES: [number, number][] = [[0, 2], [2, 4], [4, 6], [6, 8], [8, 10]];
-
   const ratingBucketData = useMemo<ChartData<'bar'>>(() => {
-    const buckets = ['0–2', '2–4', '4–6', '6–8', '8–10'];
-    const counts = [0, 0, 0, 0, 0];
-    movies.forEach((m) => {
-      const v = parseFloat(m['Vote Average']);
-      if (!isNaN(v) && v > 0) counts[Math.min(Math.floor(v / 2), 4)] += 1;
-    });
-    return { labels: buckets, datasets: [{ label: 'Movies', data: counts, backgroundColor: '#34d399', hoverBackgroundColor: '#10b981' }] };
+    // 0 = unrated: skipped here and excluded by the Movies vote filter, so counts match drill-downs.
+    const votes = movies.map((m) => parseFloat(m['Vote Average'])).filter((v) => !isNaN(v) && v > 0);
+    const counts = countIntoBuckets(votes, RATING_BUCKETS);
+    return { labels: RATING_BUCKETS.map((b) => b.label), datasets: [{ label: 'Movies', data: counts, backgroundColor: '#34d399', hoverBackgroundColor: '#10b981' }] };
   }, [movies]);
 
   const recentMovies = useMemo(() => {
@@ -192,27 +207,27 @@ const Dashboard: React.FC = () => {
 
   const handleGenreClick = (index: number) => {
     const label = (genreDoughnutData.labels?.[index] ?? null) as string | null;
-    if (!label || label === 'Other') { navigate('/movies'); return; }
-    navigate('/movies', { state: { presetFilters: { genres: [label] } } });
+    if (!isDrillableLabel(label)) return;
+    drillDown({ genres: [label] });
   };
 
   const handleRatingBucketClick = (index: number) => {
-    const range = RATING_BUCKET_RANGES[index];
-    if (!range) return;
-    navigate('/movies', { state: { presetFilters: { voteRange: range } } });
+    const bucket = RATING_BUCKETS[index];
+    if (!bucket) return;
+    drillDown({ voteRange: bucketToRange(bucket, VOTE_STEP, VOTE_MAX) });
   };
 
   const handleYearClick = (index: number) => {
     const year = yearLabels[index];
     if (!year) return;
     const y = parseInt(year, 10);
-    navigate('/movies', { state: { presetFilters: { yearRange: [y, y] } } });
+    drillDown({ yearRange: [y, y] });
   };
 
   return (
     <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: SPACING.xxl }}>
-      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}>🏠 Dashboard</Title>
+      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}><span aria-hidden="true">🏠 </span>Dashboard</Title>
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: SPACING.xxl }}>
         Snapshot of your movie collection — key stats, highlights, and trends at a glance.
       </Text>
@@ -277,7 +292,7 @@ const Dashboard: React.FC = () => {
               icon={<CalendarOutlined />}
               label="Newest Release"
               movie={highlights.newest}
-              detail={highlights.newest ? highlights.newest['Release Date'] : ''}
+              detail={highlights.newest ? formatDateDDMMYYYY(highlights.newest['Release Date']) : ''}
               isDark={isDark}
               onSelect={setSelectedMovie}
             />
@@ -297,7 +312,7 @@ const Dashboard: React.FC = () => {
           </Col>
           <Col xs={24} lg={12}>
             <MiniChartCard title="Genre Breakdown (Top 6)" isDark={isDark} height={miniChartHeight}>
-              <DoughnutChart data={genreDoughnutData} isDark={isDark} onElementClick={handleGenreClick} />
+              <DoughnutChart data={genreDoughnutData} isDark={isDark} onElementClick={handleGenreClick} isClickable={(i) => isDrillableLabel(genreDoughnutData.labels?.[i] as string | undefined)} />
             </MiniChartCard>
           </Col>
           <Col xs={24} lg={12}>
@@ -335,7 +350,7 @@ const Dashboard: React.FC = () => {
                             {movie.Name}
                           </div>
                           <div style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: SPACING.xs }}>
-                            <ClockCircleOutlined /> {movie['Release Date']}
+                            <ClockCircleOutlined /> {formatDateDDMMYYYY(movie['Release Date'])}
                           </div>
                         </div>
                       </div>

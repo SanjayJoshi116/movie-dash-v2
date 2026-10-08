@@ -11,6 +11,9 @@ export default defineConfig({
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    // First-visit theme follows the OS colour scheme (ThemeContext); Playwright emulates 'light'
+    // by default, so pin 'dark' to keep the suite's dark-default assumptions deterministic.
+    colorScheme: 'dark',
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

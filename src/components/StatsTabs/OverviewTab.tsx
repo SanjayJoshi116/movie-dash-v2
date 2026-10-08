@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Row, Col } from 'antd';
-import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import BarChart from '../Charts/BarChart';
 import LineChart from '../Charts/LineChart';
 import ChartBlock from './ChartBlock';
-import { getCardStyle } from '../../utils/chartTheme';
-import { groupByField } from '../../utils/statsHelpers';
+import { getCardStyle, CHART_PALETTE } from '../../utils/chartTheme';
+import { groupByField, topNWithOther, isDrillableLabel } from '../../utils/statsHelpers';
+import { useDrillDown } from '../../contexts/DrilldownContext';
 import { getLanguageName } from '../../utils/languages';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie, StatsCounters } from '../../types/movie';
@@ -107,13 +107,13 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
     };
   }, [totalMovies, avgRuntime, longestRuntime, shortestRuntime, totalTimeSpent]);
 
-  const navigate = useNavigate();
+  const drillDown = useDrillDown();
 
   const { languageBarData, languageCodes } = useMemo(() => {
-    const g = groupByField(movies, 'Language');
-    const palette = ['#38bdf8', '#818cf8', '#34d399', '#f472b6', '#fb923c', '#fbbf24', '#a3e635', '#e879f9', '#22d3ee', '#f87171', '#4ade80', '#facc15', '#60a5fa', '#c084fc', '#fb7185'];
+    const g = topNWithOther(groupByField(movies, 'Language'));
     const codes = Object.keys(g);
-    const data: ChartData<'bar'> = { labels: codes.map(getLanguageName), datasets: [{ label: 'Movies', data: Object.values(g), backgroundColor: palette, hoverBackgroundColor: palette }] };
+    const labels = codes.map((c) => (isDrillableLabel(c) ? getLanguageName(c) : c));
+    const data: ChartData<'bar'> = { labels, datasets: [{ label: 'Movies', data: Object.values(g), backgroundColor: CHART_PALETTE, hoverBackgroundColor: CHART_PALETTE }] };
     return { languageBarData: data, languageCodes: codes };
   }, [movies]);
 
@@ -136,14 +136,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
 
   const handleLanguageClick = (index: number) => {
     const code = languageCodes[index];
-    if (!code) return;
-    navigate('/movies', { state: { presetFilters: { languages: [code] } } });
+    if (!isDrillableLabel(code)) return;
+    drillDown({ languages: [code] });
   };
 
   const handleYearClick = (index: number) => {
     const year = parseInt(yearLabels[index], 10);
     if (isNaN(year)) return;
-    navigate('/movies', { state: { presetFilters: { yearRange: [year, year] } } });
+    drillDown({ yearRange: [year, year] });
   };
 
   return (
@@ -204,10 +204,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
       </Row>
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={12}>
-          <ChartBlock title="Movies by Language" height={360} isDark={isDark}><BarChart data={languageBarData} isDark={isDark} onElementClick={handleLanguageClick} /></ChartBlock>
+          <ChartBlock title="Movies by Language" height={360} isDark={isDark}><BarChart data={languageBarData} isDark={isDark} onElementClick={handleLanguageClick} isClickable={(i) => isDrillableLabel(languageCodes[i])} /></ChartBlock>
         </Col>
         <Col xs={24} lg={12}>
-          <ChartBlock title="Movies Released per Year" height={360} isDark={isDark}><LineChart data={yearLineData} isDark={isDark} onElementClick={handleYearClick} /></ChartBlock>
+          <ChartBlock title="Movies Released per Year" height={360} isDark={isDark}><LineChart data={yearLineData} isDark={isDark} onElementClick={handleYearClick} isClickable={(i) => !isNaN(parseInt(yearLabels[i], 10))} /></ChartBlock>
         </Col>
       </Row>
     </>

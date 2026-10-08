@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router';
+import { normalizePath } from '../utils/path';
 import { DashboardOutlined, BarChartOutlined, UnorderedListOutlined } from '@ant-design/icons';
 
 const ACCENT = '#818cf8';
@@ -32,7 +33,7 @@ const BottomNav: React.FC = () => {
       }}
     >
       {ITEMS.map((item) => {
-        const active = location.pathname === item.key;
+        const active = normalizePath(location.pathname) === item.key;
         return (
           <Link
             key={item.key}

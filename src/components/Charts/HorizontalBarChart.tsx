@@ -8,9 +8,11 @@ interface HorizontalBarChartProps {
   isDark?: boolean;
   formatValue?: (n: number) => string;
   onElementClick?: (index: number) => void;
+  /** Elements for which this returns false (e.g. "Other"/"Unknown") get no pointer cursor and no click. */
+  isClickable?: (index: number) => boolean;
 }
 
-const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 400, isDark = true, formatValue, onElementClick }) => {
+const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 400, isDark = true, formatValue, onElementClick, isClickable }) => {
   const options: ChartOptions<'bar'> = useMemo(() => {
     const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';
     const tickColor = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.75)';
@@ -21,10 +23,10 @@ const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 
       responsive: true,
       maintainAspectRatio: false,
       onClick: onElementClick
-        ? (_evt, elements) => { if (elements.length) onElementClick(elements[0].index); }
+        ? (_evt, elements) => { if (elements.length && (isClickable?.(elements[0].index) ?? true)) onElementClick(elements[0].index); }
         : undefined,
       onHover: onElementClick
-        ? (evt, elements) => { (evt.native?.target as HTMLElement)?.style.setProperty('cursor', elements.length ? 'pointer' : 'default'); }
+        ? (evt, elements) => { (evt.native?.target as HTMLElement)?.style.setProperty('cursor', elements.length && (isClickable?.(elements[0].index) ?? true) ? 'pointer' : 'default'); }
         : undefined,
       plugins: {
         legend: { display: false },
@@ -52,7 +54,7 @@ const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 
         },
       },
     };
-  }, [isDark, formatValue, onElementClick]);
+  }, [isDark, formatValue, onElementClick, isClickable]);
 
   return (
     <div style={{ height }}>

@@ -12,6 +12,6 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["./server.ts", "../src/types/movie.ts"],
+  "include": ["./server.ts", "./app.ts", "./tmdb.ts", "../src/types/movie.ts"],
   "exclude": ["dist", "../node_modules"]
 }

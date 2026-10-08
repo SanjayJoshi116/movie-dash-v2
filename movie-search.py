@@ -67,6 +67,13 @@ def search_movie(api_key, movie_name, page=1):
         messagebox.showerror("Connection Error", "Failed to fetch data from TMDB. Check your connection and try again.")
         return {"results": [], "total_pages": 1}
 
+def field(data, key):
+    """Missing or null TMDB fields are stored as empty strings, never a placeholder like
+    "N/A" — matches the in-app import, so analytics don't see a fake "N/A" director/year."""
+    value = data.get(key)
+    return "" if value is None else value
+
+
 def fetch_movie_details(api_key, movie_id):
     url = f"https://api.themoviedb.org/3/movie/{movie_id}"
     try:
@@ -139,10 +146,13 @@ def append_to_csv(movie_details):
             # Migrate the CSV in place: keep old rows, add the new column(s) (e.g. "Poster URL")
             # with blank values, so every future append actually persists them.
             fieldnames = existing_fieldnames + missing
-            with open(CSV_PATH, mode="w", newline="", encoding="utf-8") as file:
+            # Temp file + atomic swap: an interrupted migration can't truncate the CSV.
+            tmp_path = CSV_PATH + ".tmp"
+            with open(tmp_path, mode="w", newline="", encoding="utf-8") as file:
                 writer = csv.DictWriter(file, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(existing_rows)
+            os.replace(tmp_path, CSV_PATH)
         else:
             fieldnames = existing_fieldnames
 
@@ -180,14 +190,14 @@ def apply_filter_and_display(event=None):
         tree.column(col, width=150, anchor="center")
 
     for movie in movies:
-        movie_id = movie.get("id", "N/A")
+        movie_id = field(movie, "id")
         details = fetch_movie_details(api_key, movie_id)
         tree.insert("", "end", values=(
             movie_id,
-            movie.get("title", "N/A"),
-            details.get("original_language", "N/A"),
-            details.get("runtime", "N/A"),
-            details.get("release_date", "N/A").split("-")[0] if details.get("release_date") else "N/A"
+            field(movie, "title"),
+            field(details, "original_language"),
+            field(details, "runtime"),
+            details["release_date"].split("-")[0] if details.get("release_date") else ""
         ))
 
     def save_selected_to_csv():
@@ -207,7 +217,7 @@ def apply_filter_and_display(event=None):
             keywords = fetch_movie_keywords(api_key, movie_id)
 
             genres = ", ".join([genre["name"] for genre in details.get("genres", [])])
-            director = next((m["name"] for m in credits.get("crew", []) if m["job"] == "Director"), "N/A")
+            director = next((m["name"] for m in credits.get("crew", []) if m["job"] == "Director"), "")
             cast = ", ".join([m["name"] for m in credits.get("cast", [])[:5]])
             prod_companies = ", ".join([c["name"] for c in details.get("production_companies", [])])
             prod_countries = ", ".join([c["name"] for c in details.get("production_countries", [])])
@@ -224,14 +234,14 @@ def apply_filter_and_display(event=None):
                 "Actors/Actresses": cast,
                 "Production Company": prod_companies,
                 "Production Country": prod_countries,
-                "Box Office Revenue": details.get("revenue", "N/A"),
-                "Budget": details.get("budget", "N/A"),
-                "Popularity Score": details.get("popularity", "N/A"),
-                "Vote Average": details.get("vote_average", "N/A"),
-                "Vote Count": details.get("vote_count", "N/A"),
+                "Box Office Revenue": field(details, "revenue"),
+                "Budget": field(details, "budget"),
+                "Popularity Score": field(details, "popularity"),
+                "Vote Average": field(details, "vote_average"),
+                "Vote Count": field(details, "vote_count"),
                 "Poster URL": f"{TMDB_IMAGE_BASE}{details['poster_path']}" if details.get("poster_path") else "",
                 "Keywords/Tags": keywords_list,
-                "Release Date": details.get("release_date", "N/A")
+                "Release Date": field(details, "release_date")
             }
 
             append_to_csv(movie_details)

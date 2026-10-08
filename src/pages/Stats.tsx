@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Typography, Tabs, Slider, Button } from 'antd';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Typography, Tabs, Button } from 'antd';
 import { useLocation, useSearchParams } from 'react-router';
 import { useMovies } from '../hooks/useMovies';
 import { useTheme } from '../contexts/ThemeContext';
@@ -10,28 +10,49 @@ import RuntimeTab from '../components/StatsTabs/RuntimeTab';
 import ExploreTab from '../components/StatsTabs/ExploreTab';
 import BoxOfficeTab from '../components/StatsTabs/BoxOfficeTab';
 import LoadingError from '../components/LoadingError';
+import RangeSlider from '../components/RangeSlider';
+import { DrilldownScopeProvider } from '../contexts/DrilldownContext';
 import { getCardStyle } from '../utils/chartTheme';
 import type { Movie } from '../types/movie';
 
 const { Title, Text } = Typography;
+
+const TAB_KEYS = ['overview', 'people', 'ratings', 'runtime', 'boxoffice', 'explore'] as const;
+type TabKey = typeof TAB_KEYS[number];
+
+function isTabKey(value: unknown): value is TabKey {
+  return typeof value === 'string' && (TAB_KEYS as readonly string[]).includes(value);
+}
 
 const Stats: React.FC = () => {
   const { movies, loading, error, refetch } = useMovies();
   const { isDark } = useTheme();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(
-    () => (location.state as { tab?: string } | null)?.tab ?? searchParams.get('tab') ?? 'overview'
-  );
+  // Drill-down hand-off (location.state) wins, then ?tab=, then Overview — an unknown key from
+  // either source falls through instead of rendering a tab bar with nothing selected.
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    const fromState = (location.state as { tab?: string } | null)?.tab;
+    if (isTabKey(fromState)) return fromState;
+    const fromUrl = searchParams.get('tab');
+    return isTabKey(fromUrl) ? fromUrl : 'overview';
+  });
   const [yearRange, setYearRange] = useState<[number, number] | null>(null);
 
-  const handleTabChange = (key: string) => {
-    setActiveTab(key);
+  // Keep ?tab= in step with the shown tab from the first render (e.g. after a Dashboard link
+  // hand-off or an invalid ?tab=), so the URL is shareable/reloadable without a tab switch first.
+  // Writes to the URL (an external system), not React state, so it's a legitimate effect.
+  useEffect(() => {
+    if (searchParams.get('tab') === activeTab) return;
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      next.set('tab', key);
+      next.set('tab', activeTab);
       return next;
     }, { replace: true });
+  }, [activeTab, searchParams, setSearchParams]);
+
+  const handleTabChange = (key: string) => {
+    if (isTabKey(key)) setActiveTab(key);
   };
 
   const { yearMin, yearMax } = useMemo(() => {
@@ -56,18 +77,18 @@ const Stats: React.FC = () => {
   }, [movies, yearRange]);
 
   const tabItems = [
-    { key: 'overview',   label: '📊 Overview',           children: <OverviewTab   movies={scopedMovies} /> },
-    { key: 'people',     label: '🎬 People',              children: <PeopleTab     movies={scopedMovies} /> },
-    { key: 'ratings',    label: '⭐ Ratings',             children: <RatingsTab    movies={scopedMovies} /> },
-    { key: 'runtime',    label: '⏱ Runtime & Geography', children: <RuntimeTab    movies={scopedMovies} /> },
-    { key: 'boxoffice',  label: '💰 Box Office',          children: <BoxOfficeTab  movies={scopedMovies} /> },
-    { key: 'explore',    label: '🔭 Explore',             children: <ExploreTab    movies={scopedMovies} /> },
+    { key: 'overview',   label: <><span aria-hidden="true">📊 </span>Overview</>, children: <OverviewTab   movies={scopedMovies} /> },
+    { key: 'people',     label: <><span aria-hidden="true">🎬 </span>People</>, children: <PeopleTab     movies={scopedMovies} /> },
+    { key: 'ratings',    label: <><span aria-hidden="true">⭐ </span>Ratings</>, children: <RatingsTab    movies={scopedMovies} /> },
+    { key: 'runtime',    label: <><span aria-hidden="true">⏱ </span>Runtime &amp; Geography</>, children: <RuntimeTab    movies={scopedMovies} /> },
+    { key: 'boxoffice',  label: <><span aria-hidden="true">💰 </span>Box Office</>, children: <BoxOfficeTab  movies={scopedMovies} /> },
+    { key: 'explore',    label: <><span aria-hidden="true">🔭 </span>Explore</>, children: <ExploreTab    movies={scopedMovies} /> },
   ];
 
   return (
     <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: 24 }}>
-      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}>📊 Statistics Dashboard</Title>
+      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}><span aria-hidden="true">📊 </span>Statistics Dashboard</Title>
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
         Deep-dive charts and breakdowns across ratings, people, runtime, box office, and more.
       </Text>
@@ -85,19 +106,17 @@ const Stats: React.FC = () => {
             )}
           </div>
         </div>
-        <Slider
-          range
+        {/* Commits on release: re-scoping recomputes every visited tab's charts, so not per drag tick. */}
+        <RangeSlider
           min={yearMin}
           max={yearMax}
           value={yearRange ?? [yearMin, yearMax]}
           disabled={yearMin === yearMax}
-          onChange={(val) => {
-            const [lo, hi] = val as [number, number];
-            setYearRange(lo <= yearMin && hi >= yearMax ? null : [lo, hi]);
-          }}
+          onCommit={([lo, hi]) => setYearRange(lo <= yearMin && hi >= yearMax ? null : [lo, hi])}
           tooltip={{ formatter: (v) => v }}
         />
       </div>
+      <DrilldownScopeProvider yearRange={yearRange}>
       <Tabs
         activeKey={activeTab}
         onChange={handleTabChange}
@@ -105,6 +124,7 @@ const Stats: React.FC = () => {
         size="large"
         style={{ color: isDark ? '#fff' : '#1e1e3f' }}
       />
+      </DrilldownScopeProvider>
     </div>
     </LoadingError>
   );

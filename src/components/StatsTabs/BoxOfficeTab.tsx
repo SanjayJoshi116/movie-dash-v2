@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
 import { Row, Col } from 'antd';
-import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import ChartBlock from './ChartBlock';
 import { parseRevenue, formatRevenue } from '../../utils/statsHelpers';
+import { useDrillDown } from '../../contexts/DrilldownContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
 
@@ -12,7 +12,7 @@ interface BoxOfficeTabProps { movies: Movie[] }
 
 const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
-  const navigate = useNavigate();
+  const drillDown = useDrillDown();
 
   const topGrossingData = useMemo<ChartData<'bar'>>(() => {
     const top = [...movies]
@@ -92,10 +92,6 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
     };
   }, [movies]);
 
-  const formatProfit = (n: number): string => {
-    const sign = n < 0 ? '-' : '';
-    return `${sign}${formatRevenue(Math.abs(n))}`;
-  };
 
   const MIN_BUDGET_FOR_ROI = 100_000;
 
@@ -122,7 +118,7 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
   const handleGenreClick = (index: number) => {
     const genre = avgRevenueByGenreData.labels?.[index] as string | undefined;
     if (!genre) return;
-    navigate('/movies', { state: { presetFilters: { genres: [genre] } } });
+    drillDown({ genres: [genre] });
   };
 
   return (
@@ -139,7 +135,7 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
       </Col>
       <Col xs={24} lg={12}>
         <ChartBlock title="Top 20 Most Profitable Films (Revenue − Budget)" height={480} isDark={isDark}>
-          <HorizontalBarChart data={topProfitData} height={480} isDark={isDark} formatValue={formatProfit} />
+          <HorizontalBarChart data={topProfitData} height={480} isDark={isDark} formatValue={formatRevenue} />
         </ChartBlock>
       </Col>
       <Col xs={24} lg={12}>

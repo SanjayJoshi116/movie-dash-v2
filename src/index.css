@@ -14,6 +14,7 @@ code {
 /* ── CSS Custom Properties ────────────────────────────────────────────────── */
 :root {
   --bg-gradient: linear-gradient(135deg, #0d0d1a 0%, #1a1030 50%, #0d0d1a 100%);
+  --export-bg: #0d0d1a; /* solid fill behind exported chart PNGs (the gradient's base colour) */
   --glass-bg: rgba(255, 255, 255, 0.05);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
@@ -30,6 +31,7 @@ code {
 
 [data-theme="light"] {
   --bg-gradient: linear-gradient(135deg, #f5f7ff 0%, #eef1ff 50%, #f5f7ff 100%);
+  --export-bg: #f5f7ff;
   --glass-bg: rgba(255, 255, 255, 0.92);
   --glass-border: rgba(129, 140, 248, 0.22);
   --glass-shadow: 0 2px 16px rgba(100, 100, 200, 0.14);
@@ -51,6 +53,22 @@ code {
 
 .movie-row-odd > td {
   background: var(--row-odd) !important;
+}
+
+/* Movie name in the table: a real <button> (keyboard target; its click bubbles to the row's onClick)
+   styled as plain cell text, so rows keep their table-row semantics. */
+.movie-name-button {
+  all: unset;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  border-radius: 4px;
+}
+
+.movie-name-button:focus-visible {
+  outline: 2px solid #818cf8;
+  outline-offset: 2px;
 }
 
 /* ── Ant Design Tabs on dark background ─────────────────────────────────── */

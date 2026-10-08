@@ -43,10 +43,16 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
     setDeleting(true);
     setDeleteError(null);
     try {
-      await axios.delete(`/api/movies/${movie['Movie ID']}`);
+      await axios.delete(`/api/movies/${encodeURIComponent(movie['Movie ID'])}`);
       refetch();
       onClose();
     } catch (err) {
+      // 404 = already gone (e.g. deleted in another tab) — same end state as a successful delete.
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        refetch();
+        onClose();
+        return;
+      }
       setDeleteError(extractErrorMessage(err));
     } finally {
       setDeleting(false);

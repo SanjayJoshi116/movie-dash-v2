@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { Row, Col } from 'antd';
-import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import MatrixChart from '../Charts/MatrixChart';
@@ -9,6 +8,7 @@ import TopNExplorer from '../TopNExplorer';
 import ChartBlock from './ChartBlock';
 import { CHART_PALETTE } from '../../utils/chartTheme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useDrillDown } from '../../contexts/DrilldownContext';
 import type { Movie } from '../../types/movie';
 
 interface ExploreTabProps { movies: Movie[] }
@@ -17,7 +17,7 @@ const TOP_GENRES_N = 10;
 
 const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
-  const navigate = useNavigate();
+  const drillDown = useDrillDown();
 
   const genreBarData = useMemo<ChartData<'bar'>>(() => {
     const counts: Record<string, number> = {};
@@ -84,7 +84,7 @@ const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
   const handleGenreClick = (index: number) => {
     const genre = genreBarData.labels?.[index] as string | undefined;
     if (!genre) return;
-    navigate('/movies', { state: { presetFilters: { genres: [genre] } } });
+    drillDown({ genres: [genre] });
   };
 
   return (

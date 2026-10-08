@@ -2,6 +2,12 @@ import type { FilterState } from '../types/movie';
 import { getLanguageName } from './languages';
 import { formatRevenue } from './statsHelpers';
 
+// Chips show the real bounds (drill-downs send e.g. [2, 3.999] so the list matches the bar),
+// trimmed to at most 3 decimals: 2 → "2", 6.5 → "6.5", 3.999 → "3.999".
+function formatVote(n: number): string {
+  return String(Number(n.toFixed(3)));
+}
+
 export interface FilterChip {
   key: string;
   label: string;
@@ -52,10 +58,10 @@ export function buildFilterChips(filters: FilterState, onChange: (filters: Filte
     chips.push({ key: 'year', label: `Year: ${filters.yearRange[0]}–${filters.yearRange[1]}`, onClose: () => onChange({ ...filters, yearRange: null }) });
   }
   if (filters.voteRange) {
-    chips.push({ key: 'vote', label: `Vote: ${filters.voteRange[0].toFixed(1)}–${filters.voteRange[1].toFixed(1)}`, onClose: () => onChange({ ...filters, voteRange: null }) });
+    chips.push({ key: 'vote', label: `Vote: ${formatVote(filters.voteRange[0])}–${formatVote(filters.voteRange[1])}`, onClose: () => onChange({ ...filters, voteRange: null }) });
   }
   if (filters.runtimeRange) {
-    chips.push({ key: 'runtime', label: `Runtime: ${filters.runtimeRange[0]}–${filters.runtimeRange[1]}m`, onClose: () => onChange({ ...filters, runtimeRange: null }) });
+    chips.push({ key: 'runtime', label: `Runtime: ${Math.round(filters.runtimeRange[0])}–${Math.round(filters.runtimeRange[1])}m`, onClose: () => onChange({ ...filters, runtimeRange: null }) });
   }
   if (filters.revenueRange) {
     chips.push({ key: 'revenue', label: `Revenue: ${formatRevenue(filters.revenueRange[0])}–${formatRevenue(filters.revenueRange[1])}`, onClose: () => onChange({ ...filters, revenueRange: null }) });

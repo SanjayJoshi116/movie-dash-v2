@@ -56,10 +56,14 @@ def fetch_poster_path(movie_id):
 
 
 def write_csv(fieldnames, rows):
-    with open(CSV_PATH, mode="w", newline="", encoding="utf-8") as file:
+    # Write to a temp file and atomically swap it in, so a Ctrl+C mid-checkpoint leaves
+    # either the previous or the new complete CSV — never a truncated one.
+    tmp_path = CSV_PATH + ".tmp"
+    with open(tmp_path, mode="w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+    os.replace(tmp_path, CSV_PATH)
 
 
 def main():

@@ -21,5 +21,7 @@
 
 - [x] 4.1 Run `npm run test:e2e` locally with the template CSV seeded — all 56 tests pass
   - 56/56 passed with `--retries=0` (3.0m); real `src/movies.csv` backed up and restored (sha256 verified).
+  - Correction: Playwright reused an orphaned `npm run dev` from task 1.3 (`reuseExistingServer`), whose server had loaded the real 1,961-row CSV and had no reload-on-change, so this local run was against real data, not the template. Template coverage is provided by the green CI run (4.3).
 - [x] 4.2 Untick (or annotate) `refine-app-ui` task 4.5 to reflect that the suite was broken until this change
-- [ ] 4.3 Push and confirm the GitHub Actions run is green
+- [x] 4.3 Push and confirm the GitHub Actions run is green
+  - Commit `2ae8ab2` on `main`; CI green (confirmed by user).

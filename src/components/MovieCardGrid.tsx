@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Row, Col, Card, Tag, Empty, Pagination, Grid, Select } from 'antd';
 import { motion } from 'framer-motion';
 import { ClockCircleOutlined } from '@ant-design/icons';
@@ -13,6 +13,10 @@ const MotionCard = motion(Card);
 interface MovieCardGridProps {
   movies: Movie[];
   onRowClick: (movie: Movie) => void;
+  /** Changes whenever search/filters change — resets to page 1 (a data refresh alone doesn't). */
+  filtersKey?: string;
+  /** Receives the rows in the order currently shown (for Export CSV). */
+  onDisplayedChange?: (rows: Movie[]) => void;
 }
 
 const voteColor = (vote: number): string => (vote >= 7 ? 'green' : vote >= 5 ? 'gold' : 'red');
@@ -47,14 +51,24 @@ const sortMovies = (movies: Movie[], sortKey: SortKey): Movie[] => {
   }
 };
 
-const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick }) => {
+const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick, filtersKey, onDisplayedChange }) => {
   const { isDark } = useTheme();
   const screens = Grid.useBreakpoint();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
   const [sortKey, setSortKey] = useState<SortKey>('default');
 
+  const [prevFiltersKey, setPrevFiltersKey] = useState(filtersKey);
+  if (filtersKey !== prevFiltersKey) {
+    setPrevFiltersKey(filtersKey);
+    setPage(1);
+  }
+
   const sortedMovies = useMemo(() => sortMovies(movies, sortKey), [movies, sortKey]);
+
+  useEffect(() => {
+    onDisplayedChange?.(sortedMovies);
+  }, [sortedMovies, onDisplayedChange]);
 
   if (movies.length === 0) {
     return (

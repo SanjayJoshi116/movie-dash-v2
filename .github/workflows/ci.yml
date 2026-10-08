@@ -29,6 +29,9 @@ jobs:
 
       - run: npm run build
 
+      - name: Server tests
+        run: npm run test:server
+
       - name: Seed CSV fixture
         run: cp public/movies.template.csv src/movies.csv
 

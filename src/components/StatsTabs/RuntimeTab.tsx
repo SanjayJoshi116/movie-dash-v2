@@ -1,29 +1,31 @@
 import React, { useMemo } from 'react';
 import { Row, Col } from 'antd';
-import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import BarChart from '../Charts/BarChart';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import PolarAreaChart from '../Charts/PolarAreaChart';
 import ChartBlock from './ChartBlock';
-import { groupByField, withOther, makePolar } from '../../utils/statsHelpers';
+import { groupByField, topNWithOther, makePolar, isDrillableLabel, bucketIndexOf, bucketToRange, type Bucket } from '../../utils/statsHelpers';
+import { useDrillDown } from '../../contexts/DrilldownContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
 
 interface RuntimeTabProps { movies: Movie[] }
 
-const RUNTIME_BUCKETS = [
-  { label: '< 60 min',    min: 0,   max: 60   },
-  { label: '60–90 min',   min: 60,  max: 90   },
-  { label: '90–120 min',  min: 90,  max: 120  },
-  { label: '120–150 min', min: 120, max: 150  },
-  { label: '150–180 min', min: 150, max: 180  },
-  { label: '> 180 min',   min: 180, max: 9999 },
+// Half-open [min, maxExclusive) — a 90-minute film is in 90–120 only. Shared by chart and click;
+// the open-ended last bucket drills down to the dataset's actual max runtime.
+const RUNTIME_BUCKETS: Bucket[] = [
+  { label: '< 60 min',    min: 0,   maxExclusive: 60 },
+  { label: '60–90 min',   min: 60,  maxExclusive: 90 },
+  { label: '90–120 min',  min: 90,  maxExclusive: 120 },
+  { label: '120–150 min', min: 120, maxExclusive: 150 },
+  { label: '150–180 min', min: 150, maxExclusive: 180 },
+  { label: '> 180 min',   min: 180, maxExclusive: Infinity },
 ];
 
 const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
-  const navigate = useNavigate();
+  const drillDown = useDrillDown();
 
   const top50RuntimeData = useMemo<ChartData<'bar'>>(() => {
     const top50 = [...movies]
@@ -43,8 +45,8 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
       const r = parseFloat(m.Runtime);
       const v = parseFloat(m['Vote Average']);
       if (!isNaN(r) && !isNaN(v)) {
-        const bucket = RUNTIME_BUCKETS.find(b => r >= b.min && r < b.max);
-        if (bucket) { sums[bucket.label].sum += v; sums[bucket.label].count += 1; }
+        const i = bucketIndexOf(r, RUNTIME_BUCKETS);
+        if (i >= 0) { sums[RUNTIME_BUCKETS[i].label].sum += v; sums[RUNTIME_BUCKETS[i].label].count += 1; }
       }
     });
     const avgs = RUNTIME_BUCKETS.map(b => sums[b.label].count ? parseFloat((sums[b.label].sum / sums[b.label].count).toFixed(2)) : 0);
@@ -78,25 +80,26 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
   }, [movies]);
 
   const countryPolarData = useMemo(
-    () => makePolar(withOther(groupByField(movies, 'Production Country'), 10), 'Movies by Country'),
+    () => makePolar(topNWithOther(groupByField(movies, 'Production Country')), 'Movies by Country'),
     [movies]
   );
 
   const genrePolarData = useMemo(
-    () => makePolar(withOther(groupByField(movies, 'Genres'), 35), 'Movies by Genre'),
+    () => makePolar(topNWithOther(groupByField(movies, 'Genres')), 'Movies by Genre'),
     [movies]
   );
 
   const handleGenreClick = (index: number) => {
     const genre = genrePolarData.labels?.[index] as string | undefined;
-    if (!genre || genre === 'Other') return;
-    navigate('/movies', { state: { presetFilters: { genres: [genre] } } });
+    if (!isDrillableLabel(genre)) return;
+    drillDown({ genres: [genre] });
   };
 
   const handleRuntimeBucketClick = (index: number) => {
     const bucket = RUNTIME_BUCKETS[index];
     if (!bucket) return;
-    navigate('/movies', { state: { presetFilters: { runtimeRange: [bucket.min, bucket.max] } } });
+    const maxRuntime = movies.reduce((max, m) => Math.max(max, parseFloat(m.Runtime) || 0), 0);
+    drillDown({ runtimeRange: bucketToRange(bucket, 1, maxRuntime) });
   };
 
   const handleDecadeClick = (index: number) => {
@@ -104,7 +107,7 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
     if (!decade) return;
     const start = parseInt(decade, 10);
     if (isNaN(start)) return;
-    navigate('/movies', { state: { presetFilters: { yearRange: [start, start + 9] } } });
+    drillDown({ yearRange: [start, start + 9] });
   };
 
   return (
@@ -113,7 +116,7 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
         <ChartBlock title="Movies by Country" height={400} isDark={isDark}><PolarAreaChart data={countryPolarData} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Movies by Genre" height={400} isDark={isDark}><PolarAreaChart data={genrePolarData} isDark={isDark} onElementClick={handleGenreClick} /></ChartBlock>
+        <ChartBlock title="Movies by Genre" height={400} isDark={isDark}><PolarAreaChart data={genrePolarData} isDark={isDark} onElementClick={handleGenreClick} isClickable={(i) => isDrillableLabel(genrePolarData.labels?.[i] as string | undefined)} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
         <ChartBlock title="Avg Vote by Runtime Length" height={320} isDark={isDark}><HorizontalBarChart data={runtimeBucketVoteData} height={320} isDark={isDark} onElementClick={handleRuntimeBucketClick} /></ChartBlock>

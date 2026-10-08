@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { Row, Col } from 'antd';
-import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import BarChart from '../Charts/BarChart';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
@@ -8,25 +7,30 @@ import RadarChart from '../Charts/RadarChart';
 import LineChart from '../Charts/LineChart';
 import ScatterChart from '../Charts/ScatterChart';
 import ChartBlock from './ChartBlock';
-import { groupByField } from '../../utils/statsHelpers';
+import { groupByField, countIntoBuckets, bucketToRange, VOTE_STEP, VOTE_MAX, type Bucket } from '../../utils/statsHelpers';
+import { useDrillDown } from '../../contexts/DrilldownContext';
 import { getLanguageName } from '../../utils/languages';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { Movie } from '../../types/movie';
 
 interface RatingsTabProps { movies: Movie[] }
 
+// 0–1 … 9–10, half-open; the last bucket also takes 10.0. Shared by the count and the click.
+const VOTE_BUCKETS: Bucket[] = Array.from({ length: 10 }, (_, i) => ({
+  label: `${i}–${i + 1}`,
+  min: i,
+  maxExclusive: i === 9 ? Infinity : i + 1,
+}));
+
 const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
-  const navigate = useNavigate();
+  const drillDown = useDrillDown();
 
   const voteDistData = useMemo<ChartData<'bar'>>(() => {
-    const buckets: Record<string, number> = {};
-    for (let i = 0; i < 10; i++) buckets[`${i}–${i + 1}`] = 0;
-    movies.forEach(m => {
-      const v = parseFloat(m['Vote Average']);
-      if (!isNaN(v)) { const idx = Math.min(Math.floor(v), 9); buckets[`${idx}–${idx + 1}`] += 1; }
-    });
-    return { labels: Object.keys(buckets), datasets: [{ label: 'Movies', data: Object.values(buckets), backgroundColor: '#818cf8', hoverBackgroundColor: '#6366f1' }] };
+    // 0 = unrated: skipped here, and excluded by the Movies vote filter, so counts match drill-downs.
+    const votes = movies.map(m => parseFloat(m['Vote Average'])).filter(v => !isNaN(v) && v > 0);
+    const counts = countIntoBuckets(votes, VOTE_BUCKETS);
+    return { labels: VOTE_BUCKETS.map(b => b.label), datasets: [{ label: 'Movies', data: counts, backgroundColor: '#818cf8', hoverBackgroundColor: '#6366f1' }] };
   }, [movies]);
 
   const avgVoteByGenreData = useMemo<ChartData<'bar'>>(() => {
@@ -124,22 +128,21 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
   }, [movies]);
 
   const handleVoteBucketClick = (index: number) => {
-    const label = voteDistData.labels?.[index] as string | undefined;
-    if (!label) return;
-    const [lo, hi] = label.split('–').map(Number);
-    navigate('/movies', { state: { presetFilters: { voteRange: [lo, hi] } } });
+    const bucket = VOTE_BUCKETS[index];
+    if (!bucket) return;
+    drillDown({ voteRange: bucketToRange(bucket, VOTE_STEP, VOTE_MAX) });
   };
 
   const handleGenreClick = (index: number) => {
     const genre = avgVoteByGenreData.labels?.[index] as string | undefined;
     if (!genre) return;
-    navigate('/movies', { state: { presetFilters: { genres: [genre] } } });
+    drillDown({ genres: [genre] });
   };
 
   const handleYearClick = (index: number) => {
     const year = parseInt(avgVoteByYearData.labels?.[index] as string, 10);
     if (isNaN(year)) return;
-    navigate('/movies', { state: { presetFilters: { yearRange: [year, year] } } });
+    drillDown({ yearRange: [year, year] });
   };
 
   return (

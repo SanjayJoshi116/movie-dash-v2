@@ -1,7 +1,7 @@
 import React, { Suspense, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router';
 import { Layout, Result, Button, Spin, ConfigProvider, Grid, theme as antdTheme } from 'antd';
-import { MoviesProvider } from './contexts/MoviesContext';
+import { MoviesProvider, useMoviesContext } from './contexts/MoviesContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
@@ -43,7 +43,11 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { isDark } = useTheme();
+  const { refetch } = useMoviesContext();
   const screens = Grid.useBreakpoint();
+  // useBreakpoint() is {} on the very first render; treat "unknown" as neither layout so the
+  // mobile BottomNav doesn't flash on desktop before the Sidebar takes over.
+  const isMobile = screens.sm === false;
   const [prevMd, setPrevMd] = useState(screens.md);
 
   if (screens.md !== prevMd) {
@@ -92,8 +96,8 @@ const AppContent: React.FC = () => {
         {screens.sm && <Sidebar collapsed={collapsed} onCollapse={setCollapsed} />}
         <Layout style={{ background: 'transparent' }}>
           <TopBar />
-          <Content style={!screens.sm ? { paddingBottom: 64 } : undefined}>
-            <ErrorBoundary key={location.pathname}>
+          <Content style={isMobile ? { paddingBottom: 64 } : undefined}>
+            <ErrorBoundary key={location.pathname} onReset={refetch}>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
@@ -105,7 +109,7 @@ const AppContent: React.FC = () => {
             </ErrorBoundary>
           </Content>
         </Layout>
-        {!screens.sm && <BottomNav />}
+        {isMobile && <BottomNav />}
       </Layout>
     </ConfigProvider>
   );

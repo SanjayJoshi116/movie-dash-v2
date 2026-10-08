@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type Locator } from '@playwright/test';
 
 async function waitForTable(page: Page) {
   await page.waitForSelector('.ant-table-row', { timeout: 30000 });
@@ -52,7 +52,11 @@ test.describe('Dashboard', () => {
 
   test('Total Box Office stat card navigates to Stats Box Office tab', async ({ page }) => {
     await page.getByText('Total Box Office').click();
-    await expect(page).toHaveURL('/stats');
+    // The hand-off tab is written to ?tab= on arrival, so the URL is shareable/reloadable at once.
+    await expect(page).toHaveURL('/stats?tab=boxoffice');
+    await waitForStats(page);
+    await expect(page.getByRole('tab', { name: /Box Office/, selected: true })).toBeVisible();
+    await page.reload();
     await waitForStats(page);
     await expect(page.getByRole('tab', { name: /Box Office/, selected: true })).toBeVisible();
   });
@@ -69,7 +73,7 @@ test.describe('Movies', () => {
   test('layout renders — header, sidebar, table', async ({ page }) => {
     await expect(page.locator('.ant-layout-sider')).toBeVisible();
     await expect(page.locator('.ant-layout-header')).toBeVisible();
-    await expect(page.getByRole('heading', { name: '🎬 Movies' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Movies', exact: true })).toBeVisible();
     await expect(page.locator('.ant-table')).toBeVisible();
   });
 
@@ -343,7 +347,7 @@ test.describe('Navigation', () => {
     await page.waitForSelector('.ant-layout-sider');
     await page.getByRole('link', { name: 'Movies' }).click();
     await expect(page).toHaveURL('/movies');
-    await expect(page.getByRole('heading', { name: '🎬 Movies' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Movies', exact: true })).toBeVisible();
   });
 
   test('sidebar navigates back to Dashboard', async ({ page }) => {
@@ -374,11 +378,11 @@ test.describe('Navigation', () => {
 
   test('page title updates on navigation', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '🏠 Dashboard' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
     await page.getByRole('link', { name: 'Movies' }).click();
-    await expect(page.getByRole('heading', { name: '🎬 Movies' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Movies', exact: true })).toBeVisible();
     await page.getByRole('link', { name: 'Stats' }).click();
-    await expect(page.getByRole('heading', { name: '📊 Statistics Dashboard' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Statistics Dashboard', exact: true })).toBeVisible();
   });
 });
 
@@ -467,7 +471,7 @@ test.describe('Stats Page', () => {
 // ── Theme ──────────────────────────────────────────────────────────────────
 
 test.describe('Theme', () => {
-  test('default theme is dark', async ({ page }) => {
+  test('default theme follows the OS preference (dark)', async ({ page }) => {
     await page.goto('/');
     const theme = await page.evaluate(() =>
       document.documentElement.getAttribute('data-theme')
@@ -574,5 +578,129 @@ test.describe('Edge Cases', () => {
     const drawer = page.getByRole('dialog');
     const tagCount = await drawer.locator('.ant-tag').count();
     expect(tagCount).toBeGreaterThan(0);
+  });
+});
+
+// ── Drill-down consistency ─────────────────────────────────────────────────
+// Bars live on a <canvas>, so there's no DOM element to click. The chart wrappers set
+// cursor: pointer only over a clickable element, so we aim at the expected bar slot and
+// confirm with the cursor before clicking. Expected counts come from the API, so these
+// tests hold for any dataset (the CI template or a real CSV).
+
+type ApiMovie = Record<string, string>;
+
+async function fetchMovies(page: Page): Promise<ApiMovie[]> {
+  const res = await page.request.get('/api/movies');
+  expect(res.ok()).toBeTruthy();
+  return res.json();
+}
+
+// Same half-open bucketing as the charts: [i*width, (i+1)*width), last bucket open-ended, 0 = unrated.
+function voteBucketCounts(movies: ApiMovie[], bucketCount: number, width: number): number[] {
+  const counts = Array(bucketCount).fill(0);
+  movies.forEach((m) => {
+    const v = parseFloat(m['Vote Average']);
+    if (isNaN(v) || v <= 0) return;
+    counts[Math.min(Math.floor(v / width), bucketCount - 1)] += 1;
+  });
+  return counts;
+}
+
+async function nextFrames(page: Page) {
+  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+}
+
+/** Clicks the index-th of `slots` vertical bars on a Chart.js bar chart (aiming within its slot). */
+async function clickVerticalBar(page: Page, canvas: Locator, index: number, slots: number) {
+  await canvas.scrollIntoViewIfNeeded();
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('chart canvas not visible');
+  // Plot area ≈ canvas minus y-axis labels (left) and a little right padding.
+  const plotLeft = box.x + 36;
+  const slot = (box.x + box.width - 8 - plotLeft) / slots;
+  const cx = plotLeft + slot * (index + 0.5);
+  for (const fy of [0.6, 0.7, 0.5, 0.75, 0.4, 0.3]) {
+    for (const dx of [0, -0.15, 0.15, -0.3, 0.3]) {
+      const x = cx + dx * slot;
+      const y = box.y + box.height * fy;
+      await page.mouse.move(x, y);
+      await nextFrames(page);
+      if ((await canvas.evaluate((el) => (el as HTMLElement).style.cursor)) === 'pointer') {
+        await page.mouse.click(x, y);
+        return;
+      }
+    }
+  }
+  throw new Error(`no clickable bar found at slot ${index}/${slots}`);
+}
+
+async function movieTotal(page: Page): Promise<number> {
+  const text = await page.locator('.ant-pagination-total-text').innerText();
+  const m = text.match(/of (\d+) movies/);
+  if (!m) throw new Error(`unexpected total text: ${text}`);
+  return Number(m[1]);
+}
+
+test.describe('Drill-down consistency', () => {
+  test('Dashboard rating bar opens exactly the movies it counted', async ({ page }) => {
+    const movies = await fetchMovies(page);
+    const counts = voteBucketCounts(movies, 5, 2);
+    const index = counts.indexOf(Math.max(...counts)); // tallest bar = easiest to hit
+    await page.goto('/');
+    const canvas = page.getByText('Rating Distribution', { exact: true }).locator('xpath=..').locator('canvas');
+    await expect(canvas).toBeVisible();
+    await clickVerticalBar(page, canvas, index, 5);
+    await expect(page).toHaveURL('/movies');
+    await waitForTable(page);
+    expect(await movieTotal(page)).toBe(counts[index]);
+    const voteChip = page.locator('.ant-tag').filter({ hasText: 'Vote:' });
+    await expect(voteChip).toBeVisible();
+    // Opening the filters drawer must not rewrite the off-step range (e.g. 3.999 → 4.0).
+    const chipText = await voteChip.innerText();
+    await page.getByRole('button', { name: 'Filters' }).click();
+    await expect(page.locator('.ant-drawer-open')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.ant-drawer-open')).toHaveCount(0);
+    await expect(voteChip).toHaveText(chipText);
+    expect(await movieTotal(page)).toBe(counts[index]);
+  });
+
+  test('Stats drill-down carries the Release Year Range scope', async ({ page }) => {
+    const movies = await fetchMovies(page);
+    const years = movies.map((m) => parseInt(m['Release Year'], 10)).filter((y) => !isNaN(y));
+    const [yearMin, yearMax] = [Math.min(...years), Math.max(...years)];
+    test.skip(yearMin === yearMax, 'dataset spans a single year — the range slider is disabled');
+
+    await page.goto('/stats?tab=ratings');
+    await waitForStats(page);
+    // Narrow the global year range by one year from the bottom.
+    const lowerHandle = page.getByRole('slider').first();
+    await lowerHandle.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(`${yearMin + 1} – ${yearMax}`)).toBeVisible();
+
+    const scoped = movies.filter((m) => {
+      const y = parseInt(m['Release Year'], 10);
+      return !isNaN(y) && y >= yearMin + 1 && y <= yearMax;
+    });
+    const counts = voteBucketCounts(scoped, 10, 1);
+    const index = counts.indexOf(Math.max(...counts));
+    const canvas = page.locator('.ant-tabs-tabpane-active')
+      .getByRole('heading', { name: 'Vote Average Distribution' })
+      .locator('xpath=../..').locator('canvas');
+    await clickVerticalBar(page, canvas, index, 10);
+
+    await expect(page).toHaveURL('/movies');
+    await waitForTable(page);
+    await expect(page.locator('.ant-tag').filter({ hasText: `Year: ${yearMin + 1}–${yearMax}` })).toBeVisible();
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Vote:' })).toBeVisible();
+    expect(await movieTotal(page)).toBe(counts[index]);
+  });
+
+  test('unknown ?tab= falls back to Overview and fixes the URL', async ({ page }) => {
+    await page.goto('/stats?tab=bogus');
+    await waitForStats(page);
+    await expect(page.getByRole('tab', { name: /Overview/, selected: true })).toBeVisible();
+    await expect(page).toHaveURL('/stats?tab=overview');
   });
 });

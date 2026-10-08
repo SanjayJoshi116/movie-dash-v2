@@ -18,6 +18,13 @@ export interface Movie {
   'Release Date': string;
 }
 
+/** Every Movie field, in the CSV's column order — the fixed column set for CSV export. */
+export const CATALOGUE_COLUMNS: readonly (keyof Movie)[] = [
+  'Movie ID', 'Name', 'Language', 'Runtime', 'Release Year', 'Genres', 'Director',
+  'Actors/Actresses', 'Production Company', 'Production Country', 'Box Office Revenue',
+  'Budget', 'Popularity Score', 'Vote Average', 'Vote Count', 'Poster URL', 'Release Date',
+];
+
 export interface FilterState {
   search: string;
   languages: string[];
