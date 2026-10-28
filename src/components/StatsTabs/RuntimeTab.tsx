@@ -8,6 +8,7 @@ import ChartBlock from './ChartBlock';
 import { groupByField, topNWithOther, makePolar, isDrillableLabel, bucketIndexOf, bucketToRange, type Bucket } from '../../utils/statsHelpers';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { CHART_PALETTE } from '../../utils/chartTheme';
 import type { Movie } from '../../types/movie';
 
 interface RuntimeTabProps { movies: Movie[] }
@@ -34,7 +35,7 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
       .slice(0, 50);
     return {
       labels: top50.map(m => m.Name),
-      datasets: [{ label: 'Runtime (mins)', data: top50.map(m => parseFloat(m.Runtime)), backgroundColor: '#fb923c', hoverBackgroundColor: '#f97316' }],
+      datasets: [{ label: 'Runtime (mins)', data: top50.map(m => parseFloat(m.Runtime)), backgroundColor: CHART_PALETTE[2] }],
     };
   }, [movies]);
 
@@ -52,7 +53,7 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
     const avgs = RUNTIME_BUCKETS.map(b => sums[b.label].count ? parseFloat((sums[b.label].sum / sums[b.label].count).toFixed(2)) : 0);
     return {
       labels: RUNTIME_BUCKETS.map(b => b.label),
-      datasets: [{ label: 'Avg Vote', data: avgs, backgroundColor: '#fbbf24', hoverBackgroundColor: '#f59e0b' }],
+      datasets: [{ label: 'Avg Vote', data: avgs, backgroundColor: CHART_PALETTE[3] }],
     };
   }, [movies]);
 
@@ -73,8 +74,7 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
       datasets: [{
         label: 'Avg Runtime (mins)',
         data: sorted.map(([, { sum, count }]) => Math.round(sum / count)),
-        backgroundColor: '#a78bfa',
-        hoverBackgroundColor: '#8b5cf6',
+        backgroundColor: CHART_PALETTE[4],
       }],
     };
   }, [movies]);

@@ -4,7 +4,7 @@ import type { ChartData } from 'chart.js';
 import BarChart from '../Charts/BarChart';
 import LineChart from '../Charts/LineChart';
 import ChartBlock from './ChartBlock';
-import { getCardStyle, CHART_PALETTE } from '../../utils/chartTheme';
+import { getCardStyle, CHART_PALETTE, CHART_PRIMARY, withAlpha } from '../../utils/chartTheme';
 import { groupByField, topNWithOther, isDrillableLabel } from '../../utils/statsHelpers';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { getLanguageName } from '../../utils/languages';
@@ -126,8 +126,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
       datasets: [{
         label: 'Movies Released',
         data: sorted.map(([, c]) => c),
-        borderColor: '#818cf8',
-        backgroundColor: 'rgba(129,140,248,0.15)',
+        borderColor: CHART_PRIMARY,
+        backgroundColor: withAlpha(CHART_PRIMARY, 0.15),
         fill: true,
       }],
     };

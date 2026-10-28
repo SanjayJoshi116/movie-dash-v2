@@ -1,3 +1,5 @@
+> **Provenance note (2026-10-28):** items 2.5, 4.1 and 4.2 were originally recorded as `[ ] Not performed` (no browser tooling in the implementing session). They were performed afterwards via a throwaway Playwright spec (`tests/*.tmp.spec.ts`, gitignored, deleted after use — not reproducible from the repo) and ticked when the change was archived; all other items are unchanged from the pre-archive file. The mobile Genre legend clipping noted under 4.1 and the "muted palette in charts" claim (Dashboard trend/rating charts still used bright hex colors at the time) were addressed later — see `docs/review-findings-2026-10-15.md` (R1, R5).
+
 ## 1. Foundation tokens
 
 - [x] 1.1 Update `src/index.css` `:root` (dark) token values: `--glass-border` → `rgba(255,255,255,0.08)`, `--glass-shadow` → `0 4px 20px rgba(0,0,0,0.28)`.
@@ -13,7 +15,7 @@
 - [x] 2.2 Update `src/components/Sidebar.tsx` to use `SPACING`/`FONT_SIZE` constants in place of repeated raw padding/gap/font-size numbers. (Only `padding` and `marginTop` matched the scale exactly; `gap: 10` and the 17/22px font sizes don't correspond to a scale step and were left as-is to avoid an undocumented visual nudge.)
 - [x] 2.3 Update `src/components/TopBar.tsx` to use `SPACING`/`FONT_SIZE` constants in place of repeated raw numbers.
 - [x] 2.4 `src/components/BottomNav.tsx` reviewed — none of its raw numbers (gap:2, padding "10px 0", fontSize 20/11) exactly match a `SPACING`/`FONT_SIZE` step, so no changes made (same reasoning as 2.2).
-- [ ] 2.5 Manual check: toggle light/dark theme with Sidebar/TopBar visible, confirm calmer border/shadow and no layout shift. **Not performed — no browser tooling available in this session; needs manual verification.**
+- [x] 2.5 Manual check: toggle light/dark theme with Sidebar/TopBar visible, confirm calmer border/shadow and no layout shift. **Done via Playwright (tmp spec, port 3100):** toggled theme at 1440px + 390px; `--glass-border`/`--glass-shadow` resolve to the tuned values in both themes, `getCardStyle` chart card and `StatCard` share identical side border + shadow, section/card bounding boxes identical before/after toggle (no layout shift).
 
 ## 3. Dashboard page
 
@@ -24,8 +26,8 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Manual QA: both themes × desktop and mobile (`BottomNav`) breakpoints, on Dashboard and shell. **Not performed — no browser tooling available in this agent session; needs manual verification by a human.**
-- [ ] 4.2 Manual QA: click through all Dashboard drill-down paths (genre chart, rating-bucket chart, year-trend chart, highlight cards, recent-releases list, total box office stat) and confirm each still navigates/opens as before. **Not performed — same reason as 4.1.**
+- [x] 4.1 Manual QA: both themes × desktop and mobile (`BottomNav`) breakpoints, on Dashboard and shell. **Done via Playwright screenshots:** dark/light × desktop (Sidebar) / mobile (BottomNav, Sidebar absent); sections in order, hero card emphasized, muted palette in charts. Note (pre-existing, out of scope): on mobile the Genre doughnut legend second row is clipped by the card height.
+- [x] 4.2 Manual QA: click through all Dashboard drill-down paths (genre chart, rating-bucket chart, year-trend chart, highlight cards, recent-releases list, total box office stat) and confirm each still navigates/opens as before. **Done via Playwright:** genre slice → `Genre:` chip, rating bar → `Vote:` chip, year point → `Year: Y–Y` chip, all 3 highlight cards + recent-release item → drawer with that movie, Total Box Office → `/stats?tab=boxoffice`. All 8 pass.
 - [x] 4.3 Run `npm run lint` — clean, no errors/warnings.
 - [x] 4.4 Run `npm run build` — passes (`tsc --noEmit && vite build`), run 3 times across the session.
 - [x] 4.5 Run `npm run test:e2e` — 45 passed, 9 failed, 2 skipped. **All 9 failures are pre-existing and unrelated to this change**: `Movies.tsx:172`'s search placeholder (`"...director, actor, year, language, country…"`, added in commit `a4a1a40` before this change) no longer matches the shorter placeholder `tests/app.spec.ts` still expects (`"...director, actor…"`), so every `getByPlaceholder(...)` call times out. `git status` confirms this change never touched `Movies.tsx` or `tests/app.spec.ts`. All Dashboard/shell-related tests passed — no regression from this restyle. Fixing the placeholder/test mismatch is out of scope here (design.md excludes `Movies.tsx`) and should be filed as a separate fix.

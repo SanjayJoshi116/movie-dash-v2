@@ -7,6 +7,7 @@ import ChartBlock from './ChartBlock';
 import { groupByField, topNWithOther, makeDoughnut, isDrillableLabel } from '../../utils/statsHelpers';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { CHART_PALETTE, CHART_PRIMARY } from '../../utils/chartTheme';
 import type { Movie } from '../../types/movie';
 
 interface PeopleTabProps { movies: Movie[] }
@@ -28,7 +29,7 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
     const top = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 15);
     return {
       labels: top.map(([name]) => name),
-      datasets: [{ label: 'Appearances', data: top.map(([, c]) => c), backgroundColor: '#818cf8', hoverBackgroundColor: '#6366f1' }],
+      datasets: [{ label: 'Appearances', data: top.map(([, c]) => c), backgroundColor: CHART_PRIMARY }],
     };
   }, [movies]);
 
@@ -37,7 +38,7 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
     const top = Object.entries(g).sort(([, a], [, b]) => b - a).slice(0, 15);
     return {
       labels: top.map(([d]) => d),
-      datasets: [{ label: 'Movies', data: top.map(([, c]) => c), backgroundColor: '#34d399', hoverBackgroundColor: '#10b981' }],
+      datasets: [{ label: 'Movies', data: top.map(([, c]) => c), backgroundColor: CHART_PALETTE[1] }],
     };
   }, [movies]);
 
@@ -62,7 +63,7 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
       .slice(0, 15);
     return {
       labels: top.map(([d]) => d),
-      datasets: [{ label: 'Avg Vote', data: top.map(([, v]) => parseFloat(v.toFixed(2))), backgroundColor: '#f472b6', hoverBackgroundColor: '#ec4899' }],
+      datasets: [{ label: 'Avg Vote', data: top.map(([, v]) => parseFloat(v.toFixed(2))), backgroundColor: CHART_PALETTE[6] }],
     };
   }, [movies]);
 
@@ -86,7 +87,7 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
       .slice(0, 15);
     return {
       labels: top.map(([a]) => a),
-      datasets: [{ label: 'Avg Vote', data: top.map(([, v]) => parseFloat(v.toFixed(2))), backgroundColor: '#38bdf8', hoverBackgroundColor: '#0ea5e9' }],
+      datasets: [{ label: 'Avg Vote', data: top.map(([, v]) => parseFloat(v.toFixed(2))), backgroundColor: CHART_PALETTE[5] }],
     };
   }, [movies]);
 

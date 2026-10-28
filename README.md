@@ -69,7 +69,7 @@ A global Release Year Range slider at the top of the page scopes every tab to a 
 ### Theme
 - Light / dark toggle (sun/moon button in the top bar)
 - Preference persisted to `localStorage`
-- Refined glassmorphism design system — shared surface, spacing, and typography tokens (CSS custom properties + `src/utils/chartTheme.ts`) applied consistently across the sidebar/top bar and every page, with a calmer border/shadow and a muted 8-color chart palette
+- Refined glassmorphism design system — shared surface, spacing, and typography tokens (CSS custom properties + `src/utils/chartTheme.ts`) applied consistently across the sidebar/top bar and every page, with a calmer border/shadow and a muted 8-color chart palette used by every chart (single-series charts use one palette color, profit/loss a positive/negative pair); doughnut legends switch to a compact layout on phones so no legend row is dropped
 
 ### Accessibility
 - Keyboard-operable movie lists: each table row's movie name is a real button (rows keep their table semantics for screen readers), grid cards and the Dashboard's Recent Releases are focusable with `aria-label`s — `Tab` to focus, `Enter`/`Space` to open
@@ -294,7 +294,7 @@ movie-dash-v2/
 │   │   ├── Movies.tsx          # filterable table/grid catalogue
 │   │   └── Stats.tsx
 │   ├── utils/
-│   │   ├── chartTheme.ts       # Shared palette, getCardStyle(isDark), SPACING/FONT_SIZE tokens
+│   │   ├── chartTheme.ts       # CHART_PALETTE + CHART_PRIMARY/POSITIVE/NEGATIVE, withAlpha(), getCardStyle(), SPACING/FONT_SIZE tokens
 │   │   ├── statsHelpers.ts     # groupByField, topNWithOther, chart bucket helpers, parseRevenue, formatRevenue
 │   │   ├── filterChips.ts      # buildFilterChips, isFiltersActive — shared by the Filters button and chips row
 │   │   ├── formatDate.ts       # formatDateDDMMYYYY — release dates rendered as DD-MM-YYYY

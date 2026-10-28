@@ -3,6 +3,19 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.1] - 2026-10-28
+
+### Fixed
+- **Every chart now uses the shared muted palette.** The Dashboard trend/rating charts and every Stats tab still drew in the old bright hex colours (`#818cf8`, `#34d399`, …) next to the muted category charts. Single-series charts now use one palette colour each, profit/loss bars a semantic positive/negative pair, and line fills and the year × genre heatmap a translucent palette colour. `chartTheme.ts` gains `CHART_PRIMARY`, `CHART_POSITIVE`/`CHART_NEGATIVE` and `withAlpha()`; explicit hover colours are gone (Chart.js derives them).
+- Explore's top-20 genre bar no longer repeats colours (bars 1/9/17 used to match). It is one colour now, and counts genres through the shared `groupByField`.
+- The Dashboard genre breakdown shows the top 7 genres + "Other" via `topNWithOther`, matching the Stats tabs (it was a hand-rolled top 6).
+- Mobile: doughnut legends no longer drop rows. Chart.js caps a bottom legend at half the chart height, so on phones every doughnut uses a compact legend, and the Dashboard genre card is taller (280px).
+- Stat cards build their surface from the shared `getCardStyle()` instead of a hand-copied variant. The hero card keeps only its tinted background; its border is now the shared one.
+
+### Changed
+- Specs: the `design-system` spec scopes the palette rule to chart colours (stat-card accent colours are out of scope) and adds single-series and profit/loss scenarios. The shell scenario no longer asks for a corner radius on the full-width sidebar/top bar/bottom nav. The `dashboard-layout` spec gains scenarios for every Dashboard drill-down (rating bucket, year trend, recent release, Total Box Office, non-clickable "Other").
+- `refine-app-ui` OpenSpec change archived (`openspec/changes/archive/2026-10-08-refine-app-ui/`) with a provenance note on its late-ticked QA tasks. Its specs are now the main `design-system` and `dashboard-layout` specs, and `docs/review-findings-2026-10-15.md` records the review (R1–R7, all resolved).
+
 ## [0.9.0] - 2026-10-08
 
 ### Fixed

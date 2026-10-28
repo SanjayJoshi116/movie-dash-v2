@@ -11,6 +11,7 @@ import { groupByField, countIntoBuckets, bucketToRange, VOTE_STEP, VOTE_MAX, typ
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { getLanguageName } from '../../utils/languages';
 import { useTheme } from '../../contexts/ThemeContext';
+import { CHART_PALETTE, CHART_PRIMARY, withAlpha } from '../../utils/chartTheme';
 import type { Movie } from '../../types/movie';
 
 interface RatingsTabProps { movies: Movie[] }
@@ -30,7 +31,7 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
     // 0 = unrated: skipped here, and excluded by the Movies vote filter, so counts match drill-downs.
     const votes = movies.map(m => parseFloat(m['Vote Average'])).filter(v => !isNaN(v) && v > 0);
     const counts = countIntoBuckets(votes, VOTE_BUCKETS);
-    return { labels: VOTE_BUCKETS.map(b => b.label), datasets: [{ label: 'Movies', data: counts, backgroundColor: '#818cf8', hoverBackgroundColor: '#6366f1' }] };
+    return { labels: VOTE_BUCKETS.map(b => b.label), datasets: [{ label: 'Movies', data: counts, backgroundColor: CHART_PRIMARY }] };
   }, [movies]);
 
   const avgVoteByGenreData = useMemo<ChartData<'bar'>>(() => {
@@ -53,7 +54,7 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
       .slice(0, 15);
     return {
       labels: top.map(([g]) => g),
-      datasets: [{ label: 'Avg Vote', data: top.map(([, v]) => parseFloat(v.toFixed(2))), backgroundColor: '#f472b6', hoverBackgroundColor: '#ec4899' }],
+      datasets: [{ label: 'Avg Vote', data: top.map(([, v]) => parseFloat(v.toFixed(2))), backgroundColor: CHART_PALETTE[6] }],
     };
   }, [movies]);
 
@@ -75,9 +76,9 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
       datasets: [{
         label: 'Avg Vote Average',
         data: avgs,
-        backgroundColor: 'rgba(129,140,248,0.2)',
-        borderColor: '#818cf8',
-        pointBackgroundColor: '#818cf8',
+        backgroundColor: withAlpha(CHART_PRIMARY, 0.2),
+        borderColor: CHART_PRIMARY,
+        pointBackgroundColor: CHART_PRIMARY,
         pointBorderColor: isDark ? '#fff' : '#1e1e3f',
       }],
     };
@@ -100,8 +101,8 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
       datasets: [{
         label: 'Avg Vote',
         data: sorted.map(([, { sum, count }]) => parseFloat((sum / count).toFixed(2))),
-        borderColor: '#34d399',
-        backgroundColor: 'rgba(52,211,153,0.15)',
+        borderColor: CHART_PALETTE[1],
+        backgroundColor: withAlpha(CHART_PALETTE[1], 0.15),
         fill: true,
       }],
     };
@@ -120,8 +121,8 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
       datasets: [{
         label: 'Movies',
         data: points.map(p => ({ x: p.x, y: p.y })),
-        backgroundColor: 'rgba(129,140,248,0.5)',
-        hoverBackgroundColor: '#818cf8',
+        backgroundColor: withAlpha(CHART_PRIMARY, 0.5),
+        hoverBackgroundColor: CHART_PRIMARY,
       }],
     };
     return { voteScatterData: data, voteScatterLabels: points.map(p => p.name) };

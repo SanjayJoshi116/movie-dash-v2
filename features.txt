@@ -4,7 +4,7 @@ DASHBOARD (/)
 - Landing summary: stat cards (total movies — hero-styled with icon, average rating, average runtime, total box office), each with an icon
 - Highlight cards: top rated, most popular, newest release — with poster thumbnail; click or Enter/Space opens that movie's detail drawer
 - Total Box Office stat card clickable, jumps to Stats page's Box Office tab
-- Trends & Breakdown: 10-year release trend (continuous span, empty years shown as 0), top-6 genre breakdown, rating distribution (each clickable — jumps to Movies pre-filtered by that year/genre/vote range), recent releases list with poster thumbnails (click or Enter/Space to open detail drawer)
+- Trends & Breakdown: 10-year release trend (continuous span, empty years shown as 0), top-7 genre breakdown (+ "Other"), rating distribution (each clickable — jumps to Movies pre-filtered by that year/genre/vote range), recent releases list with poster thumbnails (click or Enter/Space to open detail drawer)
 - Skeleton placeholder layout while data loads (instead of a bare spinner)
 - Empty state (0 movies): Empty component + "Go to Movies" CTA instead of zeroed-out stats/charts
 - CTA cards linking to Movies and Stats
@@ -44,7 +44,7 @@ STATISTICS (6 tabs)
 
 THEME
 - Light / dark toggle, preference persisted to localStorage (first visit follows the OS preference; works even when storage is blocked)
-- Refined glassmorphism design system — shared surface/spacing/typography tokens (CSS custom properties + chartTheme.ts) applied consistently to sidebar, top bar, bottom nav, and every page; calmer border/shadow, muted 8-color chart palette
+- Refined glassmorphism design system — shared surface/spacing/typography tokens (CSS custom properties + chartTheme.ts) applied consistently to sidebar, top bar, bottom nav, and every page; calmer border/shadow, muted 8-color chart palette shared by every chart (one color per single-series chart, positive/negative pair for profit/loss); compact doughnut legends on phones
 
 BACKEND / DATA
 - Express API under /api (gzip-compressed; /api/movies revalidated via no-cache + ETag, so adds/deletes show up immediately) serving movie data from a local CSV

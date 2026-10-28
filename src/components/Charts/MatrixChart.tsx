@@ -3,6 +3,7 @@ import { Chart } from 'react-chartjs-2';
 import { Chart as ChartJS } from 'chart.js';
 import type { TooltipItem, ChartData, ChartOptions } from 'chart.js';
 import { MatrixController, MatrixElement } from 'chartjs-chart-matrix';
+import { CHART_PRIMARY, withAlpha } from '../../utils/chartTheme';
 
 ChartJS.register(MatrixController, MatrixElement);
 
@@ -28,7 +29,7 @@ interface MatrixChartProps {
 const MatrixChart: React.FC<MatrixChartProps> = ({ data, xLabels, yLabels, height = 400, isDark = true }) => {
   const chartData = useMemo(() => {
     const maxVal = Math.max(...data.map(d => d.v), 1);
-    const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(129,140,248,0.25)';
+    const borderColor = isDark ? 'rgba(255,255,255,0.08)' : withAlpha(CHART_PRIMARY, 0.25);
 
     return {
       datasets: [
@@ -38,7 +39,7 @@ const MatrixChart: React.FC<MatrixChartProps> = ({ data, xLabels, yLabels, heigh
           backgroundColor: (ctx: ScriptableCtx) => {
             const v = ctx.raw?.v ?? 0;
             const alpha = 0.1 + (v / maxVal) * 0.85;
-            return `rgba(129, 140, 248, ${alpha})`;
+            return withAlpha(CHART_PRIMARY, alpha);
           },
           borderColor,
           borderWidth: 1,

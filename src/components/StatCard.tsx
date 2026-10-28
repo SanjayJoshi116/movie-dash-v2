@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, Statistic } from 'antd';
 import { motion } from 'framer-motion';
-import { SPACING, FONT_SIZE } from '../utils/chartTheme';
+import { getCardStyle, SPACING, FONT_SIZE, CHART_PRIMARY } from '../utils/chartTheme';
 
 const MotionCard = motion(Card);
 
@@ -15,7 +15,7 @@ interface StatCardProps {
   onClick?: () => void;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, color = '#818cf8', suffix, icon, hero, onClick }) => {
+const StatCard: React.FC<StatCardProps> = ({ label, value, color = CHART_PRIMARY, suffix, icon, hero, onClick }) => {
   return (
     <MotionCard
       whileHover={{ scale: 1.03, y: -2 }}
@@ -29,13 +29,10 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, color = '#818cf8', su
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
       } : undefined}
       style={{
-        background: hero ? `linear-gradient(135deg, ${color}14, var(--glass-bg))` : 'var(--glass-bg)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: hero ? `1px solid ${color}33` : '1px solid var(--glass-border)',
+        ...getCardStyle(),
+        // Hero only tints the background; border/radius/shadow stay the shared surface.
+        ...(hero && { background: `linear-gradient(135deg, ${color}14, var(--glass-bg))` }),
         borderTop: `3px solid ${color}`,
-        borderRadius: 12,
-        boxShadow: 'var(--glass-shadow)',
         height: '100%',
         cursor: onClick ? 'pointer' : undefined,
       }}

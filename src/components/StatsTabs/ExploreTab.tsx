@@ -6,7 +6,8 @@ import MatrixChart from '../Charts/MatrixChart';
 import type { MatrixDataPoint } from '../Charts/MatrixChart';
 import TopNExplorer from '../TopNExplorer';
 import ChartBlock from './ChartBlock';
-import { CHART_PALETTE } from '../../utils/chartTheme';
+import { CHART_PRIMARY } from '../../utils/chartTheme';
+import { groupByField } from '../../utils/statsHelpers';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import type { Movie } from '../../types/movie';
@@ -20,17 +21,10 @@ const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
   const drillDown = useDrillDown();
 
   const genreBarData = useMemo<ChartData<'bar'>>(() => {
-    const counts: Record<string, number> = {};
-    movies.forEach(m => {
-      m.Genres.split(',').forEach(g => {
-        const genre = g.trim();
-        if (genre) counts[genre] = (counts[genre] ?? 0) + 1;
-      });
-    });
-    const top = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 20);
+    const top = Object.entries(groupByField(movies, 'Genres')).sort(([, a], [, b]) => b - a).slice(0, 20);
     return {
       labels: top.map(([label]) => label),
-      datasets: [{ label: 'Movies', data: top.map(([, v]) => v), backgroundColor: CHART_PALETTE, hoverBackgroundColor: CHART_PALETTE }],
+      datasets: [{ label: 'Movies', data: top.map(([, v]) => v), backgroundColor: CHART_PRIMARY }],
     };
   }, [movies]);
 

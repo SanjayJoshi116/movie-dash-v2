@@ -6,6 +6,7 @@ import ChartBlock from './ChartBlock';
 import { parseRevenue, formatRevenue } from '../../utils/statsHelpers';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { CHART_PALETTE, CHART_PRIMARY, CHART_POSITIVE, CHART_NEGATIVE } from '../../utils/chartTheme';
 import type { Movie } from '../../types/movie';
 
 interface BoxOfficeTabProps { movies: Movie[] }
@@ -24,8 +25,7 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
       datasets: [{
         label: 'Box Office Revenue',
         data: top.map(m => parseRevenue(m['Box Office Revenue'])),
-        backgroundColor: '#34d399',
-        hoverBackgroundColor: '#10b981',
+        backgroundColor: CHART_PALETTE[1],
       }],
     };
   }, [movies]);
@@ -40,8 +40,7 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
       datasets: [{
         label: 'Budget',
         data: top.map(m => parseRevenue(m['Budget'])),
-        backgroundColor: '#818cf8',
-        hoverBackgroundColor: '#6366f1',
+        backgroundColor: CHART_PRIMARY,
       }],
     };
   }, [movies]);
@@ -68,8 +67,7 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
       datasets: [{
         label: 'Avg Box Office Revenue',
         data: top.map(([, v]) => v),
-        backgroundColor: '#fb923c',
-        hoverBackgroundColor: '#f97316',
+        backgroundColor: CHART_PALETTE[2],
       }],
     };
   }, [movies]);
@@ -86,8 +84,7 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
       datasets: [{
         label: 'Profit (Revenue − Budget)',
         data: top.map(m => m.profit),
-        backgroundColor: top.map(m => (m.profit >= 0 ? '#34d399' : '#f87171')),
-        hoverBackgroundColor: top.map(m => (m.profit >= 0 ? '#10b981' : '#ef4444')),
+        backgroundColor: top.map(m => (m.profit >= 0 ? CHART_POSITIVE : CHART_NEGATIVE)),
       }],
     };
   }, [movies]);
@@ -107,8 +104,7 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
       datasets: [{
         label: 'ROI (Revenue / Budget)',
         data: top.map(m => parseFloat(m.roi.toFixed(2))),
-        backgroundColor: '#22d3ee',
-        hoverBackgroundColor: '#06b6d4',
+        backgroundColor: CHART_PALETTE[5],
       }],
     };
   }, [movies]);

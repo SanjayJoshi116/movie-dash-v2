@@ -23,8 +23,8 @@ import LineChart from '../components/Charts/LineChart';
 import BarChart from '../components/Charts/BarChart';
 import DoughnutChart from '../components/Charts/DoughnutChart';
 import PosterThumb from '../components/PosterThumb';
-import { getCardStyle, SPACING, FONT_SIZE } from '../utils/chartTheme';
-import { groupByField, makeDoughnut, parseRevenue, formatRevenue, isDrillableLabel, countIntoBuckets, bucketToRange, VOTE_STEP, VOTE_MAX, type Bucket } from '../utils/statsHelpers';
+import { getCardStyle, SPACING, FONT_SIZE, CHART_PALETTE, CHART_PRIMARY, withAlpha } from '../utils/chartTheme';
+import { groupByField, topNWithOther, makeDoughnut, parseRevenue, formatRevenue, isDrillableLabel, countIntoBuckets, bucketToRange, VOTE_STEP, VOTE_MAX, MAX_NAMED_CATEGORIES, type Bucket } from '../utils/statsHelpers';
 import { useDrillDown } from '../contexts/DrilldownContext';
 import { formatDateDDMMYYYY } from '../utils/formatDate';
 import type { Movie } from '../types/movie';
@@ -118,6 +118,8 @@ const Dashboard: React.FC = () => {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const screens = Grid.useBreakpoint();
   const miniChartHeight = screens.md ? 240 : 180;
+  // The doughnut's bottom legend wraps to several rows on phones; give it room so no row is dropped.
+  const genreChartHeight = screens.md ? miniChartHeight : 280;
 
   const stats = useMemo(() => {
     const votes = movies.map(m => parseFloat(m['Vote Average'])).filter(v => !isNaN(v) && v > 0);
@@ -169,28 +171,22 @@ const Dashboard: React.FC = () => {
       datasets: [{
         label: 'Movies Released',
         data: sorted.map(([, c]) => c),
-        borderColor: '#818cf8',
-        backgroundColor: 'rgba(129,140,248,0.15)',
+        borderColor: CHART_PRIMARY,
+        backgroundColor: withAlpha(CHART_PRIMARY, 0.15),
         fill: true,
       }],
     };
   }, [movies]);
 
   const genreDoughnutData = useMemo<ChartData<'doughnut'>>(() => {
-    const counts = groupByField(movies, 'Genres');
-    const sorted = Object.entries(counts).sort(([, a], [, b]) => b - a);
-    const top = sorted.slice(0, 6);
-    const otherTotal = sorted.slice(6).reduce((sum, [, c]) => sum + c, 0);
-    const data: Record<string, number> = Object.fromEntries(top);
-    if (otherTotal > 0) data.Other = otherTotal;
-    return makeDoughnut(data, 'Genres');
+    return makeDoughnut(topNWithOther(groupByField(movies, 'Genres')), 'Genres');
   }, [movies]);
 
   const ratingBucketData = useMemo<ChartData<'bar'>>(() => {
     // 0 = unrated: skipped here and excluded by the Movies vote filter, so counts match drill-downs.
     const votes = movies.map((m) => parseFloat(m['Vote Average'])).filter((v) => !isNaN(v) && v > 0);
     const counts = countIntoBuckets(votes, RATING_BUCKETS);
-    return { labels: RATING_BUCKETS.map((b) => b.label), datasets: [{ label: 'Movies', data: counts, backgroundColor: '#34d399', hoverBackgroundColor: '#10b981' }] };
+    return { labels: RATING_BUCKETS.map((b) => b.label), datasets: [{ label: 'Movies', data: counts, backgroundColor: CHART_PALETTE[1] }] };
   }, [movies]);
 
   const recentMovies = useMemo(() => {
@@ -311,7 +307,7 @@ const Dashboard: React.FC = () => {
             </MiniChartCard>
           </Col>
           <Col xs={24} lg={12}>
-            <MiniChartCard title="Genre Breakdown (Top 6)" isDark={isDark} height={miniChartHeight}>
+            <MiniChartCard title={`Genre Breakdown (Top ${MAX_NAMED_CATEGORIES})`} isDark={isDark} height={genreChartHeight}>
               <DoughnutChart data={genreDoughnutData} isDark={isDark} onElementClick={handleGenreClick} isClickable={(i) => isDrillableLabel(genreDoughnutData.labels?.[i] as string | undefined)} />
             </MiniChartCard>
           </Col>
