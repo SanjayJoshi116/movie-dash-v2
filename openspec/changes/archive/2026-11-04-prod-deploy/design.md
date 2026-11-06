@@ -38,6 +38,9 @@ ChartBlock's PNG download uses `canvas.toDataURL` plus an anchor `download`, whi
 Verify during implementation with a full click-through in the browser console. If Framer Motion or antd needs anything else, add it explicitly rather than turning CSP off.
 
 ### 3. Bind host
+
+> **Superseded (2026-11-04):** implemented by `harden-server-entry`, not this change. Final shape: Express `HOST` (default `127.0.0.1`), Vite `host: 'localhost'`, proxy target `http://127.0.0.1:5000`, `npm run dev:lan` = `vite --host`. No `DEV_LAN` env. Kept below as history.
+
 - Express: `const HOST = process.env.HOST ?? (process.env.DEV_LAN ? '0.0.0.0' : '127.0.0.1')`, then `app.listen(PORT, HOST)`.
   - Production deployments that need external access set `HOST=0.0.0.0` explicitly. This is safer by default, and the README says so.
 - Vite: `server.host: process.env.DEV_LAN ? true : 'localhost'`.

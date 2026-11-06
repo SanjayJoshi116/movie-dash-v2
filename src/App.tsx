@@ -57,6 +57,9 @@ const AppContent: React.FC = () => {
 
   return (
     <ConfigProvider
+      // antd 6 made Tag `filled` by default and dropped its trailing 8px margin; keep the v5 look
+      // (outlined, inline tags spaced) that the genre/rating/language tags were designed around.
+      tag={{ variant: 'outlined', styles: { root: { marginInlineEnd: 8 } } }}
       theme={{
         algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         token: {

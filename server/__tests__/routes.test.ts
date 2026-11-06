@@ -1,15 +1,9 @@
 // Existing route behaviour: health, list/get, delete validation, TMDB search params, security.
-import { describe, it, after } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer, request, readCsvRows, deferred, stubTmdb, type TestServer } from './helpers';
+import { serverPool, request, readCsvRows, deferred, stubTmdb } from './helpers';
 
-const servers: TestServer[] = [];
-async function start(...args: Parameters<typeof startServer>): Promise<TestServer> {
-  const s = await startServer(...args);
-  servers.push(s);
-  return s;
-}
-after(async () => { await Promise.all(servers.map((s) => s.close())); });
+const start = serverPool();
 
 describe('health', () => {
   it('reports loading before the initial load finishes, ok after', async () => {

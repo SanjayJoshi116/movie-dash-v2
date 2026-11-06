@@ -127,3 +127,20 @@ code {
     background: var(--glass-bg) !important;
   }
 }
+
+/* ── Hover lift (StatCard, MovieCardGrid) ─────────────────────────────────── */
+/* Replaces the former Framer Motion whileHover spring (stiffness 300, damping 20): the overshoot
+   cubic-bezier approximates the spring's settle. Cards set --lift-scale inline to override
+   the default 1.02 (StatCard uses 1.03). .ant-card is in the selector so this outranks antd's
+   own :where()-scoped .ant-card-hoverable transition, whose box-shadow/border-color fades are
+   repeated here so hoverable cards keep them. */
+.ant-card.lift-on-hover {
+  transition:
+    transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.2s,
+    border-color 0.2s;
+}
+
+.ant-card.lift-on-hover:hover {
+  transform: translateY(-2px) scale(var(--lift-scale, 1.02));
+}

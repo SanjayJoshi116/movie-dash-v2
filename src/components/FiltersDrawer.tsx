@@ -73,7 +73,7 @@ const FiltersDrawer: React.FC<FiltersDrawerProps> = ({ movies, filters, onChange
     <Drawer
       title={<span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Filters</span>}
       placement="right"
-      width={screens.sm ? 400 : '100%'}
+      size={screens.sm ? 400 : '100%'}
       open={open}
       onClose={onClose}
       styles={{

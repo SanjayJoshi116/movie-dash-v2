@@ -15,22 +15,11 @@ import LoadingError from '../components/LoadingError';
 import { parseRevenue } from '../utils/statsHelpers';
 import { isFiltersActive } from '../utils/filterChips';
 import { exportMoviesToCsv } from '../utils/exportCsv';
-import { getLanguageName } from '../utils/languages';
+import { matchesSearch } from '../utils/search';
 import { computeFilterSpans, clampFiltersToSpans } from '../utils/filterSpans';
 import type { Movie, FilterState } from '../types/movie';
 
 const { Title, Text } = Typography;
-
-const SEARCHABLE_FIELDS: (keyof Movie)[] = [
-  'Name',
-  'Language',
-  'Director',
-  'Genres',
-  'Actors/Actresses',
-  'Production Company',
-  'Production Country',
-  'Release Year',
-];
 
 const DEFAULT_FILTERS: FilterState = {
   search: '',
@@ -90,13 +79,7 @@ const Movies: React.FC = () => {
   const filteredMovies = useMemo<Movie[]>(() => {
     return movies.filter((movie) => {
       // Text search
-      if (debouncedSearch) {
-        const lower = debouncedSearch.toLowerCase();
-        const matchesText = SEARCHABLE_FIELDS.some((key) =>
-          movie[key]?.toLowerCase().includes(lower)
-        ) || getLanguageName(movie.Language).toLowerCase().includes(lower);
-        if (!matchesText) return false;
-      }
+      if (debouncedSearch && !matchesSearch(movie, debouncedSearch)) return false;
 
       // Language filter
       if (filters.languages.length > 0 && !filters.languages.includes(movie.Language)) {

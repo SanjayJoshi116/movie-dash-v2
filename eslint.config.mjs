@@ -47,6 +47,7 @@ export default tseslint.config(
       'vite.config.ts',
       'playwright.config.ts',
       'tests/**/*.ts',
+      'scripts/**/*.mjs',
     ],
     languageOptions: {
       globals: globals.node,

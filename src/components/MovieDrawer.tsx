@@ -84,7 +84,7 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
         </Title>
       }
       placement="right"
-      width={screens.sm ? 480 : '100%'}
+      size={screens.sm ? 480 : '100%'}
       open={movie !== null}
       onClose={onClose}
       footer={
@@ -125,10 +125,9 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
         {deleteError && (
           <Alert
             type="error"
-            message={deleteError}
+            title={deleteError}
             showIcon
-            closable
-            onClose={() => setDeleteError(null)}
+            closable={{ onClose: () => setDeleteError(null) }}
             style={{ marginBottom: 16 }}
           />
         )}
@@ -160,8 +159,7 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
           column={1}
           bordered
           size="small"
-          labelStyle={labelStyle}
-          contentStyle={contentStyle}
+          styles={{ label: labelStyle, content: contentStyle }}
         >
           <Descriptions.Item label="Movie ID">{movie['Movie ID']}</Descriptions.Item>
           <Descriptions.Item label="Genres">

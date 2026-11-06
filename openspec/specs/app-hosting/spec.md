@@ -1,8 +1,10 @@
+# app-hosting Specification
+
 ## Purpose
 
-Defines how the application is served in development and production. It covers which network interfaces it can be reached on, and how the single-page app behaves at the HTTP level: routing fallback, caching and security headers.
+Defines how the built application is served in production: one process serving the single-page app and the API, its routing fallback, asset caching, security headers, and per-client rate limiting behind a reverse proxy. Which network interfaces the servers listen on is covered by server-exposure.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Production server serves the complete application
 In production mode, a single server process SHALL serve both the built web application and the `/api` endpoints from the same origin.
@@ -32,17 +34,6 @@ The production server SHALL send a Content-Security-Policy that blocks unexpecte
 #### Scenario: Posters load in production
 - **WHEN** the Movies page grid is shown in production
 - **THEN** TMDB poster images render, and the browser console shows no CSP violations
-
-### Requirement: Development servers are local-only by default
-In development, the web dev server and the API server SHALL accept connections only from the local machine, unless LAN access is explicitly enabled through configuration.
-
-#### Scenario: Default dev start
-- **WHEN** the developer runs the dev command without extra configuration
-- **THEN** another device on the same network cannot reach the app or the `/api` routes
-
-#### Scenario: LAN opt-in
-- **WHEN** the developer starts dev with LAN access enabled
-- **THEN** a phone on the same network can load the app by the machine's LAN address
 
 ### Requirement: Rate limiting identifies clients behind a proxy
 When the server is configured as running behind a trusted reverse proxy, rate limiting SHALL be applied per original client, not per proxy.

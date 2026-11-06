@@ -1,9 +1,9 @@
-import os
-import requests
 import csv
+import os
 import tkinter as tk
-from tkinter import messagebox
-from tkinter import ttk
+from tkinter import messagebox, ttk
+
+import requests
 from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -250,7 +250,7 @@ def apply_filter_and_display(event=None):
     save_button.config(command=save_selected_to_csv)
 
 def fetch_and_display_movies(movie_name):
-    global current_page, total_pages, fetched_movies
+    global total_pages, fetched_movies  # current_page is only read here
 
     selected_lang = LANG_CODE_MAP.get(lang_var.get(), "All")
 
@@ -338,7 +338,7 @@ def on_search_click():
         fetch_and_display_movies(movie_name)
 
 def on_next_page_click():
-    global current_page, total_pages
+    global current_page  # total_pages is only read here
     if current_page < total_pages:
         current_page += 1
         fetch_and_display_movies(entry.get())

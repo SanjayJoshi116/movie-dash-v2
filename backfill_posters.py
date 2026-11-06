@@ -4,11 +4,12 @@ looks up each row's 'Movie ID' against TMDB, fills in the poster path.
 
 Usage: python backfill_posters.py
 """
-import os
 import csv
+import os
 import time
-import requests
 from collections import Counter
+
+import requests
 from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry

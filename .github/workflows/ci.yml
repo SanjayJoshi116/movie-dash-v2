@@ -24,10 +24,22 @@ jobs:
 
       - run: npm run lint
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Lint Python scripts (ruff)
+        run: |
+          pip install -r requirements-dev.txt
+          ruff check movie-search.py backfill_posters.py
+
       - name: Type-check server
         run: npm run type-check:server
 
       - run: npm run build
+
+      - name: Bundle budget (landing JS <= 400 kB gzip, no chunk > 500 kB)
+        run: npm run check:bundle
 
       - name: Server tests
         run: npm run test:server

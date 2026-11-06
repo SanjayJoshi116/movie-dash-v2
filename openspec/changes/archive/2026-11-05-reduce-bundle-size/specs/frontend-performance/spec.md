@@ -27,7 +27,7 @@ Code needed only by the Movies or Stats pages SHALL NOT be part of the landing p
 
 #### Scenario: Dashboard first load
 - **WHEN** a user opens the Dashboard in a fresh browser session
-- **THEN** the table, drawer, slider and tabs components used only by Movies and Stats are not downloaded until the user navigates to those pages
+- **THEN** the table, drawer, slider and modal components used only by Movies and Stats are not downloaded until the user navigates to those pages (or, for the drawer, until a movie is opened). Components the landing page's own components depend on internally, such as tabs inside cards, may still be downloaded
 
 ### Requirement: Hover feedback is preserved
 Stat cards and movie grid cards SHALL keep a visible lift-on-hover effect.

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
 import { Row, Col, Typography, Button, Tag, List, Grid, Empty } from 'antd';
 import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
@@ -17,7 +17,6 @@ import { useMovies } from '../hooks/useMovies';
 import { useTheme } from '../contexts/ThemeContext';
 import StatCard from '../components/StatCard';
 import DashboardSection from '../components/DashboardSection';
-import MovieDrawer from '../components/MovieDrawer';
 import LoadingError from '../components/LoadingError';
 import LineChart from '../components/Charts/LineChart';
 import BarChart from '../components/Charts/BarChart';
@@ -28,6 +27,10 @@ import { groupByField, topNWithOther, makeDoughnut, parseRevenue, formatRevenue,
 import { useDrillDown } from '../contexts/DrilldownContext';
 import { formatDateDDMMYYYY } from '../utils/formatDate';
 import type { Movie } from '../types/movie';
+
+// Lazy: the drawer (Drawer, Descriptions, Image, Popconfirm) isn't needed for the landing page's
+// first paint, so it stays out of the initial bundle (frontend-performance spec) and loads on first open.
+const MovieDrawer = React.lazy(() => import('../components/MovieDrawer'));
 
 // Half-open; the last bucket also takes 10.0. Shared by the chart count and the click filter.
 const RATING_BUCKETS: Bucket[] = [
@@ -116,6 +119,9 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const drillDown = useDrillDown();
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
+  // Mount the lazy drawer on first open and keep it mounted, so its close animation still plays.
+  const [drawerMounted, setDrawerMounted] = useState(false);
+  if (selectedMovie && !drawerMounted) setDrawerMounted(true);
   const screens = Grid.useBreakpoint();
   const miniChartHeight = screens.md ? 240 : 180;
   // The doughnut's bottom legend wraps to several rows on phones; give it room so no row is dropped.
@@ -388,7 +394,11 @@ const Dashboard: React.FC = () => {
       </>
       )}
 
-      <MovieDrawer movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
+      {drawerMounted && (
+        <Suspense fallback={null}>
+          <MovieDrawer movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
+        </Suspense>
+      )}
     </div>
     </LoadingError>
   );

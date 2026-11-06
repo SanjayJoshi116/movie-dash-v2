@@ -1,9 +1,6 @@
 import React from 'react';
 import { Card, Statistic } from 'antd';
-import { motion } from 'framer-motion';
 import { getCardStyle, SPACING, FONT_SIZE, CHART_PRIMARY } from '../utils/chartTheme';
-
-const MotionCard = motion(Card);
 
 interface StatCardProps {
   label: string;
@@ -17,10 +14,8 @@ interface StatCardProps {
 
 const StatCard: React.FC<StatCardProps> = ({ label, value, color = CHART_PRIMARY, suffix, icon, hero, onClick }) => {
   return (
-    <MotionCard
-      whileHover={{ scale: 1.03, y: -2 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-      className="glass-panel"
+    <Card
+      className="glass-panel lift-on-hover"
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -35,7 +30,9 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, color = CHART_PRIMARY
         borderTop: `3px solid ${color}`,
         height: '100%',
         cursor: onClick ? 'pointer' : undefined,
-      }}
+        // Read by .lift-on-hover (index.css): stat cards lift a little more than grid cards.
+        '--lift-scale': 1.03,
+      } as React.CSSProperties}
       styles={{ body: { display: 'flex', alignItems: 'center', gap: SPACING.lg } }}
     >
       {icon && (
@@ -45,9 +42,9 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, color = CHART_PRIMARY
         title={<span style={{ color: 'var(--text-secondary)', fontSize: hero ? FONT_SIZE.body : FONT_SIZE.label }}>{label}</span>}
         value={value}
         suffix={suffix ? <span style={{ fontSize: hero ? 16 : FONT_SIZE.body, color: 'var(--text-muted)' }}>{suffix}</span> : undefined}
-        valueStyle={{ color, fontWeight: 700, fontSize: hero ? FONT_SIZE.hero : FONT_SIZE.value }}
+        styles={{ content: { color, fontWeight: 700, fontSize: hero ? FONT_SIZE.hero : FONT_SIZE.value } }}
       />
-    </MotionCard>
+    </Card>
   );
 };
 

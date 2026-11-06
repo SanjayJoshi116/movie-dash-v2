@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Typography, Button, Tooltip } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { getCardStyle } from '../../utils/chartTheme';
+import { slugify } from '../../utils/slugify';
 
 const { Title } = Typography;
 
@@ -11,9 +12,6 @@ interface ChartBlockProps {
   isDark: boolean;
   children: React.ReactNode;
 }
-
-const slugify = (title: string): string =>
-  title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'chart';
 
 const ChartBlock: React.FC<ChartBlockProps> = ({ title, height, isDark, children }) => {
   const containerRef = useRef<HTMLDivElement>(null);

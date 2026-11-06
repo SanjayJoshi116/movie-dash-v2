@@ -5,7 +5,8 @@ export default defineConfig({
   timeout: 30000,
   expect: { timeout: 10000 },
   fullyParallel: false,
-  retries: 1,
+  // No retries locally so flakiness surfaces; CI keeps one, and 'on-first-retry' traces it.
+  retries: process.env.CI ? 1 : 0,
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
     baseURL: 'http://localhost:3000',

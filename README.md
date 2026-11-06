@@ -8,7 +8,7 @@ A full-stack movie analytics dashboard: a React frontend backed by an Express AP
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
 
-**Highlights:** Table/grid movie catalogue with poster art · add or delete movies without leaving the browser (TMDB search) · 6 analytics tabs with click-to-filter drill-down, a global year-range slider, and per-chart PNG export · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 59 Playwright E2E + 44 server API tests · light/dark theme · filter state persisted per-session
+**Highlights:** Table/grid movie catalogue with poster art · add or delete movies without leaving the browser (TMDB search) · 6 analytics tabs with click-to-filter drill-down, a global year-range slider, and per-chart PNG export · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 65 Playwright E2E + 95 server API tests · light/dark theme · filter state persisted per-session
 
 No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
 
@@ -84,15 +84,14 @@ A global Release Year Range slider at the top of the page scopes every tab to a 
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 19, TypeScript, Vite 6 |
-| UI | Ant Design v5 (dark + light algorithm) |
+| Frontend | React 19, TypeScript 6, Vite 8 |
+| UI | Ant Design v6 (dark + light algorithm) |
 | Charts | Chart.js 4 + react-chartjs-2, chartjs-chart-matrix |
-| Animation | Framer Motion |
 | Routing | React Router v8 (`react-router` package — `react-router-dom` is deprecated as of v8) |
 | HTTP | Axios |
-| Backend | Express.js (TypeScript, tsx) |
+| Backend | Express 5 (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
-| Testing | Playwright (59 E2E tests), Node `node:test` via tsx (44 server API tests) |
+| Testing | Playwright (65 E2E tests), Node `node:test` via tsx (95 server API tests) |
 | Linting | ESLint (typescript-eslint, react-hooks, unused-imports) |
 
 ---
@@ -204,7 +203,9 @@ It checkpoints every 100 rows and prints a specific reason for any row it can't 
 npm run dev
 ```
 
-Opens the frontend at **http://localhost:3000** and the API at **http://localhost:5000**.
+Opens the frontend at **http://localhost:3000** and the API at **http://127.0.0.1:5000**. Both listen on this machine only: the API has no authentication, so other devices on your network can't reach it.
+
+To open the app from a phone or another device on the same network (e.g. to check the mobile layout), run `npm run dev:lan` instead. It exposes only the web app on port 3000, using your machine's LAN address; the API stays on loopback and is reached through Vite's proxy.
 
 ---
 
@@ -214,14 +215,17 @@ Opens the frontend at **http://localhost:3000** and the API at **http://localhos
 | Script | Description |
 |---|---|
 | `npm run dev` | Start Vite dev server + Express backend concurrently |
+| `npm run dev:lan` | Same as `dev`, but the web app is also reachable from other devices on your network (`vite --host`); the API stays local-only |
 | `npm run preview` | Preview the production build locally |
 
 ### Build
 | Script | Description |
 |---|---|
 | `npm run build` | Type-check and build frontend for production (`dist/`) |
+| `npm run check:bundle` | After `build`: check the bundle budget (landing-page JS ≤ 400 kB gzip, no chunk > 500 kB minified) and print per-chunk sizes |
 | `npm run build:server` | Compile Express backend to `server/dist/` |
-| `npm run server:prod` | Run the compiled backend in production |
+| `npm run server:prod` | Run the compiled backend in production mode (`--production`): serves the built app from `dist/` and the API on one port |
+| `npm start` | `build` + `build:server` + `server:prod` in one go |
 | `npm run type-check` | Run TypeScript type checking without emitting files |
 | `npm run type-check:server` | Type-check the Express server (`server/tsconfig.json`) |
 
@@ -244,17 +248,21 @@ React talks only to the Express API (`/api/movies`, `/api/movies/:id`, `/api/hea
 React (Vite, port 3000) → Express API (port 5000) → src/movies.csv → Chart.js / Ant Table
 ```
 
+In production (`npm start`), Express on port 5000 also serves the built React app from `dist/`, so the whole app is one process and one origin — see [Deployment](#deployment).
+
 ```
 movie-dash-v2/
 ├── public/
 │   └── movies.template.csv     # CSV template for your own data
 ├── server/
 │   ├── server.ts               # Entry point: env, createApp(), listen (port 5000)
+│   ├── bootstrap.ts            # Startup helpers: PORT/TRUST_PROXY parsing, .env, listen, shutdown
 │   ├── app.ts                  # createApp() — routes + CSV catalogue store
 │   ├── tmdb.ts                 # TMDB client (axios + retries)
-│   └── __tests__/              # Server API tests (node:test, 44 tests)
+│   └── __tests__/              # Server API tests (node:test, 95 tests)
 ├── tests/
-│   └── app.spec.ts             # Playwright E2E tests (59 tests)
+│   ├── app.spec.ts             # Playwright E2E tests (65 tests)
+│   └── helpers.ts              # Shared e2e helpers + mutation-guard fixture
 ├── docs/
 │   ├── screenshots/            # README screenshots
 │   └── audit-findings-2026-10-08.md  # Codebase audit; findings tracked as OpenSpec changes
@@ -263,6 +271,8 @@ movie-dash-v2/
 │   │                           # analytics-drilldown, movie-browsing, accessible-ui)
 │   └── changes/                # In-flight changes; archive/ holds completed ones
 ├── playwright.config.ts        # Playwright configuration
+├── scripts/
+│   └── check-bundle.mjs        # Bundle-size budget check (npm run check:bundle)
 ├── src/
 │   ├── contexts/
 │   │   ├── MoviesContext.tsx    # Global movie data provider (first-load vs background refresh)
@@ -301,6 +311,8 @@ movie-dash-v2/
 │   │   ├── exportCsv.ts        # Export in on-screen order, all catalogue columns, formula-safe
 │   │   ├── filterSpans.ts      # Data min/max for range sliders + clamping restored ranges
 │   │   ├── path.ts             # normalizePath — trailing-slash-safe nav highlighting
+│   │   ├── search.ts           # SEARCHABLE_FIELDS + matchesSearch() — Movies search (shared with e2e)
+│   │   ├── slugify.ts          # Chart title → PNG file name
 │   │   └── languages.ts        # ISO code → display name
 │   ├── hooks/
 │   │   ├── useMovies.ts
@@ -314,14 +326,17 @@ movie-dash-v2/
 
 ## E2E Testing
 
-Playwright tests cover the full user journey across 10 suites (59 tests):
+Playwright tests cover the full user journey across 13 suites (65 tests):
 
-- **Dashboard** — layout, highlight cards (click-to-drawer), CTA navigation to Movies/Stats, Total Box Office stat click-to-tab
+- **Dashboard** — layout, highlight cards (click-to-drawer), CTA navigation to Movies/Stats, Total Box Office stat click-to-tab, empty-catalogue state
 - **Movies** — layout, table/grid toggle, drawer from row and card, search, filters drawer (open/close, language/genre filters), empty state, clear/reset, active-filter dot indicator, sorting, pagination, page size, CSV export
-- **Movies Grid View** — poster image renders (real or fallback), card keyboard-activatable (Enter), grid pagination page-size changer, grid sort control
+- **Movies Grid View** — poster image renders (real or fallback), card keyboard-activatable (Enter), grid pagination page-size changer
+- **Movies Grid Sort** — every grid sort option orders the cards as expected (mocked catalogue)
 - **Movies Advanced Filters** — director filter chip, runtime range slider, revenue range slider
+- **Movies Add & Delete** — Add Movie search → import → "Added" → refetch, and Delete via Popconfirm → refetch → drawer closes (TMDB and every write are `page.route`-mocked)
 - **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title updates
-- **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence
+- **Mobile** — phone viewport shows the bottom nav instead of the sidebar, and its links work
+- **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence, Release Year Range slider + Reset, chart PNG download
 - **Theme** — default dark, toggle to light, reload persistence
 - **Filter Persistence** — search filter survives route changes via `sessionStorage`
 - **Edge Cases** — combined filters, pagination, sort + filter combo
@@ -353,7 +368,7 @@ Tests require both the Vite frontend (port 3000) and Express backend (port 5000)
 npm run test:server
 ```
 
-44 tests (Node's built-in `node:test`, run via `tsx --test`, ~3s) exercise the Express API through `createApp()` (`server/app.ts`). Each test gets its own CSV in an OS temp directory — **they never read or write `src/movies.csv`** — and TMDB is stubbed, so no network or API key is needed. Coverage includes every route, helmet headers, rate limiting, TMDB retry/backoff, and the catalogue-safety guarantees: serialized writes (concurrent deletes, import during delete), duplicate-import rejection, external edits surviving in-app writes, BOM / missing-trailing-newline files, formula-escaping round-trips, failed-write rollback, and accurate error codes. Runs in CI before e2e.
+95 tests (Node's built-in `node:test`, run via `tsx --test`, ~3s) exercise the Express API through `createApp()` (`server/app.ts`). Each test gets its own CSV in an OS temp directory — **they never read or write `src/movies.csv`** — and TMDB is stubbed, so no network or API key is needed. Coverage includes every route, helmet headers, rate limiting, TMDB retry/backoff, and the catalogue-safety guarantees: serialized writes (concurrent deletes, import during delete), duplicate-import rejection, external edits surviving in-app writes, BOM / missing-trailing-newline files, formula-escaping round-trips, failed-write rollback, and accurate error codes. Also covered: the TMDB key never reaching the logs, unexpected handler errors returning `500` without crashing the server, duplicate-header files never being rewritten, the `ETag` changing across restarts, deletes surviving a concurrent external write, and retries on transient Windows file locks. The startup helpers (`server/bootstrap.ts`) are covered too: strict `PORT` parsing, `.env` read errors, port-in-use errors, graceful shutdown waiting for catalogue writes, and a failed startup load reported as an error instead of an empty list. Production hosting is covered as well: hashed assets cached as immutable and `index.html` as `no-cache`, the client-route fallback, JSON `404` for unknown `/api` paths, the Content-Security-Policy, and `TRUST_PROXY` (off by default; per-client rate limiting behind a proxy). Runs in CI before e2e.
 
 ---
 
@@ -363,11 +378,11 @@ The Express server exposes JSON endpoints — every response, success or error, 
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/health` | `{ status: "ok" \| "loading", movies: <count> }` |
+| `GET /api/health` | `{ status: "ok" \| "loading" \| "error", movies: <count> }`. `error` means the CSV exists but couldn't be loaded at startup (e.g. a repeated column name); catalogue routes then return `500` until the file is fixed, and the next request retries the load |
 | `GET /api/movies` | All movies as a JSON array. Returns `503 { error: "Data still loading" }` while the CSV is still being read on boot. Sent with `Cache-Control: no-cache` + `ETag` (`304` when unchanged). Re-reads the CSV first if another tool changed it on disk |
-| `GET /api/movies/:id` | A single movie by `Movie ID`. Returns `404 { error: "Movie not found" }` if no match, or `400 { error: "Invalid movie id" }` if the param is missing/too long |
-| `DELETE /api/movies/:id` | Removes the movie from the catalogue and rewrites `src/movies.csv`. Returns the deleted movie, `404` if no match, or `500` if the file write fails (the file and the served catalogue are left unchanged) |
-| `GET /api/tmdb/search?query=&actor=&year=` | Proxies a TMDB movie/actor search (server-side only — `TMDB_API_KEY` never reaches the client). `year` (4 digits) narrows by release year. Returns `{ results: [...] }`, each flagged `alreadyImported`. `503` if `TMDB_API_KEY` isn't configured, `400` if both `query` and `actor` are empty |
+| `GET /api/movies/:id` | A single movie by `Movie ID` (re-reads the CSV first if another tool changed it). Returns `404 { error: "Movie not found" }` if no match, or `400 { error: "Invalid movie id" }` if the param is missing/too long |
+| `DELETE /api/movies/:id` | Removes the movie from the catalogue and rewrites `src/movies.csv`. Returns the deleted movie, `404` if no match, or `500` if the file write fails (the file and the served catalogue are left unchanged). Redone on the new contents if another tool writes the file mid-delete; refused (`500`) while the CSV header repeats a column name |
+| `GET /api/tmdb/search?query=&actor=&year=` | Proxies a TMDB movie/actor search (server-side only — `TMDB_API_KEY` never reaches the client). `year` (4 digits) narrows by release year. Returns `{ results: [...] }`, each flagged `alreadyImported` against the current file. Actor results list each movie once, most popular first. `503` if `TMDB_API_KEY` isn't configured or the CSV is still loading, `400` if both `query` and `actor` are empty |
 | `POST /api/tmdb/import` `{ movieId }` | Fetches the movie's details + credits from TMDB and appends it to `src/movies.csv`. Returns the new movie (`201`); `409` if already in the catalogue (including a duplicate import still in flight); `404` if TMDB has no such movie; `502` if the TMDB request fails after retries; `500 { error: "Failed to save movie" }` if the CSV write fails; `503` while the CSV is still loading; `400` for an invalid `movieId` |
 
 Responses are gzip-compressed; `/api/movies` is sent with `Cache-Control: no-cache` plus an `ETag`, so browsers revalidate (cheap `304` when nothing changed) and always see a just-added or just-deleted movie. Routes live under `/api` so Vite's dev proxy can forward API calls to Express without colliding with the client-side `/movies` route — a bare `/movies` proxy prefix would intercept the browser's SPA navigation and return raw JSON instead. In development, Vite proxies `/api` requests to the Express server automatically (see `vite.config.ts`).
@@ -376,13 +391,14 @@ Responses are gzip-compressed; `/api/movies` is sent with `Cache-Control: no-cac
 
 ## Security
 
-- **`helmet()`** sets standard security headers on every response, using its default policy (no per-directive customization).
-- **Rate limiting** — `/api/*` is capped at 300 requests/minute per client (`express-rate-limit`); over the limit returns `429`.
-- **CORS allowlist** — only `CLIENT_ORIGIN` (env var, defaults to `http://localhost:3000`) may call the API cross-origin, instead of an open `cors()` reflecting any origin. Set `CLIENT_ORIGIN` to your deployed frontend's URL in production.
+- **`helmet()`** sets standard security headers on every response. The Content-Security-Policy keeps helmet's defaults (`default-src 'self'`, `script-src 'self'`, `object-src 'none'`, …) and adds only what the app loads: TMDB posters and the `data:` poster placeholder (`img-src 'self' data: https://image.tmdb.org`), and Ant Design's runtime `<style>` tags (`style-src 'self' 'unsafe-inline'`). `upgrade-insecure-requests` is left out so a plain-HTTP deployment (e.g. on a LAN) keeps working.
+- **Local-only by default** — the API listens on `127.0.0.1` (override with `HOST`, e.g. `HOST=0.0.0.0` for a deployment), and the Vite dev server listens on `localhost`. The API has no authentication, so nobody else on your Wi-Fi can list or delete your movies. `npm run dev:lan` opens only the web app to the network.
+- **Rate limiting** — `/api/*` is capped at 300 requests/minute per client (`express-rate-limit`); over the limit returns `429`. Behind a reverse proxy, set `TRUST_PROXY` (see [Deployment](#deployment)) so clients are told apart by `X-Forwarded-For` instead of all sharing the proxy's bucket; it's off by default because trusting that header without a proxy lets clients spoof it.
+- **CORS allowlist** — only `CLIENT_ORIGIN` (env var, defaults to `http://localhost:3000`) may call the API cross-origin, instead of an open `cors()` reflecting any origin. Only needed when a frontend on another origin calls the API — the single-process production setup is same-origin.
 - **Input validation** — `Movie ID` route params are length-checked before use.
-- **Error handling** — a catch-all Express error-handling middleware returns a generic `500 { error: "Internal server error" }` instead of leaking stack traces; errors are still logged server-side. Client errors from body parsing pass through as their real status (`400` malformed JSON, `413` body over 10 KB).
-- **TMDB key stays server-side** — `TMDB_API_KEY` (same `.env` var `movie-search.py` uses) is only ever read in `server/server.ts`; the browser never sees it. CSV rows appended via the in-app Add Movie import are sanitized against formula injection (`=`, `+`, `-`, `@` prefixes get a leading `'`), same guard as `movie-search.py`; the server strips that `'` when reading, so the UI shows the original title and rewrites never double-escape.
-- CI runs `npm audit --audit-level=high` (currently 0 vulnerabilities; `shell-quote` is pinned via `overrides`) before lint, server type-check, build, server tests and e2e.
+- **Error handling** — a catch-all Express error-handling middleware returns a generic `500 { error: "Internal server error" }` instead of leaking stack traces; errors are still logged server-side. Every async route forwards its errors there, so one bad request can't crash the process. Client errors from body parsing pass through as their real status (`400` malformed JSON, `413` body over 10 KB).
+- **TMDB key stays server-side** — `TMDB_API_KEY` (same `.env` var `movie-search.py` uses) is only ever read in `server/server.ts`; the browser never sees it, and it never appears in server logs (TMDB failures are logged as a status/code/path summary, never the raw HTTP-client error, which would contain the key). CSV rows appended via the in-app Add Movie import are sanitized against formula injection (`=`, `+`, `-`, `@` prefixes get a leading `'`), same guard as `movie-search.py`; the server strips that `'` when reading, so the UI shows the original title and rewrites never double-escape.
+- CI runs `npm audit --audit-level=high` (no high/critical advisories; `shell-quote` is pinned via `overrides`) before lint, Python lint (`ruff`, pinned in `requirements-dev.txt`), server type-check, build, bundle budget (`npm run check:bundle`), server tests and e2e.
 - `movie-search.py` sends the TMDB API key via `requests`' `params=` (never string-interpolated into a URL) and never echoes raw request exceptions — which could include the URL/key — back to the user in an error dialog.
 
 ---
@@ -390,21 +406,45 @@ Responses are gzip-compressed; `/api/movies` is sent with `Cache-Control: no-cac
 ## Performance
 
 - **gzip compression** on all API responses (`compression` middleware)
-- **HTTP caching** — `/api/movies` sent with `Cache-Control: no-cache` + `ETag` (revalidates with a `304` when unchanged)
+- **HTTP caching** — `/api/movies` sent with `Cache-Control: no-cache` + `ETag` (revalidates with a `304` when unchanged). In production, Vite's content-hashed `/assets/*` files are served `public, max-age=31536000, immutable`, while `index.html` (and the other un-hashed files) are `no-cache`, so a redeploy takes effect on the next load
 - **Debounced search** — table search input debounced via `useDebounce` to avoid re-filtering on every keystroke
 - **Single fetch, shared context** — movie data fetched once in `MoviesContext` and reused across the dashboard and all stats tabs, not re-fetched per component
 - **Memoization** — derived data (filtered/sorted movie lists, chart datasets, stat aggregations) computed with `useMemo` throughout, so expensive recalculation only happens when the underlying movies or filters actually change; every chart wrapper in `src/components/Charts/*` also memoizes its Chart.js `options` object, so an unrelated parent re-render doesn't force a full chart rebuild
 - **Tree-shaken Chart.js** — `src/main.tsx` registers only the specific controllers/elements/scales/plugins actually used, instead of Chart.js's `registerables` (the entire library)
-- **Code splitting** — Vite production build splits vendor/chart bundles
+- **Code splitting** — Movies and Stats are `React.lazy` routes, and the Dashboard's movie drawer loads on first open. antd isn't forced into one vendor chunk, so each route only downloads the antd components it uses (Table, Slider, Drawer, Modal and so on stay out of the landing page). React and Chart.js get their own long-lived vendor chunks, and antd's theme engine plus the components every route uses go in `vendor-antd-core`/`vendor-antd-shell` (see `vite.config.ts`)
+- **Bundle budget** — `npm run check:bundle` (run in CI after the build) fails if the landing page's initial JavaScript (the entry chunk plus everything it statically imports, gzipped) goes over **400 kB**, or if any chunk is over **500 kB** minified. It prints a per-chunk size table. It's currently about 362 kB gzip, down from 517 kB
+- **CSS hover lift** — stat cards and grid cards lift on hover with a CSS transform transition (`.lift-on-hover` in `src/index.css`) instead of an animation library
 
 ---
 
 ## Deployment
 
-- **Frontend**: `npm run build` outputs a static `dist/` — deploy to any static host (Vercel, Netlify, GitHub Pages, S3 + CDN).
-- **Backend**: `npm run build:server` compiles the Express API to `server/dist/`; run it with `npm run server:prod` on any Node 20+ host (Render, Railway, a VPS, etc.). Point the frontend's API calls at the deployed backend URL, or serve both behind the same reverse proxy.
-- **Environment variables** (backend, both optional): `PORT` (defaults `5000`) and `CLIENT_ORIGIN` (defaults `http://localhost:3000`) — set `CLIENT_ORIGIN` to your deployed frontend's origin, or the CORS allowlist in [Security](#security) will reject it.
-- Neither is deployed anywhere by default — this is a local-first project (see [Live Demo note](#moviedash-v2) above).
+Production is a single Node process: the Express server serves the built app from `dist/` **and** the `/api` routes on one port, so the frontend's relative `/api` calls just work — no separate static host, no CORS setup.
+
+Requires **Node.js 22.22+** (`engines` in `package.json`).
+
+```bash
+npm ci
+npm start            # = npm run build && npm run build:server && npm run server:prod
+```
+
+Then open **http://localhost:5000**. To rebuild and start separately (e.g. build in CI, run on the host), use `npm run build`, `npm run build:server`, then `npm run server:prod`. Run all of them from the repo root — `src/movies.csv`, `dist/` and `.env` are resolved from the working directory.
+
+- **Production mode** — `server:prod` passes `--production` (equivalent to `NODE_ENV=production`; a flag rather than `NODE_ENV=production node …` because that syntax doesn't work in Windows' `cmd`). Only then does the server serve `dist/`; if `dist/index.html` is missing it logs a warning and serves the API only. In dev (`npm run dev`) Vite serves the app and a leftover `dist/` is ignored.
+- **Routing and caching** — client routes like `/movies` or `/stats?tab=people` get `index.html`, so deep links and reloads work; unknown `/api/...` paths return a JSON `404`. Hashed `/assets/*` files are cached for a year (`immutable`); `index.html` is `no-cache`, so a returning user gets a new build on the next load.
+- **Data** — the server reads (and the in-app Add/Delete write) `src/movies.csv` on the host, so deploy it alongside the app. The API has **no authentication**: anyone who can reach the server can delete movies. Keep it on `127.0.0.1` behind your own access control, or only expose it on a network you trust.
+- **Environment variables** (all optional; put them in `.env` at the repo root or the host's environment — see `.env.example`):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `5000` | Listen port; must be a whole number 1–65535 or the server refuses to start |
+| `HOST` | `127.0.0.1` | Listen address. Loopback only by default; set `0.0.0.0` to accept external connections (see [Security](#security)) |
+| `TMDB_API_KEY` | — | Enables the in-app Add Movie search/import; without it those routes return `503` |
+| `TRUST_PROXY` | unset | Set when running behind a reverse proxy (nginx, Caddy, a PaaS router) so rate limiting sees real client IPs: a hop count (`1` = one proxy in front) is recommended; `true`, or an address list Express understands (e.g. `loopback`), also work. Leave unset without a proxy |
+| `CLIENT_ORIGIN` | `http://localhost:3000` | CORS allowlist. Not needed for the same-origin production setup; set it only if a frontend on another origin calls the API |
+
+- **HTTPS** — terminate TLS at a reverse proxy in front of the server (and set `TRUST_PROXY`); the server itself speaks plain HTTP.
+- Nothing is deployed anywhere by default — this is a local-first project.
 
 ---
 

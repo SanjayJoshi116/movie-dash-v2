@@ -6,6 +6,37 @@ export const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 export const TMDB_MAX_ATTEMPTS = 3;
 export const TMDB_RETRY_BACKOFF_MS = 500; // doubles each attempt: 500ms, 1000ms — mirrors movie-search.py's Retry(backoff_factor=2)
 
+/**
+ * The only error type a TmdbClient throws. It deliberately carries no reference to the underlying
+ * HTTP-client error: an AxiosError's config/request hold the api_key query param in plaintext, and
+ * logging it (console.error → util.inspect) would print the key. Status/code/path are all that
+ * callers and logs need.
+ */
+export class TmdbRequestError extends Error {
+  readonly status?: number;
+  readonly code?: string;
+  readonly path: string;
+
+  constructor(path: string, status?: number, code?: string, detail?: string) {
+    const what = status !== undefined ? `HTTP ${status}` : (code ?? detail ?? 'request failed');
+    super(`TMDB ${path} failed: ${what}`);
+    this.name = 'TmdbRequestError';
+    this.path = path;
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/** HTTP status of a TMDB failure, or undefined for network errors / non-TMDB errors. */
+export function tmdbErrorStatus(err: unknown): number | undefined {
+  return err instanceof TmdbRequestError ? err.status : undefined;
+}
+
+function redact(pathSegment: string, err: unknown): TmdbRequestError {
+  if (axios.isAxiosError(err)) return new TmdbRequestError(pathSegment, err.response?.status, err.code, err.message);
+  return new TmdbRequestError(pathSegment, undefined, undefined, err instanceof Error ? err.message : undefined);
+}
+
 export interface TmdbClient {
   get<T>(pathSegment: string, params?: Record<string, string>): Promise<T>;
 }
@@ -30,8 +61,7 @@ function defaultSleep(ms: number): Promise<void> {
 export function createTmdbClient({ apiKey, sleep = defaultSleep, httpGet = axios.get }: TmdbClientOptions): TmdbClient {
   return {
     async get<T>(pathSegment: string, params: Record<string, string> = {}): Promise<T> {
-      let lastErr: unknown;
-      for (let attempt = 1; attempt <= TMDB_MAX_ATTEMPTS; attempt++) {
+      for (let attempt = 1; ; attempt++) {
         try {
           const res = await httpGet<T>(`${TMDB_BASE}${pathSegment}`, {
             params: { ...params, api_key: apiKey },
@@ -40,14 +70,12 @@ export function createTmdbClient({ apiKey, sleep = defaultSleep, httpGet = axios
           });
           return res.data;
         } catch (err) {
-          lastErr = err;
           const status = axios.isAxiosError(err) ? err.response?.status : undefined;
           const retryable = status === undefined || RETRYABLE_STATUS.has(status);
-          if (!retryable || attempt === TMDB_MAX_ATTEMPTS) throw err;
+          if (!retryable || attempt === TMDB_MAX_ATTEMPTS) throw redact(pathSegment, err);
         }
         await sleep(TMDB_RETRY_BACKOFF_MS * 2 ** (attempt - 1));
       }
-      throw lastErr;
     },
   };
 }

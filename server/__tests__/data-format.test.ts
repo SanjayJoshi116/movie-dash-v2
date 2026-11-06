@@ -1,16 +1,14 @@
 // Coverage for openspec catalog-data-format: legacy "N/A" placeholders read as missing.
-import { describe, it, after } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { startServer, request, readCsvRows, HEADER, type TestServer } from './helpers';
+import { serverPool, request, readCsvRows, HEADER } from './helpers';
 
-const servers: TestServer[] = [];
-after(async () => { await Promise.all(servers.map((s) => s.close())); });
+const start = serverPool();
 
 describe('Legacy placeholder values read as missing', () => {
   it('serves N/A fields as empty, and a later rewrite stores them empty', async () => {
-    const s = await startServer({ fixture: 'empty' });
-    servers.push(s);
+    const s = await start({ fixture: 'empty' });
     fs.writeFileSync(s.csvPath, [
       HEADER,
       '1,Has NA,en,N/A,N/A,Drama,N/A,"A, B",Co,India,N/A,N/A,1,7,10,,,N/A',

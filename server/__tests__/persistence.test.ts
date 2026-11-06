@@ -1,21 +1,15 @@
 // Coverage for openspec/specs/catalog-persistence/spec.md — one describe per requirement.
-import { describe, it, after } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-  startServer, request, postJson, readCsvRows, deferred, stubTmdb, axiosError, tmdbDetails,
-  csvRow, type TestServer,
+  serverPool, request, postJson, readCsvRows, deferred, stubTmdb, tmdbError, tmdbDetails,
+  csvRow, sleep, type TestServer,
 } from './helpers';
 
 type MovieJson = Record<string, string>;
 
-const servers: TestServer[] = [];
-async function start(...args: Parameters<typeof startServer>): Promise<TestServer> {
-  const s = await startServer(...args);
-  servers.push(s);
-  return s;
-}
-after(async () => { await Promise.all(servers.map((s) => s.close())); });
+const start = serverPool();
 
 const importOpts = (tmdb = stubTmdb()) => ({ tmdbApiKey: 'k', tmdb });
 const ids = async (s: TestServer) => (await readCsvRows(s.csvPath)).map((r) => r['Movie ID']);
@@ -116,7 +110,7 @@ describe('Duplicate imports are rejected', () => {
     const tmdb = stubTmdb({ '/movie/777': async () => { await gate.promise; return tmdbDetails(777); } });
     const s = await start(importOpts(tmdb));
     const pending = postJson(s.baseUrl, '/api/tmdb/import', { movieId: 777 });
-    await new Promise((r) => setTimeout(r, 30));
+    await sleep(30);
     fs.appendFileSync(s.csvPath, csvRow('777', 'Added Externally') + '\n');
     gate.resolve();
     assert.equal((await pending).status, 409);
@@ -219,14 +213,14 @@ describe('Stored values round-trip faithfully and safely', () => {
 
 describe('Errors are reported accurately', () => {
   it('unknown TMDB id → 404', async () => {
-    const s = await start(importOpts(stubTmdb({ '/movie/999': axiosError(404) })));
+    const s = await start(importOpts(stubTmdb({ '/movie/999': tmdbError(404) })));
     const res = await postJson<{ error: string }>(s.baseUrl, '/api/tmdb/import', { movieId: 999 });
     assert.equal(res.status, 404);
     assert.equal(res.body.error, 'Movie not found on TMDB');
   });
 
   it('other TMDB failure → 502', async () => {
-    const s = await start(importOpts(stubTmdb({ '/movie/5000': axiosError(500) })));
+    const s = await start(importOpts(stubTmdb({ '/movie/5000': tmdbError(500) })));
     assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 5000 })).status, 502);
   });
 

@@ -102,7 +102,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
       onCancel={handleClose}
       footer={<Button onClick={handleClose}>Close</Button>}
       width={640}
-      destroyOnClose={false}
+      destroyOnHidden={false}
     >
       <Space.Compact style={{ width: '100%', marginBottom: 8 }}>
         <Input
@@ -137,7 +137,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
         </Button>
       </Space.Compact>
 
-      {error && <Alert type="error" message={error} showIcon closable onClose={() => setError(null)} style={{ marginBottom: 12 }} />}
+      {error && <Alert type="error" title={error} showIcon closable={{ onClose: () => setError(null) }} style={{ marginBottom: 12 }} />}
 
       <List
         loading={searching}

@@ -3,7 +3,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type axios from 'axios';
-import { createTmdbClient, TMDB_MAX_ATTEMPTS } from '../tmdb';
+import { createTmdbClient, tmdbErrorStatus, TMDB_MAX_ATTEMPTS } from '../tmdb';
 import { axiosError } from './helpers';
 
 function fakeGet(outcomes: (Error | unknown)[]) {
@@ -49,7 +49,7 @@ describe('TMDB client retries', () => {
     const { get, calls } = fakeGet([axiosError(404)]);
     const { sleep, waits } = recordingSleep();
     const client = createTmdbClient({ apiKey: 'k', httpGet: get, sleep });
-    await assert.rejects(client.get('/movie/1'), (err: { response?: { status: number } }) => err.response?.status === 404);
+    await assert.rejects(client.get('/movie/1'), (err) => tmdbErrorStatus(err) === 404);
     assert.equal(calls.length, 1);
     assert.deepEqual(waits, []);
   });

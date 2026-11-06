@@ -1,0 +1,3 @@
+# Dev-only tooling for the Python scripts (movie-search.py, backfill_posters.py). Not needed to run them.
+# CI runs: ruff check movie-search.py backfill_posters.py
+ruff==0.17.3

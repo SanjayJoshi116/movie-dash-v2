@@ -1,14 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Row, Col, Card, Tag, Empty, Pagination, Grid, Select } from 'antd';
-import { motion } from 'framer-motion';
 import { ClockCircleOutlined } from '@ant-design/icons';
 import type { Movie } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
 import { getCardStyle } from '../utils/chartTheme';
 import { POSTER_FALLBACK } from '../utils/poster';
 import { useTheme } from '../contexts/ThemeContext';
-
-const MotionCard = motion(Card);
 
 interface MovieCardGridProps {
   movies: Movie[];
@@ -99,9 +96,8 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick, filte
         const vote = parseFloat(movie['Vote Average']);
         return (
           <Col key={movie['Movie ID']} xs={24} sm={12} md={8} lg={6} xl={4}>
-            <MotionCard
-              whileHover={{ scale: 1.02, y: -2 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            <Card
+              className="lift-on-hover"
               hoverable
               onClick={() => onRowClick(movie)}
               role="button"
@@ -160,7 +156,7 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick, filte
                   {movie.Runtime} mins
                 </span>
               )}
-            </MotionCard>
+            </Card>
           </Col>
         );
       })}

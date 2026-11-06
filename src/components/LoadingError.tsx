@@ -47,7 +47,7 @@ const LoadingError: React.FC<LoadingErrorProps> = ({ loading, error, onRetry, ch
     return (
       <Alert
         type="error"
-        message="Failed to load movies"
+        title="Failed to load movies"
         description={error}
         showIcon
         style={{ margin: 24 }}

@@ -3,6 +3,67 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.0] - 2026-11-06
+
+### Added
+- **One-process production mode.** `npm start` builds the app and the server, then serves the built SPA and `/api` together on port 5000. Client routes like `/movies` and `/stats?tab=people` fall back to `index.html`, so deep links and reloads work. Hashed `/assets/*` files are cached for a year (`immutable`), and `index.html` is `no-cache`, so a redeploy shows up on the next load. Unknown `/api/*` paths return a JSON `404`. `server:prod` takes a `--production` flag, which works in cmd, PowerShell and bash. (`prod-deploy`)
+- `TRUST_PROXY` setting: behind a reverse proxy, rate limiting counts each original client instead of putting everyone in the proxy's bucket. It is off by default.
+- `npm run dev:lan` opens the web app to your LAN (for testing on a phone). The API stays on loopback either way.
+- **Bundle budget.** `npm run check:bundle` (`scripts/check-bundle.mjs`, also run in CI) fails if the landing page's initial JavaScript goes over 400 kB gzip, or if any chunk goes over 500 kB minified. (`reduce-bundle-size`)
+- e2e tests for Add Movie, Delete, the Stats year slider and Reset, chart PNG download, the Dashboard empty state, the mobile bottom nav and grid sort. Every write and TMDB call is mocked, so e2e can't change `src/movies.csv`. CI also runs `ruff` on the Python tools. (`e2e-hardening`)
+- Server tests: 62 → 95 (`bootstrap.test.ts`, `hosting.test.ts`).
+
+### Changed
+- **Dependencies on current majors** (`upgrade-major-deps`):
+  - Express 5 and `express-rate-limit` 8
+  - Vite 8 (Rolldown) and `@vitejs/plugin-react` 6
+  - Ant Design 6 and `@ant-design/icons` 6
+  - TypeScript 6.0.3 and `concurrently` 10
+  - in-range bumps of the ESLint/Playwright tooling
+
+  TypeScript 7 is blocked: typescript-eslint supports only versions below 6.1. It is parked as the OpenSpec change `upgrade-typescript-7`.
+- **Landing page JS: about 517 → 362 kB gzip.** antd is no longer forced into one 988 kB vendor chunk, so each route loads only the components it uses. The Dashboard's movie drawer loads on first open. Chunks are configured through Rolldown's `codeSplitting.groups`, which replaces the deprecated `manualChunks`. Builds take about 2 s instead of 28 s.
+- No visual change from antd 6. Tags keep their outlined v5 look through one `ConfigProvider` setting, and deprecated props moved to their v6 names (`Alert title`, `Drawer size`, `Modal destroyOnHidden`, `styles.*`).
+- Async route handlers no longer need a wrapper: Express 5 passes their errors to the generic `500` handler. Routes still map storage and TMDB failures to their specific statuses.
+- e2e tests use role queries where antd 6 renamed its classes (tab panes, Select value), have no fixed sleeps, and retry only in CI (`retries: 0` locally).
+- `tsconfig.json` lists `types: ["vite/client"]`, and the server tsconfig uses `module`/`moduleResolution: "node16"` (TypeScript 6 deprecates `node10` resolution). The server build output is still CommonJS.
+- Shared code: the Movies page search is `src/utils/search.ts` (`matchesSearch`), now used by the e2e helpers as well, so expected counts can't drift. Chart file names come from `src/utils/slugify.ts`. Server tests share `serverPool()`, `errnoError` and `sleep`.
+- OpenSpec: `e2e-hardening`, `harden-server-entry`, `prod-deploy`, `reduce-bundle-size` and `upgrade-major-deps` are archived. New main specs: `app-hosting`, `frontend-performance`, `server-exposure`, `server-resilience`.
+
+### Fixed
+- **A CSV that fails to load no longer looks like an empty catalogue.** Health reports `error` and catalogue routes return `500` until a reload succeeds, retried on every request. Before, the Dashboard said you had no movies. (B42)
+- A port already in use or an invalid `PORT` (`abc`, `5000abc`) prints one line and exits with code 1, instead of showing a stack trace or silently using port 5000. Shutdown waits for in-progress catalogue writes, up to 10 s. An `.env` that exists but can't be read is logged. (B43–B46)
+- TMDB posters load in production: the Content-Security-Policy allows `image.tmdb.org` and Ant Design's inline styles.
+- The flaky e2e test "director filter applies and shows a chip": the option list could scroll between reading an option and clicking it, so the test selected a different director than the one it checked for. (B48)
+
+### Security
+- **Local-only by default.** The API binds `127.0.0.1` (override with `HOST`) and the Vite dev server binds `localhost`, so nobody else on the same Wi-Fi can list or delete movies. (S10)
+- `npm audit --audit-level=high` passes again (body-parser, follow-redirects, vite and zod advisories). (B1)
+
+### Removed
+- `framer-motion`: the hover lift on stat cards and grid cards is now a CSS transition.
+- The unused CRA-era `public/index.html`.
+
+## [0.9.2] - 2026-11-04
+
+### Security
+- **The TMDB API key no longer ends up in server logs.** Every TMDB failure (network reset, timeout, 429/5xx after retries, 401) used to log the whole axios error, which printed the key in plaintext about 6 times per entry. The TMDB client now throws a redacted `TmdbRequestError` (HTTP status, error code and request path only), and the server logs one-line messages instead of error objects. (B2)
+
+### Fixed
+- **A bad TMDB response can no longer crash the API.** Express 4 ignores errors thrown inside async route handlers, so a TMDB answer with an empty (`null`) body crashed the whole Node process. Every async route now passes errors to the generic `500` handler, and an empty body imports as a row of empty fields.
+- **A CSV with a repeated column name can no longer lose data.** When a header names a column twice (e.g. two `Movie ID` columns after a BOM-prefixed file went through `movie-search.py`), the server only ever saw the later, empty column, and the next in-app delete wiped every row's ID for good. The server now refuses to add or delete until the header is fixed by hand, never rewrites the file in that state, and logs which column is duplicated. (Server half of B3; the Python `utf-8-sig` half is still open.)
+- After a server restart, the browser can no longer get a "not modified" (`304`) answer for an out-of-date movie list: the `/api/movies` `ETag` now includes a per-process id. (B16)
+- An in-app delete no longer overwrites rows that `movie-search.py` or `backfill_posters.py` write while the delete is in progress. The server checks the file again just before replacing it, and if it changed, redoes the delete on the new contents.
+- On Windows, a delete no longer fails when antivirus, the search indexer or Excel briefly locks `src/movies.csv`: replacing the file retries `EPERM`/`EBUSY`/`EACCES` for about 750 ms.
+- An add or delete whose write succeeded is no longer reported as a `500` when the file check after the write fails. Previously, retrying such an import returned `409`.
+- `GET /api/movies/:id` and the Add Movie search now pick up rows another tool added to the file. Search no longer marks those movies as not yet imported, and it returns `503` while the catalogue is still loading.
+- Searching by actor no longer lists a film twice when the actor has two roles in it, and results are ordered by popularity before the top-20 cut.
+
+### Changed
+- New OpenSpec main spec `server-resilience`, plus 6 new `catalog-persistence` requirements. The `harden-catalogue-server` change is archived (`openspec/changes/archive/2026-11-04-harden-catalogue-server/`).
+- Server tests: 44 → 62, including a new `server/__tests__/hardening.test.ts`. `createApp()` takes an optional `fsHooks` test option (`rename`, `stat`) for simulating file-system failures.
+- `BUG_BACKLOG.md` is now tracked: the open bug list (B1–B41) plus a per-module code-review/security-review tracker.
+
 ## [0.9.1] - 2026-10-28
 
 ### Fixed

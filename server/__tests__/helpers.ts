@@ -5,9 +5,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
+import { after } from 'node:test';
 import csv from 'csv-parser';
 import { createApp, type CreateAppOptions } from '../app';
-import type { TmdbClient } from '../tmdb';
+import { listen } from '../bootstrap';
+import { TmdbRequestError, type TmdbClient } from '../tmdb';
 
 export const HEADER = 'Movie ID,Name,Language,Runtime,Release Year,Genres,Director,Actors/Actresses,Production Company,Production Country,Box Office Revenue,Budget,Popularity Score,Vote Average,Vote Count,Poster URL,Keywords/Tags,Release Date';
 
@@ -34,6 +36,7 @@ export interface TestServer {
   csvPath: string;
   dir: string;
   ready: Promise<void>;
+  drain: () => Promise<void>;
   errors: unknown[][];
   close: () => Promise<void>;
 }
@@ -52,13 +55,12 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
   if (!existingDir) fs.writeFileSync(csvPath, FIXTURES[fixture](), 'utf8');
 
   const errors: unknown[][] = [];
-  const { app, ready } = createApp({
+  const { app, ready, drain } = createApp({
     csvPath,
     logger: { log: () => undefined, error: (...args: unknown[]) => { errors.push(args); } },
     ...appOpts,
   });
-  const server = app.listen(0, '127.0.0.1');
-  await new Promise<void>((resolve) => server.once('listening', () => resolve()));
+  const server = await listen(app, 0, '127.0.0.1');
   const { port } = server.address() as AddressInfo;
   if (waitForReady) await ready;
 
@@ -67,6 +69,7 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
     csvPath,
     dir,
     ready,
+    drain,
     errors,
     close: async () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -74,6 +77,25 @@ export async function startServer(opts: StartOptions = {}): Promise<TestServer> 
     },
   };
 }
+
+/**
+ * A `startServer` that remembers every server it starts and closes them all in the calling test
+ * file's `after` hook. Call once at a test file's top level: `const start = serverPool();`.
+ */
+export function serverPool(): typeof startServer {
+  const servers: TestServer[] = [];
+  after(async () => { await Promise.all(servers.map((s) => s.close())); });
+  return async (...args) => {
+    const s = await startServer(...args);
+    servers.push(s);
+    return s;
+  };
+}
+
+/** An Error carrying a Node errno `code` (EPERM, EBUSY, ENOENT...), as fs failures do. */
+export const errnoError = (code: string) => Object.assign(new Error(`${code}: simulated`), { code });
+
+export const sleep = (ms = 0) => new Promise<void>((r) => setTimeout(r, ms));
 
 export interface JsonResponse<T = unknown> {
   status: number;
@@ -113,12 +135,17 @@ export function deferred(): { promise: Promise<void>; resolve: () => void } {
 
 // ── TMDB stub ──────────────────────────────────────────────────────────────
 
-/** Shaped like an axios error so the server's axios.isAxiosError() checks recognize it. */
+/** Shaped like an axios error, for faking the HTTP layer underneath createTmdbClient(). */
 export function axiosError(status: number): Error {
   return Object.assign(new Error(`Request failed with status code ${status}`), {
     isAxiosError: true,
     response: { status },
   });
+}
+
+/** What a TmdbClient throws for an HTTP failure; use with stubTmdb(). */
+export function tmdbError(status: number, path = '/stub'): TmdbRequestError {
+  return new TmdbRequestError(path, status);
 }
 
 export function tmdbDetails(id: number, overrides: Record<string, unknown> = {}): Record<string, unknown> {
