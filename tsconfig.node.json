@@ -1,0 +1,18 @@
+{
+  // Type-checks what Playwright and Vite would otherwise only strip: the e2e specs/helpers and
+  // the build/test configs. Node globals, not DOM-only (root tsconfig.json covers src/).
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["tests", "playwright.config.ts", "vite.config.ts"]
+}

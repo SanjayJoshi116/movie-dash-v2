@@ -1,12 +1,22 @@
 import csv
 import os
 import tkinter as tk
+from concurrent.futures import ThreadPoolExecutor
 from tkinter import messagebox, ttk
 
 import requests
 from dotenv import load_dotenv
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+
+from catalogue_io import (
+    CSV_PATH,
+    TMDB_API_BASE,
+    TMDB_IMAGE_BASE,
+    CatalogueChangedError,
+    CatalogueHeaderError,
+    add_row_if_new,
+    make_tmdb_session,
+    sanitize_csv_value,
+)
 
 # TMDB API key — set TMDB_API_KEY in a local .env file (gitignored), never hardcode it here
 load_dotenv()
@@ -14,26 +24,17 @@ api_key = os.environ.get("TMDB_API_KEY")
 if not api_key:
     raise SystemExit("TMDB_API_KEY not set. Create a .env file with TMDB_API_KEY=<your key>.")
 
-# Create a session with retries and a user-agent
-session = requests.Session()
-retry_strategy = Retry(
-    total=3,
-    status_forcelist=[429, 500, 502, 503, 504],
-    allowed_methods=["GET"],
-    backoff_factor=2
-)
-adapter = HTTPAdapter(max_retries=retry_strategy)
-session.mount("https://", adapter)
+# Shared session: retries 429/5xx, sets the User-Agent (catalogue_io.make_tmdb_session)
+session = make_tmdb_session()
 
-headers = {'User-Agent': 'Mozilla/5.0'}
-
-TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
-CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "movies.csv")
+DETAIL_FETCH_WORKERS = 5
 
 # Global variables for pagination
 current_page = 1
 total_pages = 1
 fetched_movies = []
+last_query = ""
+details_cache = {}  # str(movie id) -> TMDB details, filled while listing, reused on save
 
 LANGUAGES = [
     ("All", "All"),
@@ -57,15 +58,11 @@ LANG_DISPLAY = [display for _, display in LANGUAGES]
 
 # Function to fetch movie details from TMDB API
 def search_movie(api_key, movie_name, page=1):
-    url = "https://api.themoviedb.org/3/search/movie"
-    params = {"api_key": api_key, "query": movie_name, "page": page}
-    try:
-        response = session.get(url, params=params, headers=headers, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException:
+    data = get_tmdb_object(api_key, "/search/movie", {"query": movie_name, "page": page})
+    if data is None:
         messagebox.showerror("Connection Error", "Failed to fetch data from TMDB. Check your connection and try again.")
         return {"results": [], "total_pages": 1}
+    return data
 
 def field(data, key):
     """Missing or null TMDB fields are stored as empty strings, never a placeholder like
@@ -74,94 +71,62 @@ def field(data, key):
     return "" if value is None else value
 
 
-def fetch_movie_details(api_key, movie_id):
-    url = f"https://api.themoviedb.org/3/movie/{movie_id}"
+# get_tmdb_object and the per-movie fetchers return None on any failure and show no dialog: they
+# may run on worker threads (Tk isn't thread-safe), and the caller reports failures once.
+def get_tmdb_object(api_key, path, params=None):
+    """GET a TMDB endpoint; the JSON object on success, None on any failure or non-object body."""
     try:
-        response = session.get(url, params={"api_key": api_key}, headers=headers, timeout=10)
+        response = session.get(f"{TMDB_API_BASE}{path}", params={**(params or {}), "api_key": api_key}, timeout=10)
         response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException:
-        messagebox.showerror("Error", "Failed to fetch details. Check your connection and try again.")
-        return {}
+        data = response.json()
+    except (requests.exceptions.RequestException, ValueError):
+        return None
+    return data if isinstance(data, dict) and data else None
+
+
+def fetch_movie_details(api_key, movie_id):
+    return get_tmdb_object(api_key, f"/movie/{movie_id}")
+
 
 def fetch_movie_credits(api_key, movie_id):
-    url = f"https://api.themoviedb.org/3/movie/{movie_id}/credits"
-    try:
-        response = session.get(url, params={"api_key": api_key}, headers=headers, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException:
-        messagebox.showerror("Error", "Failed to fetch credits. Check your connection and try again.")
-        return {}
+    return get_tmdb_object(api_key, f"/movie/{movie_id}/credits")
+
 
 def fetch_movie_keywords(api_key, movie_id):
-    url = f"https://api.themoviedb.org/3/movie/{movie_id}/keywords"
-    try:
-        response = session.get(url, params={"api_key": api_key}, headers=headers, timeout=10)
-        response.raise_for_status()
-        return response.json().get("keywords", [])
-    except requests.exceptions.RequestException:
-        messagebox.showerror("Error", "Failed to fetch keywords. Check your connection and try again.")
-        return []
-
-def is_duplicate(movie_id):
-    try:
-        with open(CSV_PATH, mode="r", encoding="utf-8") as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                if row.get("Movie ID") == str(movie_id):
-                    return True
-    except FileNotFoundError:
-        return False
-    return False
-
-FORMULA_PREFIX_CHARS = ("=", "+", "-", "@")
-
-
-def sanitize_csv_value(value):
-    """Prevent CSV/formula injection: Excel/Sheets can execute a cell starting
-    with =, +, -, or @ as a formula when the file is opened later."""
-    if isinstance(value, str) and value.startswith(FORMULA_PREFIX_CHARS):
-        return "'" + value
-    return value
-
+    data = get_tmdb_object(api_key, f"/movie/{movie_id}/keywords")
+    return None if data is None else data.get("keywords") or []
 
 def append_to_csv(movie_details):
-    if is_duplicate(movie_details["Movie ID"]):
-        messagebox.showinfo("Duplicate Entry", "This movie is already in the CSV file")
-        return
-
+    """Returns "added", "duplicate" or "error" (an error dialog has been shown)."""
     movie_details = {k: sanitize_csv_value(v) for k, v in movie_details.items()}
+    try:
+        added = add_row_if_new(CSV_PATH, movie_details)
+    except CatalogueChangedError:
+        messagebox.showerror("Not saved", "movies.csv changed while saving. Try again.")
+        return "error"
+    except (CatalogueHeaderError, UnicodeDecodeError, csv.Error):
+        messagebox.showerror(
+            "Not saved",
+            "movies.csv could not be read (no header on the first line, or not saved as UTF-8). "
+            "Fix the file, then try again.",
+        )
+        return "error"
+    except OSError:
+        messagebox.showerror("Not saved", "Could not write movies.csv (is it open in another program?). Try again.")
+        return "error"
+    return "added" if added else "duplicate"
 
-    file_exists = os.path.exists(CSV_PATH) and os.path.getsize(CSV_PATH) > 0
-    fieldnames = list(movie_details.keys())
 
-    if file_exists:
-        with open(CSV_PATH, mode="r", newline="", encoding="utf-8") as file:
-            reader = csv.DictReader(file)
-            existing_fieldnames = list(reader.fieldnames or [])
-            existing_rows = list(reader)
-        missing = [k for k in fieldnames if k not in existing_fieldnames]
-        if missing:
-            # Migrate the CSV in place: keep old rows, add the new column(s) (e.g. "Poster URL")
-            # with blank values, so every future append actually persists them.
-            fieldnames = existing_fieldnames + missing
-            # Temp file + atomic swap: an interrupted migration can't truncate the CSV.
-            tmp_path = CSV_PATH + ".tmp"
-            with open(tmp_path, mode="w", newline="", encoding="utf-8") as file:
-                writer = csv.DictWriter(file, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(existing_rows)
-            os.replace(tmp_path, CSV_PATH)
-        else:
-            fieldnames = existing_fieldnames
+def fetch_details_for(movies):
+    """Details for every listed movie: cached ones reused, the rest fetched in parallel (network
+    only, no Tk calls in the workers). Successes go into details_cache; returns {id: details or None}."""
+    ids = [str(field(m, "id")) for m in movies]
+    missing = [movie_id for movie_id in ids if movie_id not in details_cache]
+    with ThreadPoolExecutor(max_workers=DETAIL_FETCH_WORKERS) as pool:
+        fetched = dict(zip(missing, pool.map(lambda movie_id: fetch_movie_details(api_key, movie_id), missing)))
+    details_cache.update({k: v for k, v in fetched.items() if v is not None})
+    return {movie_id: details_cache.get(movie_id) for movie_id in ids}
 
-    with open(CSV_PATH, mode="a", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames, extrasaction="ignore")
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(movie_details)
-    messagebox.showinfo("Success", "Movie details appended to CSV file")
 
 def apply_filter_and_display(event=None):
     selected_lang = LANG_CODE_MAP.get(lang_var.get(), "All")
@@ -189,9 +154,11 @@ def apply_filter_and_display(event=None):
         tree.heading(col, text=col)
         tree.column(col, width=150, anchor="center")
 
+    all_details = fetch_details_for(movies)
+    failed = sum(1 for d in all_details.values() if d is None)
     for movie in movies:
         movie_id = field(movie, "id")
-        details = fetch_movie_details(api_key, movie_id)
+        details = all_details.get(str(movie_id)) or {}
         tree.insert("", "end", values=(
             movie_id,
             field(movie, "title"),
@@ -199,6 +166,11 @@ def apply_filter_and_display(event=None):
             field(details, "runtime"),
             details["release_date"].split("-")[0] if details.get("release_date") else ""
         ))
+    if failed:
+        messagebox.showerror(
+            "Error",
+            f"Failed to fetch details for {failed} of {len(movies)} results. Check your connection and try again.",
+        )
 
     def save_selected_to_csv():
         selected_item = tree.selection()
@@ -209,12 +181,17 @@ def apply_filter_and_display(event=None):
             messagebox.showwarning("Selection Required", "Please select a movie from the list")
             return
 
+        outcomes = {"added": [], "duplicate": [], "failed": []}
         for item in selected_item:
             values = tree.item(item, "values")
             movie_id = values[0]
-            details = fetch_movie_details(api_key, movie_id)
+            details = details_cache.get(str(movie_id)) or fetch_movie_details(api_key, movie_id)
             credits = fetch_movie_credits(api_key, movie_id)
             keywords = fetch_movie_keywords(api_key, movie_id)
+            if details is None or credits is None or keywords is None:
+                # Never store a partial row: it would block a later, complete save as a duplicate.
+                outcomes["failed"].append(values[1])
+                continue
 
             genres = ", ".join([genre["name"] for genre in details.get("genres", [])])
             director = next((m["name"] for m in credits.get("crew", []) if m["job"] == "Director"), "")
@@ -244,13 +221,35 @@ def apply_filter_and_display(event=None):
                 "Release Date": field(details, "release_date")
             }
 
-            append_to_csv(movie_details)
+            result = append_to_csv(movie_details)
+            if result == "error":
+                break  # its dialog is shown; still report what was saved before it
+            outcomes[result].append(values[1])
+
+        if any(outcomes.values()):
+            report_save(outcomes)
 
     tree.pack(fill=tk.BOTH, expand=True)
     save_button.config(command=save_selected_to_csv)
 
+def report_save(outcomes):
+    """One summary dialog per save, instead of one per movie."""
+    lines = []
+    if outcomes["added"]:
+        lines.append("Saved: " + ", ".join(outcomes["added"]))
+    if outcomes["duplicate"]:
+        lines.append("Already in the CSV: " + ", ".join(outcomes["duplicate"]))
+    if outcomes["failed"]:
+        lines.append("Not saved (TMDB request failed, try again): " + ", ".join(outcomes["failed"]))
+        messagebox.showerror("Save", "\n".join(lines))
+    elif outcomes["added"]:
+        messagebox.showinfo("Success", "\n".join(lines))
+    else:
+        messagebox.showinfo("Duplicate Entry", "\n".join(lines))
+
+
 def fetch_and_display_movies(movie_name):
-    global total_pages, fetched_movies  # current_page is only read here
+    global total_pages, fetched_movies, current_page
 
     selected_lang = LANG_CODE_MAP.get(lang_var.get(), "All")
 
@@ -262,12 +261,15 @@ def fetch_and_display_movies(movie_name):
         # Scan all pages, stop early once 20 filtered results found
         all_results = []
         filtered_count = 0
-        total_pages = 1
+        # Don't reset total_pages here: on Next Page it is the previous scan's count, and a reset
+        # to 1 would stop this loop before page 2. A fresh search starts at page 1, which always runs.
         page = current_page
         while page <= total_pages:
             response = search_movie(api_key, movie_name, page)
             total_pages = response.get("total_pages", 1)
             results = response.get("results", [])
+            # Next Page continues after the last page actually scanned, not current_page + 1
+            current_page = page
             if not results:
                 break
             all_results.extend(results)
@@ -285,17 +287,11 @@ def fetch_and_display_movies(movie_name):
 
 def search_by_actor(actor_name, movie_name_filter=""):
     global fetched_movies
-    try:
-        r = session.get(
-            "https://api.themoviedb.org/3/search/person",
-            params={"api_key": api_key, "query": actor_name},
-            headers=headers, timeout=10
-        )
-        r.raise_for_status()
-        persons = r.json().get("results", [])
-    except requests.exceptions.RequestException:
+    data = get_tmdb_object(api_key, "/search/person", {"query": actor_name})
+    if data is None:
         messagebox.showerror("Error", "Actor search failed. Check your connection and try again.")
         return False
+    persons = data.get("results", [])
 
     if not persons:
         messagebox.showinfo("No Results", f"Actor '{actor_name}' not found on TMDB")
@@ -303,17 +299,11 @@ def search_by_actor(actor_name, movie_name_filter=""):
 
     person_id = persons[0]["id"]
 
-    try:
-        r = session.get(
-            f"https://api.themoviedb.org/3/person/{person_id}/movie_credits",
-            params={"api_key": api_key},
-            headers=headers, timeout=10
-        )
-        r.raise_for_status()
-        movies = r.json().get("cast", [])
-    except requests.exceptions.RequestException:
+    data = get_tmdb_object(api_key, f"/person/{person_id}/movie_credits")
+    if data is None:
         messagebox.showerror("Error", "Failed to fetch credits. Check your connection and try again.")
         return False
+    movies = data.get("cast", [])
 
     if movie_name_filter:
         movies = [m for m in movies if movie_name_filter.lower() in m.get("title", "").lower()]
@@ -322,7 +312,7 @@ def search_by_actor(actor_name, movie_name_filter=""):
     return True
 
 def on_search_click():
-    global current_page
+    global current_page, total_pages, last_query
     movie_name = entry.get().strip()
     actor_name = actor_entry.get().strip()
 
@@ -330,18 +320,21 @@ def on_search_click():
         messagebox.showwarning("Input Required", "Please enter a movie name or actor name")
         return
 
+    current_page = 1
     if actor_name:
+        # Actor credits are one list: total_pages = 1 makes Next Page report the end.
+        total_pages = 1
         if search_by_actor(actor_name, movie_name):
             apply_filter_and_display()
     else:
-        current_page = 1
+        last_query = movie_name
         fetch_and_display_movies(movie_name)
 
 def on_next_page_click():
     global current_page  # total_pages is only read here
     if current_page < total_pages:
         current_page += 1
-        fetch_and_display_movies(entry.get())
+        fetch_and_display_movies(last_query)
     else:
         messagebox.showinfo("End of Results", "No more pages available.")
 

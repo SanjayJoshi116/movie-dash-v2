@@ -33,11 +33,15 @@ The system SHALL apply catalogue mutations one at a time, in the order they arri
 - **THEN** the request returns an error and both the stored file and the served catalogue are unchanged
 
 ### Requirement: Duplicate imports are rejected
-The system SHALL store at most one row per TMDB movie id. An import of an id already in the catalogue MUST be rejected with a conflict response. This includes an id whose earlier import is still in progress.
+The system SHALL store at most one row per TMDB movie id. An import of an id already in the catalogue MUST be rejected with a conflict response. This includes an id whose earlier import is still in progress. Whether an id is "already in the catalogue" SHALL be decided against the catalogue file's current contents, so an id whose row was removed from the file by another tool can be imported again.
 
 #### Scenario: Double-click import
 - **WHEN** two import requests for the same TMDB id arrive before either completes
 - **THEN** exactly one row is stored, one request succeeds, and the other receives `409`
+
+#### Scenario: Re-import after an external tool removed the row
+- **WHEN** a movie's row is removed from the file by another tool while the server is running, and the user then imports that movie before any other request
+- **THEN** the import succeeds with `201` and the movie is stored once
 
 ### Requirement: External edits to the catalogue file are preserved
 The system SHALL detect when the catalogue file has changed on disk since it was last read. It SHALL incorporate those changes before applying a mutation, so rows and columns written by other tools are not discarded.
@@ -58,7 +62,7 @@ The system SHALL reject mutation requests with `503` until the initial catalogue
 - **THEN** the request receives `503` and nothing is written
 
 ### Requirement: Common hand-edited file shapes are tolerated
-The system SHALL read a catalogue file that begins with a UTF-8 byte-order mark. It SHALL append correctly to a file that does not end with a newline.
+The system SHALL read a catalogue file that begins with a UTF-8 byte-order mark. It SHALL append correctly to a file that does not end with a newline. When the system rewrites or appends to an existing file, it SHALL keep that file's byte-order mark (present or absent) and its line-ending style (CRLF or LF). A file the system creates SHALL have no byte-order mark and LF line endings.
 
 #### Scenario: BOM-prefixed file
 - **WHEN** the catalogue file starts with a UTF-8 BOM
@@ -67,6 +71,14 @@ The system SHALL read a catalogue file that begins with a UTF-8 byte-order mark.
 #### Scenario: No trailing newline
 - **WHEN** a movie is imported into a file whose last line has no trailing newline
 - **THEN** the previous last row is unchanged and the imported movie is stored as its own row
+
+#### Scenario: Delete keeps the BOM
+- **WHEN** a movie is deleted from a file that starts with a UTF-8 BOM
+- **THEN** the rewritten file still starts with exactly one UTF-8 BOM
+
+#### Scenario: CRLF file stays CRLF
+- **WHEN** a movie is imported into, and another deleted from, a file whose lines end in CRLF
+- **THEN** every line of the stored file, including the imported row, ends in CRLF
 
 ### Requirement: Stored values round-trip faithfully and safely
 The system SHALL store text values that begin with `=`, `+`, `-` or `@` in a form that spreadsheet applications will not run as a formula. It SHALL serve those values to clients exactly as originally entered, and they MUST NOT pick up extra escaping across later rewrites.
@@ -115,7 +127,7 @@ Bundled scripts that rewrite the catalogue file SHALL replace it atomically. Int
 - **THEN** the catalogue file is complete and parseable
 
 ### Requirement: Ambiguous file headers never cause data loss
-The system SHALL detect a catalogue file whose header names the same column more than once, after ignoring a leading byte-order mark and surrounding whitespace. While the file is in that state, the system MUST refuse every add and delete with a storage error, and MUST NOT rewrite the file. The duplicated column name SHALL be reported in the server log.
+The system SHALL detect a catalogue file whose header names the same column more than once, after ignoring a leading byte-order mark and surrounding whitespace. Header cells that are empty after trimming SHALL NOT count as column names: they are not reported as duplicates, and their columns are not part of the catalogue (a later rewrite does not keep them). While the file has a repeated non-empty column name, the system MUST refuse every add and delete with a storage error, and MUST NOT rewrite the file. The duplicated column name SHALL be reported in the server log.
 
 #### Scenario: Duplicate Movie ID column
 - **WHEN** the catalogue file's header contains `Movie ID` twice and the user deletes a movie
@@ -124,6 +136,10 @@ The system SHALL detect a catalogue file whose header names the same column more
 #### Scenario: Header repaired externally
 - **WHEN** the duplicated column is removed from the file by hand while the server is running
 - **THEN** the next request reloads the file, and adds and deletes work again
+
+#### Scenario: Trailing blank header cells
+- **WHEN** the catalogue file's header ends in two or more empty cells (for example `...,Release Date,,`)
+- **THEN** the catalogue loads normally, every movie is served, and adds and deletes work
 
 ### Requirement: Catalogue validators are unique across server restarts
 The system SHALL NOT issue a validator for the catalogue list that a client might hold from an earlier server process, so a client revalidating against a restarted server always receives the current list.
@@ -171,3 +187,10 @@ The system SHALL answer TMDB search and get-by-id requests from catalogue state 
 #### Scenario: Actor with two roles in one film
 - **WHEN** TMDB lists the same movie twice in an actor's credits
 - **THEN** the search results contain that movie once
+
+### Requirement: Imported rows are served as stored
+After a successful import, the system SHALL serve the imported movie with exactly the fields the catalogue file holds for it. Fields with no matching column in the file's header MUST NOT appear, and header columns the import did not fill SHALL be present and empty, as they would be after a reload.
+
+#### Scenario: Import into a file missing a column
+- **WHEN** the catalogue file's header has no `Poster URL` column and a movie with a poster is imported
+- **THEN** the import response and the following catalogue list show the movie without a poster URL, and the same is true after a server restart

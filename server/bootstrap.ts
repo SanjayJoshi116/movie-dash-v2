@@ -31,13 +31,18 @@ export function parsePort(raw: string | undefined, fallback = DEFAULT_PORT): num
 
 /**
  * TRUST_PROXY → Express 'trust proxy'. Unset/empty/"false" → undefined (not trusted, the default);
- * "true" → true; digits → hop count; anything else (e.g. "loopback" or an IP/CIDR list) is passed
- * through for Express to interpret.
+ * digits → hop count; "true" → ConfigError (it trusts every X-Forwarded-For hop, so any client
+ * could choose its own rate-limit key); anything else (e.g. "loopback" or an IP/CIDR list) is
+ * passed through for Express to interpret.
  */
-export function parseTrustProxy(raw: string | undefined): boolean | number | string | undefined {
+export function parseTrustProxy(raw: string | undefined): number | string | undefined {
   const value = raw?.trim() ?? '';
   if (value === '' || value.toLowerCase() === 'false') return undefined;
-  if (value.toLowerCase() === 'true') return true;
+  if (value.toLowerCase() === 'true') {
+    throw new ConfigError(
+      `TRUST_PROXY="${raw}" would trust any client's X-Forwarded-For header; set the number of proxies in front of the server (usually 1) or their addresses (e.g. "loopback")`,
+    );
+  }
   if (/^\d+$/.test(value)) return Number(value);
   return value;
 }

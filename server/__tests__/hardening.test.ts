@@ -77,12 +77,28 @@ describe('TMDB credentials never appear in server logs', () => {
 });
 
 describe('Request handler failures do not crash the server', () => {
-  it('a null TMDB body imports a row of empty values', async () => {
-    const s = await start({ tmdbApiKey: 'k', tmdb: stubTmdb({ '/movie/77': null, '/movie/77/credits': null }) });
+  for (const [label, body] of [['null', null], ['an HTML page', '<html>proxy login</html>'], ['a title-less object', { runtime: 90 }]] as const) {
+    it(`a TMDB details body that is ${label} is a 502 and stores nothing`, async () => {
+      let details: unknown = body;
+      const s = await start({ tmdbApiKey: 'k', tmdb: stubTmdb({ '/movie/77': () => details }) });
+      const before = fs.readFileSync(s.csvPath, 'utf8');
+      const res = await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 77 });
+      assert.equal(res.status, 502);
+      assert.equal(fs.readFileSync(s.csvPath, 'utf8'), before);
+      assert.equal((await request(s.baseUrl, '/api/health')).status, 200);
+      // Not remembered as imported: once TMDB answers properly the import goes through.
+      details = tmdbDetails(77);
+      assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 77 })).status, 201);
+    });
+  }
+
+  it('a null credits body still imports, with no director or cast', async () => {
+    const s = await start({ tmdbApiKey: 'k', tmdb: stubTmdb({ '/movie/77/credits': null }) });
     const res = await postJson<MovieJson>(s.baseUrl, '/api/tmdb/import', { movieId: 77 });
     assert.equal(res.status, 201);
-    assert.equal(res.body.Name, '');
-    assert.equal((await request(s.baseUrl, '/api/health')).status, 200);
+    assert.equal(res.body.Name, 'Movie 77');
+    assert.equal(res.body.Director, '');
+    assert.equal(res.body['Actors/Actresses'], '');
   });
 
   it('an unexpected throw in a handler is a generic 500 and the server keeps serving', async () => {
@@ -94,6 +110,14 @@ describe('Request handler failures do not crash the server', () => {
     assert.equal((await request(s.baseUrl, '/api/health')).status, 200);
     // inFlightImports was released: a retry is a fresh attempt, not a 409.
     assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 78 })).status, 500);
+    // Logged as one line of text, never the error object.
+    const unhandled = s.errors.filter((args) => args[0] === 'Unhandled error:');
+    assert.ok(unhandled.length > 0);
+    for (const args of unhandled) {
+      assert.equal(args.length, 2);
+      assert.equal(typeof args[1], 'string');
+      assert.ok(!String(args[1]).includes('\n'));
+    }
   });
 });
 
@@ -148,6 +172,25 @@ describe('Startup load failures are visible', () => {
     assert.equal(fixed.status, 200);
     assert.deepEqual(fixed.body.map((m) => m['Movie ID']), ['1', '2']);
     assert.equal((await request<{ status: string }>(s.baseUrl, '/api/health')).body.status, 'ok');
+  });
+
+  it('a broken file deleted after a failed boot recovers to an empty catalogue', async () => {
+    const first = await start();
+    fs.writeFileSync(first.csvPath, [DUP_HEADER, csvRow('1', 'One')].join('\n') + '\n', 'utf8');
+    const s = await start({ dir: first.dir });
+    assert.equal((await request<{ status: string }>(s.baseUrl, '/api/health')).body.status, 'error');
+    fs.rmSync(s.csvPath);
+    const list = await request<MovieJson[]>(s.baseUrl, '/api/movies');
+    assert.equal(list.status, 200);
+    assert.deepEqual(list.body, []);
+    assert.equal((await request<{ status: string }>(s.baseUrl, '/api/health')).body.status, 'ok');
+  });
+
+  it('a boot failure with a non-Error value is logged by name, not as undefined', async () => {
+    const s = await start({ onBeforeLoad: () => Promise.reject('disk on fire') });
+    const line = s.errors.find((args) => args[0] === 'Failed to load CSV:');
+    assert.deepEqual(line, ['Failed to load CSV:', 'disk on fire']);
+    assert.equal((await request<{ status: string }>(s.baseUrl, '/api/health')).body.status, 'error');
   });
 
   it('a missing file is still an empty catalogue, not an error', async () => {
@@ -262,8 +305,9 @@ describe('Transient file locks do not fail mutations', () => {
 
 describe('Committed writes are reported as successful', () => {
   it('a failing stat after the append still returns 201, and the next list re-reads the file', async () => {
-    // Import stats: #1 reloadIfChanged, #2 appendMovieToCsv's size check, #3 markWritten.
-    const hooks = armedStat((n) => { if (n === 3) throw errnoError('EBUSY'); });
+    // Import stats: #1 the fast-path reloadForRead, #2 reloadIfChanged in the queue,
+    // #3 appendMovieToCsv's size check, #4 markWritten.
+    const hooks = armedStat((n) => { if (n === 4) throw errnoError('EBUSY'); });
     const s = await start({ tmdbApiKey: 'k', tmdb: stubTmdb(), fsHooks: { stat: hooks.stat } });
     hooks.arm();
     assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 603 })).status, 201);

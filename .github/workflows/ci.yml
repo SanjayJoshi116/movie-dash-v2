@@ -30,8 +30,11 @@ jobs:
 
       - name: Lint Python scripts (ruff)
         run: |
-          pip install -r requirements-dev.txt
-          ruff check movie-search.py backfill_posters.py
+          pip install -r requirements.txt -r requirements-dev.txt
+          ruff check movie-search.py backfill_posters.py catalogue_io.py tests/python
+
+      - name: Python unit tests
+        run: python -m unittest discover -s tests/python -v
 
       - name: Type-check server
         run: npm run type-check:server

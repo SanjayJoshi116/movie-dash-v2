@@ -2,7 +2,7 @@
 // Run after `npm run build`: reads dist/.vite/manifest.json, collects the landing route's
 // initial JS (the index.html entry plus everything it *statically* imports — never
 // dynamicImports, which are the lazy Movies/Stats routes), gzips each chunk with Node's
-// built-in zlib and fails if the total exceeds BUDGET_INITIAL_GZIP_KB, or if any .js
+// built-in zlib at its default level (what the server's compression() middleware sends) and fails if the total exceeds BUDGET_INITIAL_GZIP_KB, or if any .js
 // chunk in dist/assets is over MAX_CHUNK_RAW_KB minified. Cross-platform, no network.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,7 +28,7 @@ const kb = (bytes) => bytes / 1000; // Vite reports kB as 1000 bytes; match it.
 const fmt = (n) => n.toFixed(2).padStart(9);
 const sizeOf = (file) => {
   const buf = fs.readFileSync(path.join(distDir, file));
-  return { raw: buf.length, gzip: zlib.gzipSync(buf, { level: 9 }).length };
+  return { raw: buf.length, gzip: zlib.gzipSync(buf).length };
 };
 
 // Walk static imports only.

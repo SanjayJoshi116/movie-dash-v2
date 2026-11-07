@@ -1,6 +1,6 @@
 # Bug Backlog
 
-Last full sweep: **2026-10-28** (v0.9.1, working tree on `main`). Last updated **2026-11-06** (v0.10.0: B1 fixed, B47 renumbered, B48–B50 added, §0/§5/§6 refreshed). Read-only sweep: four parallel reviewers (server/scripts/CI, Movies page, analytics, shell/tests), then a merge pass. Earlier records: `docs/audit-findings-2026-10-08.md` (S/F/C/T IDs) and `docs/review-findings-2026-10-15.md` (R1–R7, all resolved). This file lists only **open** items. Line numbers are pointers, so re-check them before editing.
+Last full sweep: **2026-10-28** (v0.9.1, working tree on `main`). Last updated **2026-11-07**, v0.11.0 (Batch A review: B51–B60 added and fixed, §3c, §6 batch column; Batch B review: B61–B67 added and fixed with B3/B8/B9, §3d; Batch C review: B68–B78 added, all but B75 fixed, §3e; §6 Fix column + batch status). Read-only sweep: four parallel reviewers (server/scripts/CI, Movies page, analytics, shell/tests), then a merge pass. Earlier records: `docs/audit-findings-2026-10-08.md` (S/F/C/T IDs) and `docs/review-findings-2026-10-15.md` (R1–R7, all resolved). This file lists only **open** items. Line numbers are pointers, so re-check them before editing.
 
 Severity: **High** = broken today / data loss / security / CI red · **Med** = wrong behavior users will hit · **Low** = polish, a11y, edge cases.
 Confidence: **H** = traced through the code and/or reproduced · **M** = needs a specific data shape or environment.
@@ -41,7 +41,7 @@ Confidence: **H** = traced through the code and/or reproduced · **M** = needs a
 
 - ✅ *Fixed 2026-11-04 by `harden-catalogue-server`.* **B2 — TMDB API key written to server logs on every TMDB failure.** `server/app.ts:367` (search) and `:407` (import) pass the whole AxiosError to `logger.error`. `server/tmdb.ts:37` puts `api_key` in `params`, so the key appears in `config.params`, `request._header` and `responseUrl` (~7 copies per entry). Any TMDB outage or 5xx prints the key to the console or logs. This breaks the project's key-hygiene rule (the Python tools show generic messages for the same reason). *Fix:* log a redacted summary (`err.code`, `err.response?.status`, path without query), or use a `redactAxiosError()` helper. Add a server test asserting the stub logger never sees the key. *(H, reproduced)*
 
-- ◐ *Server half fixed 2026-11-04 by `harden-catalogue-server` (duplicate header → mutations refused, file never rewritten); Python `utf-8-sig` half still open.* **B3 — BOM-prefixed CSV + `movie-search.py` → duplicate `Movie ID` column → the next in-app delete erases every old row's ID.**
+- ✅ *Server half fixed 2026-11-04 by `harden-catalogue-server` (duplicate header → mutations refused, file never rewritten); Python `utf-8-sig` half fixed 2026-11-07 by `fix-python-csv-writers` (`catalogue_io.read_catalogue`).* **B3 — BOM-prefixed CSV + `movie-search.py` → duplicate `Movie ID` column → the next in-app delete erases every old row's ID.**
   - `movie-search.py:109,140` and `backfill_posters.py:70` read with `encoding="utf-8"`, not `utf-8-sig`. After an Excel "CSV UTF-8" save, the first header is `\uFEFFMovie ID`.
   - `is_duplicate()` never matches.
   - The header migration then appends a second `Movie ID` column.
@@ -67,8 +67,8 @@ Confidence: **H** = traced through the code and/or reproduced · **M** = needs a
 - **B7 — Dashboard "Top Rated" highlight has no vote-count floor.** `Dashboard.tsx:144-145`: a 10.0 from one vote wins. `TopNExplorer` already uses `MIN_VOTES_FOR_RATING` (50, with a fallback when <10 qualify). *Fix:* export that rule from one place and reuse it. *(H)*
 
 ### Python tools (`movie-search.py`)
-- **B8 — A failed TMDB fetch still saves an incomplete row, and retry is then blocked.** `movie-search.py:77-105,215-247`. On a network error the fetchers show a dialog and return `{}`/`[]`, but the save continues with empty Genres/Director/Cast/Revenue/Budget/Votes/Poster. `is_duplicate` then refuses a re-add, so the CSV has to be hand-edited. (The server import correctly returns 502 and writes nothing.) *Fix:* fetchers return `None` on failure; skip the append if any fetch failed. *(H)*
-- **B9 — Append glues the new row onto the last row when the file lacks a trailing newline.** `movie-search.py:156-163`. This is the bug the server fixed as S7, still present in the other writer. *Fix:* check the last byte and write a newline first. Share a helper with B3. *(H)*
+- ✅ *Fixed 2026-11-07 by `fix-python-csv-writers`.* **B8 — A failed TMDB fetch still saves an incomplete row, and retry is then blocked.** `movie-search.py:77-105,215-247`. On a network error the fetchers show a dialog and return `{}`/`[]`, but the save continues with empty Genres/Director/Cast/Revenue/Budget/Votes/Poster. `is_duplicate` then refuses a re-add, so the CSV has to be hand-edited. (The server import correctly returns 502 and writes nothing.) *Fix:* fetchers return `None` on failure; skip the append if any fetch failed. *(H)*
+- ✅ *Fixed 2026-11-07 by `fix-python-csv-writers`.* **B9 — Append glues the new row onto the last row when the file lacks a trailing newline.** `movie-search.py:156-163`. This is the bug the server fixed as S7, still present in the other writer. *Fix:* check the last byte and write a newline first. Share a helper with B3. *(H)*
 
 ### App shell / recovery
 - **B10 — A failed lazy-chunk load can't be recovered without a full reload.** `App.tsx:13-14`, `ErrorBoundary.tsx`. `React.lazy` caches the rejected import, so "Try Again" and navigating away and back both re-show "Failed to fetch dynamically imported module". Trigger: restart Vite or deploy new hashed chunks, then open Movies/Stats. *Fix:* reload the page on chunk-load errors, or wrap `lazy` in a retrying loader. *(H)*
@@ -168,6 +168,49 @@ Confidence: **H** = traced through the code and/or reproduced · **M** = needs a
 - ✅ **S10 (LAN exposure of unauthenticated mutations)**, moved here from `prod-deploy`. *Fixed:* Express `127.0.0.1`, Vite `localhost`, `npm run dev:lan`. Checked by hand against the LAN IP for both `dev` and `dev:lan`.
 - Not fixed, by decision: an empty `CLIENT_ORIGIN` opening CORS (false positive, tested: no ACAO header is sent); DNS rebinding (security verifier 3/10); `trust proxy` (stays in `prod-deploy`).
 
+## 3c. Found 2026-11-07 (Batch A review: `server/app.ts`, `server.ts`, `tmdb.ts`, `bootstrap.ts`), all fixed by `fix-server-batch-a-review`
+
+All 10 were checked against the code before fixing. The security review of the same files kept 0 at ≥8 confidence; its one suggestion is B59.
+
+- ✅ **B51 — Two or more blank trailing header cells took the catalogue offline.** `findDuplicateHeader` saw `''` twice → `DuplicateHeaderError` → every catalogue route `500`. *Fixed:* blank header cells are skipped columns. *(H)*
+- ✅ **B52 — Import served fields the file had no column for.** Memory held the full row while `appendMovieToCsv` wrote only the header's columns, so a poster/date showed until a restart. *Fixed:* `projectRow(row, csvHeaders)` is served and kept. *(M)*
+- ✅ **B53 — `TRUST_PROXY=true` let any client pick its rate-limit key** (`express-rate-limit` 8 flags it as `ERR_ERL_PERMISSIVE_TRUST_PROXY`). *Fixed:* `ConfigError` at startup. **Breaking** for configs using `true`. *(M)*
+- ✅ **B54 — A null/HTML/title-less TMDB details body was saved as a blank row** and then blocked re-import with `409`. *Fixed:* `502`, nothing written; null credits still import. *(M)*
+- ✅ **B55 — Rewrites dropped the file's BOM and wrote LF into CRLF files**, so Excel garbled non-ASCII titles after an in-app delete (server-side twin of B14). *Fixed:* BOM and EOL probed at load and reproduced. *(M)*
+- ✅ **B56 — The import's early `409` used stale memory**, so a row removed by another tool couldn't be re-imported until some other request reloaded. *Fixed:* `reloadForRead()` first. *(L)*
+- ✅ **B57 — After a failed boot, deleting the broken file never recovered** (null vs null fingerprint looked unchanged). *Fixed:* forced reload while `loadError` is set. *(L)*
+- ✅ **B58 — TMDB calls could take ~31.5 s each (~63 s for an actor search)**: timeouts and non-network errors were retried, `Retry-After` ignored. *Fixed:* 15 s deadline per call, only network/`429`/`5xx` retried, `Retry-After` honoured. *(L)*
+- ✅ **B59 — The error middleware logged the whole error object** (CLAUDE.md requires `describeError`; no key path today), and the boot catch could log `undefined`. *Fixed:* one line via `describeError`. *(L)*
+- ✅ **B60 — CSV escaping duplicated in `exportCsv.ts`**, and new-file headers followed `Object.keys` order. *Fixed:* shared `src/utils/csvEscape.ts`; `CATALOGUE_COLUMNS` header. *(cleanup)*
+
+## 3d. Found 2026-11-07 (Batch B review: `movie-search.py`, `backfill_posters.py`), all fixed by `fix-python-csv-writers`
+
+CR found 10, all checked against the code (BOM, `extrasaction`, CRLF reproduced in Python 3.13). 3 were existing B3/B8/B9; 7 new below. SR kept 0 at ≥8 confidence (key leak 1, formula injection 2, tab/CR prefix 3, Tcl 1).
+
+- ✅ **B61 — Backfill checkpoints overwrite rows added while it runs.** `backfill_posters.py:71,104,107` reads the CSV once and rewrites from that copy, so a movie imported in-app (or by `movie-search.py`) during the run is lost. No changed-file check, unlike the server. *Fix:* re-read at checkpoint, merge posters by `Movie ID`, stale check before replace. *(High, H)*
+- ✅ **B62 — `movie-search.py` paging repeats or errors.** `:266` language scan never advances `current_page`, so Next Page rescans pages already shown; Next Page after an actor search runs an empty title search (error dialog) once a prior search set `total_pages > 1`. *(Low, H)*
+- ✅ **B63 — `movie-search.py` result list freezes and cascades dialogs.** `:194` fetches details serially on the Tk main thread, one dialog per failure (20 on an outage); save refetches the details (`:215`) and reads the CSV twice (`:109`, `:140`). *(Low, H)*
+- ✅ **B64 — Backfill ignores a bad API key and rewrites when nothing changed.** `backfill_posters.py:55,107`: 401 is counted as `request_error` and every remaining row is requested; the final `write_csv` always runs, converting LF to CRLF and bumping mtime. *(Low, H)*
+- ✅ **B65 — A row with stray extra cells crashes Python rewrites.** `DictReader` puts extras under key `None`; `DictWriter`'s default `extrasaction="raise"` throws `ValueError: dict contains fields not in fieldnames: None` (`backfill_posters.py:64`, `movie-search.py:152`), losing checkpoint progress and leaving `.tmp`. *(Med, H)*
+- ✅ **B66 — Python `os.replace` has no lock retry.** `backfill_posters.py:67`, `movie-search.py:155`: Excel/AV holding the file → `PermissionError` crash (up to 99 rows of backfill progress lost). Server retries EPERM/EBUSY/EACCES. *(Med, H)*
+- ✅ **B67 — Python session/temp-file code duplicated; fixed `.tmp` name shared.** Both scripts copy the session/Retry/`CSV_PATH`/rewrite code and use `CSV_PATH + ".tmp"`, so concurrent runs collide. *(cleanup)*
+
+## 3e. Found 2026-11-07 (Batch C review: `vite.config.ts`, `playwright.config.ts`, `eslint.config.mjs`, `scripts/check-bundle.mjs`), fixed by `harden-build-test-config` (B75 deferred)
+
+CR found 10, all checked against the code: 9 confirmed, 1 plausible but never observed (B75, deferred). SR kept 0 at ≥8 confidence (`dev:lan` proxy reach 4, by design; DNS rebinding 1, Vite 8.3.5 host check runs before the proxy; `/@fs` `.env` read 2, default `fs.deny`). Its doc-accuracy note is B78.
+
+- ✅ **B68 — A committed `test.only` shrinks CI e2e to one passing test.** `playwright.config.ts` has no `forbidOnly`. *(High, H)*
+- ✅ **B69 — Nothing enforces importing `test` from `tests/helpers.ts`.** A spec importing from `@playwright/test` skips the write-guard fixture; clicking Delete in e2e would rewrite the real `src/movies.csv`. *(High, H)*
+- ✅ **B70 — e2e specs, helpers and build configs are never type-checked.** The root tsconfig includes only `src`, and Playwright and Vite strip types without checking them. They compile cleanly today. *(Med, H)*
+- ✅ **B71 — Vite has no `strictPort`.** If 3000 is busy, Vite moves to 3001 while Playwright waits on, or reuses, whatever holds 3000. *(Med, H)*
+- ✅ **B72 — Gitignored `*.tmp.*` files are linted.** ESLint 10 flat config doesn't read `.gitignore`, so a throwaway `shots.tmp.mjs` fails `no-undef` on `process`. *(Low, H)*
+- ✅ **B73 — Lint warnings never fail CI.** `eslint .` has no `--max-warnings 0`. *(Low, H)*
+- ✅ **B74 — `waitForTimeout` isn't banned in tests**, despite the CLAUDE.md rule. *(Low, H)*
+- **B75 — All dev-proxy traffic shares one rate-limit bucket.** Proxied `/api` requests arrive from 127.0.0.1, so the whole e2e run and every `dev:lan` device share 300 req/min. Never seen to cause a 429. *Deferred: raising the dev limit would also loosen `dev:lan`.* *(Low, M)*
+- ✅ **B76 — The bundle budget gzips at level 9, but the server sends level 6** (`compression()` default), so the check under-reports. *(Low, H)*
+- ✅ **B77 — `tseslint.config()` is deprecated** in typescript-eslint 8.72, which recommends `defineConfig()` from `eslint/config`. *(cleanup)*
+- ✅ **B78 — Docs say `dev:lan` keeps the API local.** README Security says "`npm run dev:lan` opens only the web app", and CLAUDE.md and the `vite.config.ts` comment say "the API stays loopback". Through the dev proxy, LAN devices can list, add and delete movies; only port 5000 itself stays loopback. *(Low, H, from SR)*
+
 ## 4. Spec scenarios with no test at all
 
 Excludes what `e2e-hardening` already plans (Add/Delete happy path, Stats slider + Reset, PNG download, Dashboard empty state, mobile BottomNav, grid sort).
@@ -216,7 +259,28 @@ Excludes what `e2e-hardening` already plans (Add/Delete happy path, Stats slider
 
 ## 6. Per-module review tracker
 
-Started 2026-11-04. Covers 75 source modules (67 at start, plus `hardening.test.ts`, `bootstrap.ts`, `bootstrap.test.ts`, and on 2026-11-06 `hosting.test.ts`, `check-bundle.mjs`, `tests/helpers.ts`, `search.ts`, `slugify.ts`) (`.ts`/`.tsx`/`.py`/`.mjs`, excluding `openspec/`). Tick ☑ when a pass is done and add any new findings as B-IDs above. **CR** = `/code-review <path>` · **SR** = `/security-review`. SR reviews pending branch changes, not a path, so it may need a scoped diff or explicit file instructions.
+Started 2026-11-04. Covers 75 source modules (67 at start, plus `hardening.test.ts`, `bootstrap.ts`, `bootstrap.test.ts`, and on 2026-11-06 `hosting.test.ts`, `check-bundle.mjs`, `tests/helpers.ts`, `search.ts`, `slugify.ts`) (`.ts`/`.tsx`/`.py`/`.mjs`, excluding `openspec/`). Tick ☑ when a pass is done and add any new findings as B-IDs above. **CR** = `/code-review <path>` · **SR** = `/security-review`. **Fix** = the pass's findings were verified by hand and fixed: ☑ fixed and its OpenSpec change archived · ◐ fix implemented, change not archived yet · ☐ not yet (or no review yet).
+
+**Progress (2026-11-07):** 10 of 75 modules reviewed (CR + SR): 8 fully fixed (rows 1, 2, 3, 6, 7, 8, 69, 72), 2 awaiting archive (rows 4, 5: `fix-python-csv-writers`, manual GUI check open). Next: Batch D. SR reviews pending branch changes, not a path, so it may need a scoped diff or explicit file instructions.
+
+**Batches** (added 2026-11-07): rows stay per-file so ticks stay precise, but review one batch per pass, passing all its paths to `/code-review` so cross-file bugs inside a feature slice get caught. Tick each row the pass covered.
+
+| Batch | Scope | Rows | CR | SR | Fix | Findings · change |
+|---|---|---|---|---|---|---|
+| A | Server runtime | 1, 2, 3, 69 | ☑ | ☑ | ☑ | B51–B60 · `fix-server-batch-a-review` (archived) |
+| B | Python CSV writers | 4, 5 | ☑ | ☑ | ◐ | B61–B67 (+B3/B8/B9) · `fix-python-csv-writers` (manual GUI check open) |
+| C | Build/lint/test config + bundle check | 6, 7, 8, 72 | ☑ | ☑ | ☑ | B68–B78 (B75 deferred) · `harden-build-test-config` (archived) |
+| D | App shell | 9–16 | ☐ | ☐ | ☐ |  |
+| E | Contexts + hooks | 17–22 | ☐ | ☐ | ☐ |  |
+| F | Dashboard page + its components | 23, 33, 34, 35 | ☐ | ☐ | ☐ |  |
+| G | Movies page + filtering | 24, 30, 31, 32, 54, 55, 74 | ☐ | ☐ | ☐ |  |
+| H | Movies views + mutations + export | 26, 27, 28, 29, 52 | ☐ | ☐ | ☐ |  |
+| I1 | Stats page, TopNExplorer, ChartBlock, Overview/Explore tabs | 25, 36, 37, 38, 43 | ☐ | ☐ | ☐ |  |
+| I2 | People/Ratings/Runtime/BoxOffice tabs | 39, 40, 41, 42 | ☐ | ☐ | ☐ |  |
+| J | Chart wrappers | 44–51 | ☐ | ☐ | ☐ |  |
+| K | Remaining utils + types | 53, 56–61, 75 | ☐ | ☐ | ☐ |  |
+| L | Server tests | 62–66, 68, 70, 71 | ☐ | ☐ | ☐ |  |
+| M | E2E spec + helpers | 67, 73 | ☐ | ☐ | ☐ |  |
 
 ### Server (highest security priority)
 
@@ -224,124 +288,144 @@ Row 1 (2026-11-04): CR found 10 (3 were existing B2/B3/B16); SR kept 0 at ≥8 c
 
 Row 2 (2026-11-04): CR found 8 (1 false positive: empty `CLIENT_ORIGIN`; 2 already in `prod-deploy`); SR kept 0 at ≥8 confidence (LAN exposure at 7, DNS rebinding at 3). LAN exposure and B42–B46 fixed by `openspec/changes/harden-server-entry`. New module `server/bootstrap.ts` added as row 69.
 
-| # | Module | CR | SR |
-|---|---|---|---|
-| 1 | `server/app.ts` | ☑ | ☑ |
-| 2 | `server/server.ts` | ☑ | ☑ |
-| 3 | `server/tmdb.ts` (changed in 0.9.2: `TmdbRequestError`) | ☐ | ☐ |
+Batch A (2026-11-07, rows 1, 2, 3, 69 reviewed together): CR (high) found 10, all confirmed by hand → B51–B60; SR kept 0 at ≥8 confidence (whole-error logging at 2, `TRUST_PROXY=true` at 1, CSV prefix/XSS/CSRF/traversal/SSRF all ≤2). All fixed by `openspec/changes/fix-server-batch-a-review`.
+
+Batch B (2026-11-07, rows 4, 5): CR found 10, all confirmed by hand (3 existing B3/B8/B9, new B61–B67); SR kept 0 at ≥8 confidence. All fixed by `openspec/changes/fix-python-csv-writers`.
+
+Pre-commit review of the 0.11.0 diff (2026-11-07): CR found 10 more in the new code, all fixed before commit. In Python:
+- `append_row` no longer overwrites a header-less file.
+- Language-filter Next Page now works.
+- A busy backfill checkpoint no longer ends the run.
+- An unreadable CSV shows a dialog.
+- The backfill reports the count of rows actually written.
+
+On the server:
+- An abort signal enforces the TMDB deadline.
+- BOM/EOL are detected from the load stream.
+- An unchanged file skips the read queue.
+- The readiness middleware reuses `reloadForRead`.
+- Values with a leading apostrophe keep it.
+
+Batch C (2026-11-07, rows 6, 7, 8, 72): CR found 10 (9 confirmed, B75 plausible and deferred) → B68–B77; SR kept 0 at ≥8 confidence, plus one doc note → B78. All but B75 fixed by `openspec/changes/harden-build-test-config`.
+
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 1 | `server/app.ts` | A | ☑ | ☑ | ☑ |
+| 2 | `server/server.ts` | A | ☑ | ☑ | ☑ |
+| 3 | `server/tmdb.ts` (changed in 0.9.2: `TmdbRequestError`) | A | ☑ | ☑ | ☑ |
 
 ### Python scripts (write to `src/movies.csv`)
-| # | Module | CR | SR |
-|---|---|---|---|
-| 4 | `movie-search.py` | ☐ | ☐ |
-| 5 | `backfill_posters.py` | ☐ | ☐ |
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 4 | `movie-search.py` | B | ☑ | ☑ | ◐ |
+| 5 | `backfill_posters.py` | B | ☑ | ☑ | ◐ |
 
 ### Config
-| # | Module | CR | SR |
-|---|---|---|---|
-| 6 | `vite.config.ts` | ☐ | ☐ |
-| 7 | `playwright.config.ts` | ☐ | ☐ |
-| 8 | `eslint.config.mjs` | ☐ | ☐ |
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 6 | `vite.config.ts` | C | ☑ | ☑ | ☑ |
+| 7 | `playwright.config.ts` | C | ☑ | ☑ | ☑ |
+| 8 | `eslint.config.mjs` | C | ☑ | ☑ | ☑ |
 
 ### Frontend: entry / app shell
-| # | Module | CR | SR |
-|---|---|---|---|
-| 9 | `src/main.tsx` | ☐ | ☐ |
-| 10 | `src/App.tsx` | ☐ | ☐ |
-| 11 | `src/components/Sidebar.tsx` | ☐ | ☐ |
-| 12 | `src/components/TopBar.tsx` | ☐ | ☐ |
-| 13 | `src/components/BottomNav.tsx` | ☐ | ☐ |
-| 14 | `src/components/ErrorBoundary.tsx` | ☐ | ☐ |
-| 15 | `src/components/LoadingError.tsx` | ☐ | ☐ |
-| 16 | `src/components/ScrollToTop.tsx` | ☐ | ☐ |
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 9 | `src/main.tsx` | D | ☐ | ☐ | ☐ |
+| 10 | `src/App.tsx` | D | ☐ | ☐ | ☐ |
+| 11 | `src/components/Sidebar.tsx` | D | ☐ | ☐ | ☐ |
+| 12 | `src/components/TopBar.tsx` | D | ☐ | ☐ | ☐ |
+| 13 | `src/components/BottomNav.tsx` | D | ☐ | ☐ | ☐ |
+| 14 | `src/components/ErrorBoundary.tsx` | D | ☐ | ☐ | ☐ |
+| 15 | `src/components/LoadingError.tsx` | D | ☐ | ☐ | ☐ |
+| 16 | `src/components/ScrollToTop.tsx` | D | ☐ | ☐ | ☐ |
 
 ### Frontend: contexts / hooks
-| # | Module | CR | SR |
-|---|---|---|---|
-| 17 | `src/contexts/MoviesContext.tsx` | ☐ | ☐ |
-| 18 | `src/contexts/ThemeContext.tsx` | ☐ | ☐ |
-| 19 | `src/contexts/DrilldownContext.tsx` | ☐ | ☐ |
-| 20 | `src/hooks/useMovies.ts` | ☐ | ☐ |
-| 21 | `src/hooks/useDebounce.ts` | ☐ | ☐ |
-| 22 | `src/hooks/usePersistedFilters.ts` | ☐ | ☐ |
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 17 | `src/contexts/MoviesContext.tsx` | E | ☐ | ☐ | ☐ |
+| 18 | `src/contexts/ThemeContext.tsx` | E | ☐ | ☐ | ☐ |
+| 19 | `src/contexts/DrilldownContext.tsx` | E | ☐ | ☐ | ☐ |
+| 20 | `src/hooks/useMovies.ts` | E | ☐ | ☐ | ☐ |
+| 21 | `src/hooks/useDebounce.ts` | E | ☐ | ☐ | ☐ |
+| 22 | `src/hooks/usePersistedFilters.ts` | E | ☐ | ☐ | ☐ |
 
 ### Frontend: pages
-| # | Module | CR | SR |
-|---|---|---|---|
-| 23 | `src/pages/Dashboard.tsx` | ☐ | ☐ |
-| 24 | `src/pages/Movies.tsx` | ☐ | ☐ |
-| 25 | `src/pages/Stats.tsx` | ☐ | ☐ |
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 23 | `src/pages/Dashboard.tsx` | F | ☐ | ☐ | ☐ |
+| 24 | `src/pages/Movies.tsx` | G | ☐ | ☐ | ☐ |
+| 25 | `src/pages/Stats.tsx` | I1 | ☐ | ☐ | ☐ |
 
 ### Frontend: Movies page components (incl. mutations)
-| # | Module | CR | SR |
-|---|---|---|---|
-| 26 | `src/components/AddMovieModal.tsx` | ☐ | ☐ |
-| 27 | `src/components/MovieDrawer.tsx` | ☐ | ☐ |
-| 28 | `src/components/MovieTable.tsx` | ☐ | ☐ |
-| 29 | `src/components/MovieCardGrid.tsx` | ☐ | ☐ |
-| 30 | `src/components/FiltersDrawer.tsx` | ☐ | ☐ |
-| 31 | `src/components/ActiveFilters.tsx` | ☐ | ☐ |
-| 32 | `src/components/RangeSlider.tsx` | ☐ | ☐ |
-| 33 | `src/components/PosterThumb.tsx` | ☐ | ☐ |
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 26 | `src/components/AddMovieModal.tsx` | H | ☐ | ☐ | ☐ |
+| 27 | `src/components/MovieDrawer.tsx` | H | ☐ | ☐ | ☐ |
+| 28 | `src/components/MovieTable.tsx` | H | ☐ | ☐ | ☐ |
+| 29 | `src/components/MovieCardGrid.tsx` | H | ☐ | ☐ | ☐ |
+| 30 | `src/components/FiltersDrawer.tsx` | G | ☐ | ☐ | ☐ |
+| 31 | `src/components/ActiveFilters.tsx` | G | ☐ | ☐ | ☐ |
+| 32 | `src/components/RangeSlider.tsx` | G | ☐ | ☐ | ☐ |
+| 33 | `src/components/PosterThumb.tsx` | F | ☐ | ☐ | ☐ |
 
 ### Frontend: Dashboard / shared display components
-| # | Module | CR | SR |
-|---|---|---|---|
-| 34 | `src/components/DashboardSection.tsx` | ☐ | ☐ |
-| 35 | `src/components/StatCard.tsx` | ☐ | ☐ |
-| 36 | `src/components/TopNExplorer.tsx` | ☐ | ☐ |
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 34 | `src/components/DashboardSection.tsx` | F | ☐ | ☐ | ☐ |
+| 35 | `src/components/StatCard.tsx` | F | ☐ | ☐ | ☐ |
+| 36 | `src/components/TopNExplorer.tsx` | I1 | ☐ | ☐ | ☐ |
 
 ### Frontend: Stats tabs
-| # | Module | CR | SR |
-|---|---|---|---|
-| 37 | `src/components/StatsTabs/ChartBlock.tsx` | ☐ | ☐ |
-| 38 | `src/components/StatsTabs/OverviewTab.tsx` | ☐ | ☐ |
-| 39 | `src/components/StatsTabs/PeopleTab.tsx` | ☐ | ☐ |
-| 40 | `src/components/StatsTabs/RatingsTab.tsx` | ☐ | ☐ |
-| 41 | `src/components/StatsTabs/RuntimeTab.tsx` | ☐ | ☐ |
-| 42 | `src/components/StatsTabs/BoxOfficeTab.tsx` | ☐ | ☐ |
-| 43 | `src/components/StatsTabs/ExploreTab.tsx` | ☐ | ☐ |
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 37 | `src/components/StatsTabs/ChartBlock.tsx` | I1 | ☐ | ☐ | ☐ |
+| 38 | `src/components/StatsTabs/OverviewTab.tsx` | I1 | ☐ | ☐ | ☐ |
+| 39 | `src/components/StatsTabs/PeopleTab.tsx` | I2 | ☐ | ☐ | ☐ |
+| 40 | `src/components/StatsTabs/RatingsTab.tsx` | I2 | ☐ | ☐ | ☐ |
+| 41 | `src/components/StatsTabs/RuntimeTab.tsx` | I2 | ☐ | ☐ | ☐ |
+| 42 | `src/components/StatsTabs/BoxOfficeTab.tsx` | I2 | ☐ | ☐ | ☐ |
+| 43 | `src/components/StatsTabs/ExploreTab.tsx` | I1 | ☐ | ☐ | ☐ |
 
 ### Frontend: chart wrappers
-| # | Module | CR | SR |
-|---|---|---|---|
-| 44 | `src/components/Charts/BarChart.tsx` | ☐ | ☐ |
-| 45 | `src/components/Charts/HorizontalBarChart.tsx` | ☐ | ☐ |
-| 46 | `src/components/Charts/LineChart.tsx` | ☐ | ☐ |
-| 47 | `src/components/Charts/DoughnutChart.tsx` | ☐ | ☐ |
-| 48 | `src/components/Charts/PolarAreaChart.tsx` | ☐ | ☐ |
-| 49 | `src/components/Charts/RadarChart.tsx` | ☐ | ☐ |
-| 50 | `src/components/Charts/MatrixChart.tsx` | ☐ | ☐ |
-| 51 | `src/components/Charts/ScatterChart.tsx` | ☐ | ☐ |
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 44 | `src/components/Charts/BarChart.tsx` | J | ☐ | ☐ | ☐ |
+| 45 | `src/components/Charts/HorizontalBarChart.tsx` | J | ☐ | ☐ | ☐ |
+| 46 | `src/components/Charts/LineChart.tsx` | J | ☐ | ☐ | ☐ |
+| 47 | `src/components/Charts/DoughnutChart.tsx` | J | ☐ | ☐ | ☐ |
+| 48 | `src/components/Charts/PolarAreaChart.tsx` | J | ☐ | ☐ | ☐ |
+| 49 | `src/components/Charts/RadarChart.tsx` | J | ☐ | ☐ | ☐ |
+| 50 | `src/components/Charts/MatrixChart.tsx` | J | ☐ | ☐ | ☐ |
+| 51 | `src/components/Charts/ScatterChart.tsx` | J | ☐ | ☐ | ☐ |
 
 ### Frontend: utils / types
-| # | Module | CR | SR |
-|---|---|---|---|
-| 52 | `src/utils/exportCsv.ts` | ☐ | ☐ |
-| 53 | `src/utils/statsHelpers.ts` | ☐ | ☐ |
-| 54 | `src/utils/filterChips.ts` | ☐ | ☐ |
-| 55 | `src/utils/filterSpans.ts` | ☐ | ☐ |
-| 56 | `src/utils/chartTheme.ts` | ☐ | ☐ |
-| 57 | `src/utils/formatDate.ts` | ☐ | ☐ |
-| 58 | `src/utils/languages.ts` | ☐ | ☐ |
-| 59 | `src/utils/path.ts` | ☐ | ☐ |
-| 60 | `src/utils/poster.ts` | ☐ | ☐ |
-| 61 | `src/types/movie.ts` | ☐ | ☐ |
-| 74 | `src/utils/search.ts` (added 0.10.0: shared Movies search) | ☐ | ☐ |
-| 75 | `src/utils/slugify.ts` (added 0.10.0) | ☐ | n/a (pure string helper) |
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 52 | `src/utils/exportCsv.ts` | H | ☐ | ☐ | ☐ |
+| 53 | `src/utils/statsHelpers.ts` | K | ☐ | ☐ | ☐ |
+| 54 | `src/utils/filterChips.ts` | G | ☐ | ☐ | ☐ |
+| 55 | `src/utils/filterSpans.ts` | G | ☐ | ☐ | ☐ |
+| 56 | `src/utils/chartTheme.ts` | K | ☐ | ☐ | ☐ |
+| 57 | `src/utils/formatDate.ts` | K | ☐ | ☐ | ☐ |
+| 58 | `src/utils/languages.ts` | K | ☐ | ☐ | ☐ |
+| 59 | `src/utils/path.ts` | K | ☐ | ☐ | ☐ |
+| 60 | `src/utils/poster.ts` | K | ☐ | ☐ | ☐ |
+| 61 | `src/types/movie.ts` | K | ☐ | ☐ | ☐ |
+| 74 | `src/utils/search.ts` (added 0.10.0: shared Movies search) | G | ☐ | ☐ | ☐ |
+| 75 | `src/utils/slugify.ts` (added 0.10.0) | K | ☐ | n/a (pure string helper) | ☐ |
 
 ### Tests
-| # | Module | CR | SR |
-|---|---|---|---|
-| 62 | `server/__tests__/helpers.ts` | ☐ | ☐ |
-| 63 | `server/__tests__/routes.test.ts` | ☐ | ☐ |
-| 64 | `server/__tests__/persistence.test.ts` | ☐ | ☐ |
-| 65 | `server/__tests__/data-format.test.ts` | ☐ | ☐ |
-| 66 | `server/__tests__/tmdb-client.test.ts` | ☐ | ☐ |
-| 67 | `tests/app.spec.ts` | ☐ | ☐ |
-| 68 | `server/__tests__/hardening.test.ts` (added 0.9.2) | ☐ | n/a (test-only) |
-| 69 | `server/bootstrap.ts` (added by `harden-server-entry`) | ☐ | ☐ |
-| 70 | `server/__tests__/bootstrap.test.ts` (added by `harden-server-entry`) | ☐ | n/a (test-only) |
-| 71 | `server/__tests__/hosting.test.ts` (added by `prod-deploy`) | ☐ | n/a (test-only) |
-| 72 | `scripts/check-bundle.mjs` (added by `reduce-bundle-size`) | ☐ | ☐ |
-| 73 | `tests/helpers.ts` (added by `e2e-hardening`) | ☐ | n/a (test-only) |
+| # | Module | Batch | CR | SR | Fix |
+|---|---|---|---|---|---|
+| 62 | `server/__tests__/helpers.ts` | L | ☐ | ☐ | ☐ |
+| 63 | `server/__tests__/routes.test.ts` | L | ☐ | ☐ | ☐ |
+| 64 | `server/__tests__/persistence.test.ts` | L | ☐ | ☐ | ☐ |
+| 65 | `server/__tests__/data-format.test.ts` | L | ☐ | ☐ | ☐ |
+| 66 | `server/__tests__/tmdb-client.test.ts` | L | ☐ | ☐ | ☐ |
+| 67 | `tests/app.spec.ts` | M | ☐ | ☐ | ☐ |
+| 68 | `server/__tests__/hardening.test.ts` (added 0.9.2) | L | ☐ | n/a (test-only) | ☐ |
+| 69 | `server/bootstrap.ts` (added by `harden-server-entry`) | A | ☑ | ☑ | ☑ |
+| 70 | `server/__tests__/bootstrap.test.ts` (added by `harden-server-entry`) | L | ☐ | n/a (test-only) | ☐ |
+| 71 | `server/__tests__/hosting.test.ts` (added by `prod-deploy`) | L | ☐ | n/a (test-only) | ☐ |
+| 72 | `scripts/check-bundle.mjs` (added by `reduce-bundle-size`) | C | ☑ | ☑ | ☑ |
+| 73 | `tests/helpers.ts` (added by `e2e-hardening`) | M | ☐ | n/a (test-only) | ☐ |

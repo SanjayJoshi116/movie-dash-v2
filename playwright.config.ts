@@ -5,6 +5,8 @@ export default defineConfig({
   timeout: 30000,
   expect: { timeout: 10000 },
   fullyParallel: false,
+  // A committed test.only would otherwise shrink the CI run to that one (passing) test.
+  forbidOnly: !!process.env.CI,
   // No retries locally so flakiness surfaces; CI keeps one, and 'on-first-retry' traces it.
   retries: process.env.CI ? 1 : 0,
   reporter: [['html', { open: 'never' }], ['list']],

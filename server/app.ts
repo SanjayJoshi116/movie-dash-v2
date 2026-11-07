@@ -7,7 +7,8 @@ import compression from 'compression';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
-import type { Movie } from '../src/types/movie';
+import { CATALOGUE_COLUMNS, type Movie } from '../src/types/movie';
+import { escapeCsvField, sanitizeCsvValue, unsanitizeCsvValue } from '../src/utils/csvEscape';
 import { createTmdbClient, tmdbErrorStatus, type TmdbClient } from './tmdb';
 import { describeError } from './bootstrap';
 
@@ -29,8 +30,11 @@ export interface CreateAppOptions {
    * client routes. Unset (dev, tests): API only — Vite serves the app. The caller checks it exists.
    */
   staticDir?: string;
-  /** Express 'trust proxy' value (hop count, true, or an address list). Unset: not trusted. */
-  trustProxy?: boolean | number | string;
+  /**
+   * Express 'trust proxy' value (hop count or an address list). Unset: not trusted. Never `true`:
+   * that trusts every X-Forwarded-For hop, so any client could pick its own rate-limit key.
+   */
+  trustProxy?: number | string;
 }
 
 export interface FsHooks {
@@ -101,15 +105,46 @@ interface TmdbCreditsResponse { cast?: TmdbNamedItem[]; crew?: TmdbCrewMember[] 
 
 interface FileFingerprint { mtimeMs: number; size: number }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isTitledDetails(value: unknown): value is TmdbMovieDetails {
+  return isObject(value) && typeof value.title === 'string' && value.title.trim() !== '';
+}
+
+/** How the catalogue file on disk is encoded, so writes can keep it that way. */
+interface FileFormat { bom: boolean; eol: '\n' | '\r\n' }
+/** A file the app creates: no BOM, LF line endings. */
+const DEFAULT_FILE_FORMAT: FileFormat = { bom: false, eol: '\n' };
+// Built from its code point rather than written as an escape: editing tools have repeatedly turned
+// that escape into a literal invisible character (see CLAUDE.md "Known gotchas").
+const UTF8_BOM = String.fromCharCode(0xfeff);
+const UTF8_BOM_BYTES = Buffer.from(UTF8_BOM, 'utf8');
+
+// Excel's "CSV UTF-8" writes a BOM and Python's csv module writes CRLF: rewrites and appends
+// reproduce whatever the file had, so saving from the app never changes how other tools read it.
+function detectFileFormat(head: Buffer): FileFormat {
+  const nl = head.indexOf(0x0a);
+  return {
+    bom: head.subarray(0, UTF8_BOM_BYTES.length).equals(UTF8_BOM_BYTES),
+    eol: nl > 0 && head[nl - 1] === 0x0d ? '\r\n' : '\n',
+  };
+}
+
+/** The row as it is stored: exactly the header's columns, absent values empty, extra fields dropped. */
+function projectRow(row: Movie, headers: readonly string[]): Movie {
+  const source = row as unknown as Record<string, string | undefined>;
+  return Object.fromEntries(headers.map((h) => [h, source[h] ?? ''])) as unknown as Movie;
+}
+
 function sameFingerprint(a: FileFingerprint | null, b: FileFingerprint | null): boolean {
   if (a === null || b === null) return a === b;
   return a.mtimeMs === b.mtimeMs && a.size === b.size;
 }
 
-// Values written with sanitizeCsvValue() (here or by movie-search.py) carry a leading `'`
-// so spreadsheets don't evaluate them; strip it on read so the UI shows the original value
-// and the next rewrite escapes it exactly once.
-const ESCAPED_FORMULA = /^'[=+\-@]/;
+// Values written with sanitizeCsvValue() (here or by the Python tools) carry a leading `'` so
+// spreadsheets don't evaluate them; unsanitizeCsvValue() strips it on read.
 
 // Older movie-search.py versions wrote the literal placeholder "N/A" for missing values; read it
 // as empty so it never shows up as a director/year/etc. in charts, filters, or drill-downs.
@@ -117,19 +152,7 @@ const LEGACY_MISSING = 'N/A';
 
 function normalizeStoredValue(value: string): string {
   if (value === LEGACY_MISSING) return '';
-  return ESCAPED_FORMULA.test(value) ? value.slice(1) : value;
-}
-
-const FORMULA_PREFIXES = ['=', '+', '-', '@'];
-
-// Prevent CSV/formula injection: Excel/Sheets can execute a cell starting with =, +, -, or @
-// when the file is opened later. Mirrors sanitize_csv_value() in movie-search.py.
-function sanitizeCsvValue(value: string): string {
-  return FORMULA_PREFIXES.some((p) => value.startsWith(p)) ? `'${value}` : value;
-}
-
-function escapeCsvField(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  return unsanitizeCsvValue(value);
 }
 
 /** A header that names a column twice can't be read or rewritten without losing one column's data. */
@@ -228,6 +251,7 @@ export function createApp(options: CreateAppOptions): CreatedApp {
   // The CSV is also written by movie-search.py / backfill_posters.py while the server may be
   // running, so the in-memory copy is only trusted while the file's stat fingerprint is unchanged.
   let fingerprint: FileFingerprint | null = null;
+  let fileFormat: FileFormat = DEFAULT_FILE_FORMAT;
 
   async function statFingerprint(): Promise<FileFingerprint | null> {
     try {
@@ -239,32 +263,41 @@ export function createApp(options: CreateAppOptions): CreatedApp {
     }
   }
 
-  function loadCatalogue(): Promise<{ movies: Movie[]; headers: string[] }> {
+  function loadCatalogue(): Promise<{ movies: Movie[]; headers: string[]; format: FileFormat }> {
     return new Promise((resolve, reject) => {
       const rows: Movie[] = [];
       let headers: string[] = [];
+      // The first chunk (64 KiB) holds the BOM and the header line's ending.
+      let format = DEFAULT_FILE_FORMAT;
       const stream = fs.createReadStream(csvPath);
+      stream.once('data', (chunk: string | Buffer) => { format = detectFileFormat(Buffer.from(chunk)); });
       stream
         .on('error', (err: NodeJS.ErrnoException) => {
-          if (err.code === 'ENOENT') resolve({ movies: [], headers: [] });
+          if (err.code === 'ENOENT') resolve({ movies: [], headers: [], format: DEFAULT_FILE_FORMAT });
           else reject(err);
         })
         .pipe(csv({
-          mapHeaders: ({ header }) => header.replace(/^\uFEFF/, '').trim(),
+          // A cell that is empty once trimmed (e.g. Excel's trailing `,,`) names no column:
+          // null makes csv-parser skip it, so it is neither a duplicate nor part of the catalogue.
+          mapHeaders: ({ header }) => header.replace(/^\uFEFF/, '').trim() || null,
           mapValues: ({ value }) => normalizeStoredValue(value),
         }))
-        .on('headers', (h: string[]) => {
-          const dup = findDuplicateHeader(h);
+        .on('headers', (h: (string | null)[]) => {
+          const named = h.filter((x): x is string => x !== null);
+          const dup = findDuplicateHeader(named);
           if (dup !== undefined) {
             stream.destroy();
             reject(new DuplicateHeaderError(dup));
             return;
           }
-          headers = h;
+          if (named.length < h.length) {
+            logger.log(`Ignoring ${h.length - named.length} blank CSV header column(s); a rewrite will drop them`);
+          }
+          headers = named;
         })
         .on('data', (row: Movie) => rows.push(row))
         .on('error', reject)
-        .on('end', () => resolve({ movies: rows, headers }));
+        .on('end', () => resolve({ movies: rows, headers, format }));
     });
   }
 
@@ -275,6 +308,7 @@ export function createApp(options: CreateAppOptions): CreatedApp {
     const loaded = await loadCatalogue();
     movies = loaded.movies;
     csvHeaders = loaded.headers;
+    fileFormat = loaded.format;
     fingerprint = fp;
     catalogueVersion++;
     if (loadError) {
@@ -283,8 +317,10 @@ export function createApp(options: CreateAppOptions): CreatedApp {
     }
   }
 
+  // While a load error is set, always reload: a failed load never recorded a fingerprint, so a
+  // broken file deleted afterwards (null vs null) would otherwise look unchanged and never recover.
   async function reloadIfChanged(): Promise<void> {
-    if (!sameFingerprint(await statFingerprint(), fingerprint)) await reloadCatalogue();
+    if (loadError || !sameFingerprint(await statFingerprint(), fingerprint)) await reloadCatalogue();
   }
 
   // Serializes every catalogue operation that reads-then-writes the file or swaps in-memory
@@ -317,7 +353,9 @@ export function createApp(options: CreateAppOptions): CreatedApp {
     if (size > 0 && csvHeaders.length === 0) {
       throw new Error('CSV file exists but its header could not be read; refusing to append');
     }
-    const headers = size > 0 ? csvHeaders : Object.keys(row);
+    const headers = size > 0 ? csvHeaders : [...CATALOGUE_COLUMNS];
+    // A missing or empty file probed as DEFAULT_FILE_FORMAT, so fileFormat is right for a new file too.
+    const { eol } = fileFormat;
     let prefix = '';
     if (size > 0) {
       // Hand-edited / Excel-saved files may lack a trailing newline; without this the new row
@@ -326,7 +364,7 @@ export function createApp(options: CreateAppOptions): CreatedApp {
       try {
         const buf = Buffer.alloc(1);
         await fh.read(buf, 0, 1, size - 1);
-        if (buf[0] !== 0x0a) prefix = '\n';
+        if (buf[0] !== 0x0a) prefix = eol;
       } finally {
         await fh.close();
       }
@@ -334,7 +372,7 @@ export function createApp(options: CreateAppOptions): CreatedApp {
     const lines: string[] = [];
     if (size === 0) lines.push(headers.map(escapeCsvField).join(','));
     lines.push(toCsvLine(row, headers));
-    await fs.promises.appendFile(csvPath, prefix + lines.join('\n') + '\n', 'utf-8');
+    await fs.promises.appendFile(csvPath, prefix + lines.join(eol) + eol, 'utf-8');
     if (size === 0) csvHeaders = headers;
   }
 
@@ -343,13 +381,14 @@ export function createApp(options: CreateAppOptions): CreatedApp {
   // the CSV truncated or half-written. Caller must hold the op queue. Throws CatalogueChangedError
   // (temp file removed, target untouched) if another tool changed the file since it was last read.
   async function rewriteCsvFile(rows: Movie[]): Promise<void> {
-    const headers = csvHeaders.length ? csvHeaders : (rows[0] ? Object.keys(rows[0]) : []);
-    // No duplicate-header check here: loadCatalogue already rejects one, and Object.keys can't repeat.
+    const headers = csvHeaders.length ? csvHeaders : [...CATALOGUE_COLUMNS];
+    // No duplicate-header check here: loadCatalogue already rejects one, and CATALOGUE_COLUMNS can't repeat.
     const lines = [headers.map(escapeCsvField).join(',')];
     for (const movie of rows) lines.push(toCsvLine(movie, headers));
+    const { bom, eol } = fileFormat;
     const tmpPath = `${csvPath}.${process.pid}.${Date.now()}.tmp`;
     try {
-      await fs.promises.writeFile(tmpPath, lines.join('\n') + '\n', 'utf-8');
+      await fs.promises.writeFile(tmpPath, (bom ? UTF8_BOM : '') + lines.join(eol) + eol, 'utf-8');
       if (!sameFingerprint(await statFingerprint(), fingerprint)) throw new CatalogueChangedError();
       await renameWithRetry(fsOps, tmpPath, csvPath);
     } catch (err) {
@@ -363,9 +402,9 @@ export function createApp(options: CreateAppOptions): CreatedApp {
     await reloadCatalogue();
   })
     .then(() => logger.log(`CSV loaded — ${movies.length} movies`))
-    .catch((err: Error) => {
-      loadError = err;
-      logger.error('Failed to load CSV:', err.message);
+    .catch((err: unknown) => {
+      loadError = err instanceof Error ? err : new Error(describeError(err));
+      logger.error('Failed to load CSV:', describeError(err));
     })
     .finally(() => { isReady = true; });
 
@@ -373,8 +412,10 @@ export function createApp(options: CreateAppOptions): CreatedApp {
   // Routes still map their own storage/TMDB failures; only unexpected throws reach the generic 500.
 
   // Read-only routes reconcile with the file too, but a failed reload just serves the last copy.
+  // An unchanged file needs no queue slot: only the stat runs outside the queue, never a reload.
   async function reloadForRead(): Promise<void> {
     try {
+      if (!loadError && sameFingerprint(await statFingerprint(), fingerprint)) return;
       await enqueue(reloadIfChanged);
     } catch (err) {
       logger.error('Failed to reload CSV, serving last loaded copy:', describeError(err));
@@ -390,7 +431,8 @@ export function createApp(options: CreateAppOptions): CreatedApp {
       res.status(503).json({ error: 'Data still loading' });
       return;
     }
-    // Retry the failed boot load on every request, so a file fixed by hand recovers on "Try Again".
+    // Retry the failed boot load on every request, so a file fixed by hand recovers on "Try Again"
+    // (reloadIfChanged always reloads while loadError is set).
     if (loadError) await reloadForRead();
     if (loadError) {
       res.status(500).json({ error: 'Catalogue file could not be loaded; see server log' });
@@ -545,7 +587,8 @@ export function createApp(options: CreateAppOptions): CreatedApp {
       return;
     }
     // Fast-path rejection (no TMDB calls spent); the authoritative duplicate check runs again
-    // inside the op queue below, against freshly reloaded state.
+    // inside the op queue below. Reconcile first so a row another tool removed doesn't block it.
+    await reloadForRead();
     if (inFlightImports.has(movieId) || movies.some((m) => m['Movie ID'] === String(movieId))) {
       res.status(409).json({ error: 'Movie already in catalogue' });
       return;
@@ -559,12 +602,18 @@ export function createApp(options: CreateAppOptions): CreatedApp {
         // Network I/O happens outside the op queue so a slow/retrying TMDB call never blocks
         // other imports, deletes, or list requests.
         const [rawDetails, rawCredits] = await Promise.all([
-          tmdb.get<TmdbMovieDetails | null>(`/movie/${movieId}`),
-          tmdb.get<TmdbCreditsResponse | null>(`/movie/${movieId}/credits`),
+          tmdb.get<unknown>(`/movie/${movieId}`),
+          tmdb.get<unknown>(`/movie/${movieId}/credits`),
         ]);
-        // A 200 with a null body (proxy, TMDB hiccup) imports as a row of empty values.
-        details = rawDetails ?? {};
-        credits = rawCredits ?? {};
+        // A 200 that isn't a titled movie record (null body, a proxy's HTML page) must not be
+        // stored as a blank row. Missing credits only cost the director/cast, so they still import.
+        if (!isTitledDetails(rawDetails)) {
+          logger.error(`TMDB import fetch failed: /movie/${movieId} returned no usable movie record`);
+          res.status(502).json({ error: 'TMDB request failed' });
+          return;
+        }
+        details = rawDetails;
+        credits = isObject(rawCredits) ? rawCredits as TmdbCreditsResponse : {};
       } catch (err) {
         if (tmdbErrorStatus(err) === 404) {
           res.status(404).json({ error: 'Movie not found on TMDB' });
@@ -602,15 +651,17 @@ export function createApp(options: CreateAppOptions): CreatedApp {
         'Release Date': details.release_date ?? '',
       };
 
-      let saved: boolean;
+      let saved: Movie | null;
       try {
         saved = await enqueue(async () => {
           await reloadIfChanged();
-          if (movies.some((m) => m['Movie ID'] === row['Movie ID'])) return false;
+          if (movies.some((m) => m['Movie ID'] === row['Movie ID'])) return null;
           await appendMovieToCsv(row);
-          movies = [...movies, row];
+          // Serve what was written (the file's columns), so memory matches what a reload gives.
+          const stored = projectRow(row, csvHeaders);
+          movies = [...movies, stored];
           await markWritten();
-          return true;
+          return stored;
         });
       } catch (err) {
         logger.error('Failed to save imported movie to CSV:', describeError(err));
@@ -621,7 +672,7 @@ export function createApp(options: CreateAppOptions): CreatedApp {
         res.status(409).json({ error: 'Movie already in catalogue' });
         return;
       }
-      res.status(201).json(row);
+      res.status(201).json(saved);
     } finally {
       inFlightImports.delete(movieId);
     }
@@ -667,7 +718,8 @@ export function createApp(options: CreateAppOptions): CreatedApp {
       res.status(status).json({ error: status === 413 ? 'Request body too large' : 'Bad request' });
       return;
     }
-    logger.error('Unhandled error:', err);
+    // One line, never the object: util.inspect of an HTTP-client error can print request secrets.
+    logger.error('Unhandled error:', describeError(err));
     res.status(500).json({ error: 'Internal server error' });
   });
 

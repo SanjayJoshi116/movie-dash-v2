@@ -1,16 +1,5 @@
 import { CATALOGUE_COLUMNS, type Movie } from '../types/movie';
-
-const FORMULA_PREFIXES = ['=', '+', '-', '@'];
-
-// Excel/Sheets can execute a cell starting with =, +, -, or @ as a formula. Same guard the
-// server applies when writing src/movies.csv (sanitizeCsvValue in server/app.ts).
-function sanitizeCsvValue(value: string): string {
-  return FORMULA_PREFIXES.some((p) => value.startsWith(p)) ? `'${value}` : value;
-}
-
-function escapeCsvField(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-}
+import { escapeCsvField, sanitizeCsvValue } from './csvEscape';
 
 /**
  * Downloads `movies` as CSV, in the order given (callers pass the rows as the active view

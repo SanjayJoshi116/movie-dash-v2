@@ -19,9 +19,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     // localhost only: the /api proxy fronts an API with no auth. `npm run dev:lan` (vite --host)
-    // opts in to LAN access for the web app; the API itself stays on loopback either way.
+    // opts in to LAN access — and through this proxy LAN devices can then use the whole API
+    // (list/add/delete movies), so use it on a trusted network only. Port 5000 itself stays loopback.
     host: 'localhost',
     port: 3000,
+    // Fail if 3000 is taken instead of moving to 3001 while Playwright waits on / reuses 3000.
+    strictPort: true,
     proxy: {
       '/api': {
         // 127.0.0.1, not localhost: Node may resolve localhost to ::1 first, missing the IPv4-only API.

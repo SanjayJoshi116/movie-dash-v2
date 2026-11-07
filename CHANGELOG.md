@@ -3,6 +3,53 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.11.0] - 2026-11-07
+
+Results of the per-module review (`BUG_BACKLOG.md` §6) of Batch A (server runtime), Batch B (Python CSV writers) and Batch C (build/lint/test config). OpenSpec: `fix-server-batch-a-review` and `harden-build-test-config` (archived), `fix-python-csv-writers`. New main spec: `dev-quality-gates`.
+
+### Added
+- **`catalogue_io.py`**, one shared module for the Python tools' CSV I/O and TMDB session, following the same file rules as the server.
+- Python unit tests: 19 stdlib `unittest` tests in `tests/python/`, run in CI after `ruff`, which now also lints the new module.
+- Server tests: 95 → 111.
+- **CI quality gates** (`harden-build-test-config`):
+  - A committed `test.only` fails the e2e run in CI (`forbidOnly`). (B68)
+  - Lint rejects specs that import `test` from `@playwright/test` instead of `tests/helpers.ts`, since only the helpers' fixture keeps e2e from writing the real CSV. (B69)
+  - Lint bans `waitForTimeout` in tests. (B74)
+  - `npm run build` also type-checks the e2e specs, helpers and build configs, through the new `tsconfig.node.json`. (B70)
+
+### Changed
+- **BREAKING: `TRUST_PROXY=true` is refused at startup.** It trusted any client-supplied `X-Forwarded-For`, so a client could pick its own rate-limit key (`express-rate-limit` 8 flags it). Use a hop count (usually `1`) or an address list. (B53)
+- TMDB calls have a 15 s total deadline each, enforced by an abort signal (previously about 31.5 s, or about 63 s for an actor search). Only network errors and `429`/`5xx` are retried, and `Retry-After` is honoured. (B58)
+- An import whose TMDB details response isn't a movie with a title (null, HTML, missing `title`) returns `502` and stores nothing. A null credits body still imports. (B54)
+- Unexpected server errors and startup load failures are logged as one line. (B59)
+- CSV escaping lives in one place, `src/utils/csvEscape.ts`, shared by the server and CSV export. A brand-new catalogue file gets its header in `CATALOGUE_COLUMNS` order. (B60)
+- `movie-search.py`:
+  - Result details are fetched in parallel and reused on save.
+  - One error dialog per listing, and one summary dialog per save.
+  - The CSV is read once per save. (B63)
+- `npm run lint` fails on any warning (`--max-warnings 0`), and skips gitignored `*.tmp.*` throwaway files. The ESLint config uses `defineConfig` from `eslint/config`, replacing the deprecated `tseslint.config()`. (B72, B73, B77)
+- The Vite dev server uses `strictPort`: if port 3000 is taken, `npm run dev` fails at once instead of moving to 3001 while Playwright waits on 3000. (B71)
+- The bundle budget gzips at the default level, the same as the server's `compression()`, instead of level 9. Landing JS is still about 362 kB of 400. (B76)
+- `backfill_posters.py` can be run while the app is open: each checkpoint re-reads the file and merges posters by `Movie ID`. (B61)
+
+### Fixed
+- **The Python tools handle Excel-saved (BOM) CSVs.** Before, duplicate checks never matched, the header migration added a second `Movie ID` column, and the backfill skipped every row. (B3)
+- `movie-search.py` no longer saves a near-empty row when a TMDB request fails, which then blocked re-adding the movie. (B8)
+- `movie-search.py` no longer glues a new row onto a last line that has no trailing newline. (B9)
+- Backfill checkpoints no longer overwrite movies added while the backfill runs. (B61)
+- `movie-search.py` Next Page no longer repeats results with a language filter, and no longer errors after an actor search. (B62)
+- The backfill stops on a rejected API key (401) instead of requesting every remaining movie, and doesn't rewrite the file when it found nothing. (B64)
+- A row with stray extra cells no longer crashes a Python rewrite. (B65)
+- A briefly locked file (Excel, antivirus) no longer crashes a Python rewrite. (B66)
+- The two scripts no longer share one fixed `.tmp` name. (B67)
+- A value that really starts with an apostrophe before `=`, `+`, `-` or `@` (e.g. `'-ism`) keeps its apostrophe after a reload. Both the server and the Python tools now escape it once more on write.
+- Two or more blank trailing header cells no longer take the catalogue offline. (B51)
+- An import is served exactly as stored, so fields the file has no column for no longer show until a restart. (B52)
+- Server rewrites and appends keep the file's BOM and CRLF/LF line endings. Before, Excel garbled non-ASCII titles after an in-app delete. (B55)
+- The import's early `409` check sees rows removed by another tool. (B56)
+- The docs no longer claim `npm run dev:lan` keeps the API local. Through Vite's `/api` proxy, devices on the LAN can list, add and delete movies, so only use it on a trusted network. (B78)
+- After a failed startup, deleting the broken CSV recovers to an empty catalogue without a restart. (B57)
+
 ## [0.10.0] - 2026-11-06
 
 ### Added

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createApp } from '../app';
-import { isProductionMode, parseTrustProxy } from '../bootstrap';
+import { ConfigError, isProductionMode, parseTrustProxy } from '../bootstrap';
 import { serverPool, request } from './helpers';
 
 const INDEX_HTML = '<!DOCTYPE html><html><body><div id="root"></div><script type="module" src="/assets/x.js"></script></body></html>';
@@ -139,7 +139,8 @@ describe('trust proxy', () => {
     assert.equal(parseTrustProxy(undefined), undefined);
     assert.equal(parseTrustProxy(''), undefined);
     assert.equal(parseTrustProxy(' false '), undefined);
-    assert.equal(parseTrustProxy('TRUE'), true);
+    assert.throws(() => parseTrustProxy('TRUE'), ConfigError);
+    assert.throws(() => parseTrustProxy(' true '), /usually 1/);
     assert.equal(parseTrustProxy('1'), 1);
     assert.equal(parseTrustProxy(' 2 '), 2);
     assert.equal(parseTrustProxy('loopback, 10.0.0.0/8'), 'loopback, 10.0.0.0/8');

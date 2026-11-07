@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   serverPool, request, postJson, readCsvRows, deferred, stubTmdb, tmdbError, tmdbDetails,
-  csvRow, sleep, type TestServer,
+  csvRow, sleep, HEADER, BOM, type TestServer,
 } from './helpers';
+import { CATALOGUE_COLUMNS } from '../../src/types/movie';
 
 type MovieJson = Record<string, string>;
 
@@ -171,7 +172,32 @@ describe('Common hand-edited file shapes are tolerated', () => {
     assert.deepEqual(list.body.map((m) => m['Movie ID']), ['1', '2']);
     assert.equal((await request(s.baseUrl, '/api/movies/2')).status, 200);
     assert.equal((await request(s.baseUrl, '/api/movies/2', { method: 'DELETE' })).status, 200);
-    assert.ok(!fs.readFileSync(s.csvPath, 'utf8').startsWith('\uFEFF'));
+    // The rewrite keeps the file's BOM (exactly one), so Excel still reads it as UTF-8.
+    const text = fs.readFileSync(s.csvPath, 'utf8');
+    assert.ok(text.startsWith(BOM));
+    assert.ok(!text.startsWith(BOM + BOM));
+  });
+
+  it('CRLF file: import and delete keep every line ending CRLF', async () => {
+    const s = await start(importOpts());
+    fs.writeFileSync(s.csvPath, [HEADER, csvRow('1', 'One'), csvRow('2', 'Two')].join('\r\n') + '\r\n', 'utf8');
+    assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 603 })).status, 201);
+    let text = fs.readFileSync(s.csvPath, 'utf8');
+    assert.equal(text.split('\r\n').length - 1, text.split('\n').length - 1, 'append wrote CRLF');
+    assert.equal((await request(s.baseUrl, '/api/movies/1', { method: 'DELETE' })).status, 200);
+    text = fs.readFileSync(s.csvPath, 'utf8');
+    assert.ok(text.endsWith('\r\n'));
+    assert.equal(text.split('\r\n').length - 1, text.split('\n').length - 1, 'rewrite wrote CRLF');
+    assert.deepEqual(await ids(s), ['2', '603']);
+  });
+
+  it('a file the app creates has no BOM, LF endings, and the CATALOGUE_COLUMNS header', async () => {
+    const s = await start({ fixture: 'empty', ...importOpts() });
+    assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 603 })).status, 201);
+    const text = fs.readFileSync(s.csvPath, 'utf8');
+    assert.ok(!text.startsWith(BOM));
+    assert.ok(!text.includes('\r'));
+    assert.equal(text.split('\n')[0], CATALOGUE_COLUMNS.join(','));
   });
 
   it('no trailing newline: the previous last row is intact and the import is its own row', async () => {
@@ -209,6 +235,17 @@ describe('Stored values round-trip faithfully and safely', () => {
     const served = (await request<MovieJson>(s.baseUrl, '/api/movies/42')).body;
     assert.equal(served.Name, '=HYPERLINK("x")');
   });
+
+  it('a title that starts with an apostrophe before a formula character keeps its apostrophe', async () => {
+    const s = await start(importOpts(stubTmdb({ '/movie/42': tmdbDetails(42, { title: "'-ism" }) })));
+    assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 42 })).status, 201);
+    assert.equal((await readCsvRows(s.csvPath)).find((r) => r['Movie ID'] === '42')?.Name, "''-ism");
+    // Survives a reload (an external touch) and a rewrite (deleting another movie).
+    fs.appendFileSync(s.csvPath, '');
+    assert.equal((await request(s.baseUrl, '/api/movies/1', { method: 'DELETE' })).status, 200);
+    assert.equal((await request<MovieJson>(s.baseUrl, '/api/movies/42')).body.Name, "'-ism");
+    assert.equal((await readCsvRows(s.csvPath)).find((r) => r['Movie ID'] === '42')?.Name, "''-ism");
+  });
 });
 
 describe('Errors are reported accurately', () => {
@@ -235,5 +272,51 @@ describe('Errors are reported accurately', () => {
   it('invalid movieId → 400', async () => {
     const s = await start(importOpts());
     assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 'abc' })).status, 400);
+  });
+});
+
+describe('Ambiguous file headers never cause data loss (blank header cells)', () => {
+  it('a header ending in blank cells loads, lists, imports and deletes', async () => {
+    const s = await start(importOpts());
+    fs.writeFileSync(s.csvPath, [HEADER + ',,', csvRow('1', 'One') + ',,', csvRow('2', 'Two') + ',,'].join('\n') + '\n', 'utf8');
+    const list = await request<MovieJson[]>(s.baseUrl, '/api/movies');
+    assert.equal(list.status, 200);
+    assert.deepEqual(list.body.map((m) => m['Movie ID']), ['1', '2']);
+    assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 603 })).status, 201);
+    assert.equal((await request(s.baseUrl, '/api/movies/1', { method: 'DELETE' })).status, 200);
+    assert.deepEqual(await ids(s), ['2', '603']);
+    // The rewrite keeps only the named columns.
+    assert.equal(fs.readFileSync(s.csvPath, 'utf8').split('\n')[0], HEADER);
+  });
+});
+
+describe('Duplicate imports are rejected (against the current file)', () => {
+  it('a row another tool removed can be re-imported straight away', async () => {
+    const s = await start(importOpts());
+    const rows = fs.readFileSync(s.csvPath, 'utf8').split('\n');
+    fs.writeFileSync(s.csvPath, rows.filter((line) => !line.startsWith('1,')).join('\n'), 'utf8');
+    const res = await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 1 });
+    assert.equal(res.status, 201);
+    assert.equal((await ids(s)).filter((id) => id === '1').length, 1);
+  });
+});
+
+describe('Imported rows are served as stored', () => {
+  it('a field with no column in the file is not served, and extra file columns are present and empty', async () => {
+    const header = HEADER.replace(',Poster URL', '');
+    const row = (id: string, name: string) => csvRow(id, name).replace(',,,2020-01-01', ',,2020-01-01');
+    const s = await start(importOpts());
+    fs.writeFileSync(s.csvPath, [header, row('1', 'One')].join('\n') + '\n', 'utf8');
+
+    const res = await postJson<MovieJson>(s.baseUrl, '/api/tmdb/import', { movieId: 603 });
+    assert.equal(res.status, 201);
+    assert.ok(!('Poster URL' in res.body));
+    assert.equal(res.body['Keywords/Tags'], '');
+    const served = (await request<MovieJson[]>(s.baseUrl, '/api/movies')).body.find((m) => m['Movie ID'] === '603');
+    assert.deepEqual(served, res.body);
+
+    const restarted = await start({ dir: s.dir });
+    const reloaded = (await request<MovieJson[]>(restarted.baseUrl, '/api/movies')).body.find((m) => m['Movie ID'] === '603');
+    assert.deepEqual(reloaded, res.body);
   });
 });

@@ -19,10 +19,13 @@ export function csvRow(id: string, name: string): string {
 
 const TEMPLATE_PATH = path.join(__dirname, '..', '..', 'public', 'movies.template.csv');
 
+// Built from its code point, not an escape (see CLAUDE.md "Known gotchas").
+export const BOM = String.fromCharCode(0xfeff);
+
 export const FIXTURES = {
   /** The committed template (5 rows, ids 1–5), normalized to LF. */
   basic: () => fs.readFileSync(TEMPLATE_PATH, 'utf8').replace(/\r\n/g, '\n'),
-  bom: () => '\uFEFF' + [HEADER, csvRow('1', 'One'), csvRow('2', 'Two')].join('\n') + '\n',
+  bom: () => BOM + [HEADER, csvRow('1', 'One'), csvRow('2', 'Two')].join('\n') + '\n',
   noTrailingNewline: () => [HEADER, csvRow('1', 'One'), csvRow('2', 'Two')].join('\n'),
   /** Stored in escaped form, the way sanitizeCsvValue()/movie-search.py write it. */
   formulaValues: () => [HEADER, csvRow('1', "'+1"), csvRow('2', "'-Ism"), csvRow('3', 'Plain')].join('\n') + '\n',
