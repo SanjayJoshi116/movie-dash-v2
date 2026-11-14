@@ -13,14 +13,14 @@ import sys
 import time
 from collections import Counter
 
-import requests
 from dotenv import load_dotenv
 
 from catalogue_io import (
     CSV_PATH,
-    TMDB_API_BASE,
     TMDB_IMAGE_BASE,
     CatalogueChangedError,
+    CatalogueError,
+    get_tmdb_object,
     make_tmdb_session,
     read_catalogue,
     rewrite_catalogue,
@@ -41,25 +41,19 @@ class InvalidApiKeyError(Exception):
 
 def fetch_poster_path(movie_id):
     """Returns (poster_path, skip_reason). skip_reason is None on success."""
-    try:
-        response = session.get(
-            f"{TMDB_API_BASE}/movie/{movie_id}",
-            params={"api_key": api_key},
-            timeout=10,
-        )
-        if response.status_code == 401:
-            raise InvalidApiKeyError()
-        if response.status_code == 404:
-            return None, "not_found_on_tmdb (404)"
-        response.raise_for_status()
-        poster_path = response.json().get("poster_path")
-        if not poster_path:
-            return None, "no_poster_on_tmdb (200, poster_path null)"
-        return poster_path, None
-    except requests.exceptions.Timeout:
-        return None, "request_timeout"
-    except requests.exceptions.RequestException as e:
-        return None, f"request_error ({type(e).__name__})"
+    status, data = get_tmdb_object(session, api_key, f"/movie/{movie_id}")
+    if status == 401:
+        raise InvalidApiKeyError()
+    if status == 404:
+        return None, "not_found_on_tmdb (404)"
+    if status is None:
+        return None, "request_error (network or timeout)"
+    if data is None:
+        return None, f"bad_response ({status})"
+    poster_path = data.get("poster_path")
+    if not poster_path or not isinstance(poster_path, str):
+        return None, "no_poster_on_tmdb (200, poster_path null)"
+    return poster_path, None
 
 
 def save_checkpoint(csv_path, found):
@@ -85,23 +79,32 @@ def save_checkpoint(csv_path, found):
             return changed
         except CatalogueChangedError:
             continue
-    raise CatalogueChangedError(
-        f"{csv_path} kept changing during {CHECKPOINT_ATTEMPTS} checkpoint attempts; nothing saved this time"
-    )
+    raise CatalogueChangedError(f"kept changing during {CHECKPOINT_ATTEMPTS} checkpoint attempts")
 
 
-def try_checkpoint(csv_path, found):
-    """save_checkpoint, but a busy or locked file only postpones the save: `found` keeps every
-    poster, so the next checkpoint (or the final one) writes it. Returns rows written, or None."""
+def try_checkpoint(csv_path, found, *, last=False):
+    """save_checkpoint, but a file that is busy, locked, unwritable (disk full) or unreadable
+    (catalogue_io.CatalogueError) only postpones the save: `found` keeps every poster, so the
+    next checkpoint (or the final one) writes it. Returns rows written, or None. Errors are
+    reported in one line (OSError by type only), never as a traceback. `last` marks the final
+    save, after which there is no later checkpoint to retry at."""
     try:
         return save_checkpoint(csv_path, found)
-    except (CatalogueChangedError, PermissionError) as e:
-        print(f"  checkpoint not saved ({type(e).__name__}); will retry at the next one", file=sys.stderr)
-        return None
+    except CatalogueError as e:
+        reason = f"movies.csv {e}"
+    except OSError as e:
+        reason = type(e).__name__
+    then = "posters found since the last saved checkpoint are lost; re-run to retry" if last else "will retry at the next one"
+    print(f"  checkpoint not saved ({reason}); {then}", file=sys.stderr)
+    return None
 
 
 def main(csv_path=CSV_PATH, fetch=fetch_poster_path, delay=REQUEST_DELAY_SECONDS):
-    rows = read_catalogue(csv_path).rows
+    try:
+        rows = read_catalogue(csv_path).rows
+    except CatalogueError as e:
+        print(f"Cannot backfill: movies.csv {e}.", file=sys.stderr)
+        raise SystemExit(1)
     todo = [row for row in rows if not row.get("Poster URL")]
     print(f"{len(rows)} rows total, {len(todo)} missing a poster URL.")
 
@@ -109,6 +112,8 @@ def main(csv_path=CSV_PATH, fetch=fetch_poster_path, delay=REQUEST_DELAY_SECONDS
     written = 0
     skipped = 0
     skip_reasons = Counter()
+    stop = None  # (exit code, message) when the run ends early
+    final = 0
     try:
         for i, row in enumerate(todo, start=1):
             movie_id = row.get("Movie ID")
@@ -131,18 +136,23 @@ def main(csv_path=CSV_PATH, fetch=fetch_poster_path, delay=REQUEST_DELAY_SECONDS
                     written += saved
                     print(f"...{i}/{len(todo)} processed ({written} posters saved, {skipped} skipped) — checkpoint saved")
     except InvalidApiKeyError:
+        stop = (1, "TMDB rejected the API key (401). Check TMDB_API_KEY in .env; stopping")
+    except KeyboardInterrupt:
+        stop = (130, "Interrupted")
+    finally:
+        # Runs on every exit, an unexpected exception included (it propagates after this), so
+        # posters found since the last checkpoint are saved. Re-applying `found` is idempotent:
+        # rows that already have a poster are skipped, and nothing changed means no write.
         if found:
-            written += try_checkpoint(csv_path, found) or 0
-        print(f"TMDB rejected the API key (401). Check TMDB_API_KEY in .env; stopping ({written} posters saved).",
-              file=sys.stderr)
-        raise SystemExit(1)
+            final = try_checkpoint(csv_path, found, last=True)
+            if final is not None:
+                written += final
 
-    if found:
-        saved = try_checkpoint(csv_path, found)
-        if saved is None:
-            print(f"Could not save the last {len(found)} found posters' checkpoint; re-run to retry.", file=sys.stderr)
-            raise SystemExit(1)
-        written += saved
+    if stop:
+        print(f"{stop[1]} ({written} posters saved).", file=sys.stderr)
+        raise SystemExit(stop[0])
+    if found and final is None:
+        raise SystemExit(1)  # try_checkpoint has said the posters are lost and to re-run
     print(f"Done. {written} posters added, {skipped} skipped.")
     if skip_reasons:
         print("Skip breakdown:")

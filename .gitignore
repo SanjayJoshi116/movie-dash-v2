@@ -48,5 +48,6 @@ yarn-error.log*
 # python (movie-search.py, backfill_posters.py, catalogue_io.py, tests/python)
 __pycache__/
 *.pyc
+.ruff_cache/
 .venv/
 venv/

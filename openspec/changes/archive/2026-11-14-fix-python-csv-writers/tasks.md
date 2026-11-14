@@ -21,7 +21,7 @@
 - [x] 3.2 Fetchers return `None` on failure with no dialog; save shows one error and appends nothing if details, credits or keywords is `None`
 - [x] 3.3 Listing: fetch details for all results through `ThreadPoolExecutor(max_workers=5)`, store `details_cache`, insert rows on the main thread, one dialog if any failed; save reuses `details_cache`
 - [x] 3.4 Paging: language scan sets `current_page` to the last page scanned; `search_mode` global, Next Page in actor mode → "End of Results"; reset `current_page`/`total_pages` on actor search
-- [ ] 3.5 Manual check (needs `TMDB_API_KEY`; point `CSV_PATH` at a scratch copy, not the real `src/movies.csv`): BOM file duplicate refused; save appends one row; language Next Page shows new titles; actor Next Page says end; network off → one dialog
+- [x] 3.5 Manual check (needs `TMDB_API_KEY`; point `CSV_PATH` at a scratch copy, not the real `src/movies.csv`): BOM file duplicate refused; save appends one row; language Next Page shows new titles; actor Next Page says end; network off → one dialog. Done 2026-11-14 by driving the real Tk handlers against TMDB on a scratch BOM copy (`src/movies.csv` hash unchanged): all pass after one fix — a failed title search showed "Connection Error" then "No Results"; `search_movie` now returns `None` and callers stop
 
 ## 4. CI and docs
 

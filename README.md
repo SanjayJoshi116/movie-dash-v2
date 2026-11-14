@@ -8,7 +8,7 @@ A full-stack movie analytics dashboard: a React frontend backed by an Express AP
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
 
-**Highlights:** Table/grid movie catalogue with poster art · add or delete movies without leaving the browser (TMDB search) · 6 analytics tabs with click-to-filter drill-down, a global year-range slider, and per-chart PNG export · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 65 Playwright E2E + 111 server API + 19 Python tool tests · light/dark theme · filter state persisted per-session
+**Highlights:** Table/grid movie catalogue with poster art · add or delete movies without leaving the browser (TMDB search) · 6 analytics tabs with click-to-filter drill-down, a global year-range slider, and per-chart PNG export · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 65 Playwright E2E + 112 server API + 38 Python tool tests · light/dark theme · filter state persisted per-session
 
 No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
 
@@ -91,7 +91,7 @@ A global Release Year Range slider at the top of the page scopes every tab to a 
 | HTTP | Axios |
 | Backend | Express 5 (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
-| Testing | Playwright (65 E2E tests), Node `node:test` via tsx (111 server API tests), Python `unittest` (19 tool tests) |
+| Testing | Playwright (65 E2E tests), Node `node:test` via tsx (112 server API tests), Python `unittest` (38 tool tests) |
 | Linting | ESLint (typescript-eslint, react-hooks, unused-imports) |
 
 ---
@@ -167,7 +167,7 @@ Leave a field **empty** when TMDB has no value — don't write a placeholder lik
 
 #### Or use the included search tool
 
-`movie-search.py` is a small Tkinter GUI that does the above for you — search TMDB by movie or actor name, filter by language, and append picked results straight to `src/movies.csv`. It checks `Movie ID` against existing rows first and skips (with a dialog) anything already in the CSV, so re-running a search is safe.
+`movie-search.py` is a small Tkinter GUI that does the above for you — search TMDB by movie or actor name, filter by language, and append picked results straight to `src/movies.csv`. It checks `Movie ID` against existing rows first and skips (with a dialog) anything already in the CSV, so re-running a search is safe. TMDB requests run in the background, so the window stays responsive; a language-filtered search reads up to 10 TMDB pages per view (Next Page continues).
 
 ```bash
 pip install -r requirements.txt
@@ -185,7 +185,7 @@ TMDB_API_KEY=your_tmdb_api_key_here
 
 The same `.env`/`TMDB_API_KEY` also powers the in-app **Add Movie** button on the Movies page (`server/server.ts` reads it directly — no separate config needed). Without it, Add Movie shows a "not configured" error but the rest of the app works normally.
 
-**Running the Python tools while the server is up:** the server notices when `src/movies.csv` changes on disk and reloads it before its next import or delete, so rows added by `movie-search.py` or `backfill_posters.py` aren't overwritten. The scripts do the same in the other direction: both share `catalogue_io.py`, which refuses to replace a file that changed since it was read, and `backfill_posters.py` re-reads the CSV at every checkpoint, so movies you add in the app while it runs are kept. Both scripts also read Excel-saved (BOM) files and keep the file's BOM and line endings.
+**Running the Python tools while the server is up:** the server notices when `src/movies.csv` changes on disk and reloads it before its next import or delete, so rows added by `movie-search.py` or `backfill_posters.py` aren't overwritten. The scripts do the same in the other direction: both share `catalogue_io.py`, which refuses to replace a file that changed since it was read, and `backfill_posters.py` re-reads the CSV at every checkpoint, so movies you add in the app while it runs are kept. Both scripts also read Excel-saved (BOM) files and keep the file's BOM and line endings, read header names the way the server does (trimmed, blank cells ignored), and refuse to write a file whose header repeats a column.
 
 #### Backfilling posters into an existing CSV
 
@@ -195,7 +195,7 @@ If your `src/movies.csv` predates the `Poster URL` column (or has rows with it b
 python backfill_posters.py
 ```
 
-It checkpoints every 100 rows and prints a specific reason for any row it can't fill (not found on TMDB, no poster on TMDB, timeout, etc.). Each checkpoint is written to a temp file and atomically swapped in, so interrupting it leaves a complete CSV (progress since the last checkpoint is lost). It stops at once if TMDB rejects the API key, and doesn't touch the file when it finds nothing to add. Backing up `src/movies.csv` first is still a good idea.
+It checkpoints every 100 rows and prints a specific reason for any row it can't fill (not found on TMDB, no poster on TMDB, timeout, etc.). Each checkpoint is written to a temp file and atomically swapped in, so interrupting it leaves a complete CSV. On Ctrl+C or an unexpected error it saves the posters found so far before exiting. It stops at once if TMDB rejects the API key, and doesn't touch the file when it finds nothing to add. Backing up `src/movies.csv` first is still a good idea.
 
 ### 3. Run
 
@@ -259,11 +259,11 @@ movie-dash-v2/
 │   ├── bootstrap.ts            # Startup helpers: PORT/TRUST_PROXY parsing, .env, listen, shutdown
 │   ├── app.ts                  # createApp() — routes + CSV catalogue store
 │   ├── tmdb.ts                 # TMDB client (axios + retries)
-│   └── __tests__/              # Server API tests (node:test, 111 tests)
+│   └── __tests__/              # Server API tests (node:test, 112 tests)
 ├── tests/
 │   ├── app.spec.ts             # Playwright E2E tests (65 tests)
 │   ├── helpers.ts              # Shared e2e helpers + mutation-guard fixture
-│   └── python/                 # Python tool tests (unittest, 19 tests)
+│   └── python/                 # Python tool tests (unittest, 38 tests)
 ├── movie-search.py             # Tkinter TMDB search → appends to src/movies.csv
 ├── backfill_posters.py         # One-off Poster URL backfill
 ├── catalogue_io.py             # Shared CSV I/O + TMDB session for both Python tools
@@ -372,7 +372,7 @@ Tests require both the Vite frontend (port 3000) and Express backend (port 5000)
 npm run test:server
 ```
 
-111 tests (Node's built-in `node:test`, run via `tsx --test`, ~3s) exercise the Express API through `createApp()` (`server/app.ts`). Each test gets its own CSV in an OS temp directory — **they never read or write `src/movies.csv`** — and TMDB is stubbed, so no network or API key is needed. Coverage includes every route, helmet headers, rate limiting, TMDB retry/backoff, and the catalogue-safety guarantees: serialized writes (concurrent deletes, import during delete), duplicate-import rejection, external edits surviving in-app writes, BOM / CRLF / missing-trailing-newline files (kept as they are on rewrite), blank trailing header cells, formula-escaping round-trips, failed-write rollback, and accurate error codes. Also covered: the TMDB key never reaching the logs, a 15 s TMDB deadline (`Retry-After` honoured), unusable TMDB bodies rejected with `502`, unexpected handler errors returning `500` without crashing the server, duplicate-header files never being rewritten, the `ETag` changing across restarts, deletes surviving a concurrent external write, and retries on transient Windows file locks. The startup helpers (`server/bootstrap.ts`) are covered too: strict `PORT` parsing, `.env` read errors, port-in-use errors, graceful shutdown waiting for catalogue writes, and a failed startup load reported as an error instead of an empty list. Production hosting is covered as well: hashed assets cached as immutable and `index.html` as `no-cache`, the client-route fallback, JSON `404` for unknown `/api` paths, the Content-Security-Policy, and `TRUST_PROXY` (off by default; per-client rate limiting behind a proxy). Runs in CI before e2e.
+112 tests (Node's built-in `node:test`, run via `tsx --test`, ~3s) exercise the Express API through `createApp()` (`server/app.ts`). Each test gets its own CSV in an OS temp directory — **they never read or write `src/movies.csv`** — and TMDB is stubbed, so no network or API key is needed. Coverage includes every route, helmet headers, rate limiting, TMDB retry/backoff, and the catalogue-safety guarantees: serialized writes (concurrent deletes, import during delete), duplicate-import rejection, external edits surviving in-app writes, BOM / CRLF / missing-trailing-newline files (kept as they are on rewrite), blank trailing header cells, formula-escaping round-trips, failed-write rollback, and accurate error codes. Also covered: the TMDB key never reaching the logs, a 15 s TMDB deadline (`Retry-After` honoured), unusable TMDB bodies rejected with `502`, unexpected handler errors returning `500` without crashing the server, duplicate-header files never being rewritten, the `ETag` changing across restarts, deletes surviving a concurrent external write, and retries on transient Windows file locks. The startup helpers (`server/bootstrap.ts`) are covered too: strict `PORT` parsing, `.env` read errors, port-in-use errors, graceful shutdown waiting for catalogue writes, and a failed startup load reported as an error instead of an empty list. Production hosting is covered as well: hashed assets cached as immutable and `index.html` as `no-cache`, the client-route fallback, JSON `404` for unknown `/api` paths, the Content-Security-Policy, and `TRUST_PROXY` (off by default; per-client rate limiting behind a proxy). Runs in CI before e2e.
 
 ### Python tool tests
 
@@ -381,7 +381,7 @@ pip install -r requirements.txt
 python -m unittest discover -s tests/python -v
 ```
 
-19 stdlib `unittest` tests for `catalogue_io.py` and `backfill_posters.py`, against temp files with no network or API key: BOM files read with the right `Movie ID`, BOM and CRLF/LF kept on rewrite and append, a missing trailing newline fixed before appending, stray extra cells dropped instead of crashing, a file changed by another writer never replaced, a file with no readable header never overwritten, formula-escaping that keeps real leading apostrophes, Windows lock retry, rows added during a backfill kept, a busy checkpoint postponed instead of ending the backfill, a rejected API key stopping the backfill, and a no-op backfill leaving the file untouched. Runs in CI after `ruff`.
+38 stdlib `unittest` tests for `catalogue_io.py` and `backfill_posters.py`, against temp files with no network or API key: BOM files read with the right `Movie ID`, BOM and CRLF/LF kept on rewrite and append, a missing trailing newline fixed before appending, stray extra cells dropped instead of crashing, a file changed by another writer never replaced, a file with no readable header never overwritten, formula-escaping that keeps real leading apostrophes, Windows lock retry, rows added during a backfill kept, a busy checkpoint postponed instead of ending the backfill, a rejected API key stopping the backfill, a no-op backfill leaving the file untouched, header names read like the server (trimmed, blank and repeated columns), appends that stay aligned under a blank header cell, the column list matching `src/types/movie.ts`, duplicate re-checks before appending, and an interrupted backfill keeping its posters. Runs in CI after `ruff`.
 
 ---
 

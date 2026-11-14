@@ -288,6 +288,19 @@ describe('Ambiguous file headers never cause data loss (blank header cells)', ()
     // The rewrite keeps only the named columns.
     assert.equal(fs.readFileSync(s.csvPath, 'utf8').split('\n')[0], HEADER);
   });
+
+  it('a blank header cell in the middle keeps an imported row under its own columns', async () => {
+    const s = await start(importOpts());
+    const blankAfterId = (line: string) => line.replace(',', ',,');
+    fs.writeFileSync(s.csvPath, [blankAfterId(HEADER), blankAfterId(csvRow('1', 'One'))].join('\n') + '\n', 'utf8');
+    const res = await postJson<MovieJson>(s.baseUrl, '/api/tmdb/import', { movieId: 603 });
+    assert.equal(res.status, 201);
+    // The appended line has an empty cell in the blank column, so a fresh load reads it back intact.
+    assert.match(fs.readFileSync(s.csvPath, 'utf8').trimEnd().split('\n').at(-1)!, /^603,,/);
+    const restarted = await start({ dir: s.dir });
+    const reloaded = (await request<MovieJson[]>(restarted.baseUrl, '/api/movies')).body.find((m) => m['Movie ID'] === '603');
+    assert.deepEqual(reloaded, res.body);
+  });
 });
 
 describe('Duplicate imports are rejected (against the current file)', () => {

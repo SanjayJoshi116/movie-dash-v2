@@ -3,6 +3,32 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.11.1] - 2026-11-14
+
+Batch B (Python CSV writers) closed out: a high-effort re-review of `fix-python-csv-writers` (B79–B86, OpenSpec `harden-python-catalogue-io`), a `/simplify` pass, and a follow-up review (B87–B93). Both OpenSpec changes are archived, and their requirements are synced into the `catalog-persistence` main spec. The parked `upgrade-typescript-7` change was dropped; re-propose it once typescript-eslint supports TypeScript 7.
+
+### Added
+- Python unit tests: 19 → 38 (headers, escaping, column order, append races, backfill stops, non-UTF-8 files).
+- Server tests: 111 → 112 (blank header cell in the middle of the header).
+
+### Changed
+- **`movie-search.py` keeps the window responsive.** Every TMDB fetch and the save's CSV writes run on a worker thread. Search, Save, Next Page and the language box are disabled until the result arrives. (B84, B90)
+- A language-filtered search reads at most 10 TMDB pages per view, and Next Page continues from there. A rare language can show only a few matches per view. (B85)
+- A save makes one TMDB request per movie (`append_to_response=credits,keywords`) instead of three.
+- `catalogue_io.py` owns the shared rules: the TMDB GET (`get_tmdb_object`), formula escaping on append, the server's column order for a new file (`CATALOGUE_COLUMNS`, kept equal to `src/types/movie.ts` by a test), and one `CatalogueError` family with readable messages. (B86)
+- A rejected TMDB key (401) is reported as an API-key problem in `movie-search.py`, not as a connection error. (B93)
+
+### Fixed
+- **A header name with stray spaces (`Poster URL `) no longer makes the Python tools add a duplicate column**, which then made the server refuse every add and delete. Python reads headers like the server: names trimmed, blank cells ignored. (B79)
+- A header that repeats a column is refused by the Python tools too, instead of rewritten with one column's data lost. (B80)
+- **A blank header cell in the middle of the header no longer shifts appended values one column left**, in both the server's import and the Python tools. (B87)
+- `movie-search.py` builds a saved row only from the details fetched for that save, so a movie whose details failed while listing is no longer stored with a blank language, runtime and year. (B81)
+- The backfill saves the posters it found when it is interrupted (Ctrl+C exits 130) or hits an unexpected error. A failed checkpoint (disk full, unreadable file) is retried instead of ending the run, and a failed final save says the posters were lost. (B82, B92)
+- The Python duplicate check runs again right before appending and after adding a column, so a movie imported in the app at that moment isn't stored twice. (B83, B88)
+- A title like "1917" no longer crashes the save summary in `movie-search.py`. (B89)
+- A failed or empty search keeps the paging of the list still on screen. (B91)
+- With the network down, a title search shows one error instead of "Connection Error" followed by "No Results".
+
 ## [0.11.0] - 2026-11-07
 
 Results of the per-module review (`BUG_BACKLOG.md` §6) of Batch A (server runtime), Batch B (Python CSV writers) and Batch C (build/lint/test config). OpenSpec: `fix-server-batch-a-review` and `harden-build-test-config` (archived), `fix-python-csv-writers`. New main spec: `dev-quality-gates`.

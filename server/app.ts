@@ -199,8 +199,10 @@ async function renameWithRetry({ rename, sleep }: FsHooks, from: string, to: str
   }
 }
 
-function toCsvLine(row: Movie, headers: string[]): string {
-  const values = headers.map((h) => (row as unknown as Record<string, string>)[h] ?? '');
+// `headers` may hold null for a blank header cell: that position gets an empty cell, so the
+// values after it stay under their own columns.
+function toCsvLine(row: Movie, headers: readonly (string | null)[]): string {
+  const values = headers.map((h) => (h === null ? '' : (row as unknown as Record<string, string>)[h] ?? ''));
   return values.map((v) => escapeCsvField(sanitizeCsvValue(v))).join(',');
 }
 
@@ -242,6 +244,9 @@ export function createApp(options: CreateAppOptions): CreatedApp {
   // serving an empty list that looks like the user's data is gone.
   let loadError: Error | null = null;
   let csvHeaders: string[] = [];
+  // The header as laid out on disk: csvHeaders plus null for each blank cell, in file order.
+  // Appends write by position, so a blank column in the middle doesn't shift later values.
+  let csvLayout: (string | null)[] = [];
   // Bumped on every load/mutation; drives the /api/movies ETag so clients revalidate cheaply.
   let catalogueVersion = 0;
   // Per-process prefix for the ETag: catalogueVersion restarts at 0 in every process, so without it
@@ -263,17 +268,18 @@ export function createApp(options: CreateAppOptions): CreatedApp {
     }
   }
 
-  function loadCatalogue(): Promise<{ movies: Movie[]; headers: string[]; format: FileFormat }> {
+  function loadCatalogue(): Promise<{ movies: Movie[]; headers: string[]; layout: (string | null)[]; format: FileFormat }> {
     return new Promise((resolve, reject) => {
       const rows: Movie[] = [];
       let headers: string[] = [];
+      let layout: (string | null)[] = [];
       // The first chunk (64 KiB) holds the BOM and the header line's ending.
       let format = DEFAULT_FILE_FORMAT;
       const stream = fs.createReadStream(csvPath);
       stream.once('data', (chunk: string | Buffer) => { format = detectFileFormat(Buffer.from(chunk)); });
       stream
         .on('error', (err: NodeJS.ErrnoException) => {
-          if (err.code === 'ENOENT') resolve({ movies: [], headers: [], format: DEFAULT_FILE_FORMAT });
+          if (err.code === 'ENOENT') resolve({ movies: [], headers: [], layout: [], format: DEFAULT_FILE_FORMAT });
           else reject(err);
         })
         .pipe(csv({
@@ -294,10 +300,11 @@ export function createApp(options: CreateAppOptions): CreatedApp {
             logger.log(`Ignoring ${h.length - named.length} blank CSV header column(s); a rewrite will drop them`);
           }
           headers = named;
+          layout = h;
         })
         .on('data', (row: Movie) => rows.push(row))
         .on('error', reject)
-        .on('end', () => resolve({ movies: rows, headers, format }));
+        .on('end', () => resolve({ movies: rows, headers, layout, format }));
     });
   }
 
@@ -308,6 +315,7 @@ export function createApp(options: CreateAppOptions): CreatedApp {
     const loaded = await loadCatalogue();
     movies = loaded.movies;
     csvHeaders = loaded.headers;
+    csvLayout = loaded.layout;
     fileFormat = loaded.format;
     fingerprint = fp;
     catalogueVersion++;
@@ -347,13 +355,14 @@ export function createApp(options: CreateAppOptions): CreatedApp {
 
   // Caller must hold the op queue and have just run reloadIfChanged(), so csvHeaders matches
   // the header currently on disk (including columns another tool may have added). Row fields
-  // with no matching header column are dropped, header columns the row lacks are left empty.
+  // with no matching header column are dropped, header columns the row lacks are left empty, and
+  // blank header cells get an empty cell (csvLayout) so later values keep their columns.
   async function appendMovieToCsv(row: Movie): Promise<void> {
     const size = (await statFingerprint())?.size ?? 0;
     if (size > 0 && csvHeaders.length === 0) {
       throw new Error('CSV file exists but its header could not be read; refusing to append');
     }
-    const headers = size > 0 ? csvHeaders : [...CATALOGUE_COLUMNS];
+    const headers = size > 0 ? csvLayout : [...CATALOGUE_COLUMNS];
     // A missing or empty file probed as DEFAULT_FILE_FORMAT, so fileFormat is right for a new file too.
     const { eol } = fileFormat;
     let prefix = '';
@@ -370,10 +379,13 @@ export function createApp(options: CreateAppOptions): CreatedApp {
       }
     }
     const lines: string[] = [];
-    if (size === 0) lines.push(headers.map(escapeCsvField).join(','));
+    if (size === 0) lines.push(CATALOGUE_COLUMNS.map(escapeCsvField).join(','));
     lines.push(toCsvLine(row, headers));
     await fs.promises.appendFile(csvPath, prefix + lines.join(eol) + eol, 'utf-8');
-    if (size === 0) csvHeaders = headers;
+    if (size === 0) {
+      csvHeaders = [...CATALOGUE_COLUMNS];
+      csvLayout = [...CATALOGUE_COLUMNS];
+    }
   }
 
   // Delete has no append-only equivalent — the whole file is regenerated from `rows`, written

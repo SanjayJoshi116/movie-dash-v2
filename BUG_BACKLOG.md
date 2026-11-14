@@ -1,6 +1,6 @@
 # Bug Backlog
 
-Last full sweep: **2026-10-28** (v0.9.1, working tree on `main`). Last updated **2026-11-07**, v0.11.0 (Batch A review: B51–B60 added and fixed, §3c, §6 batch column; Batch B review: B61–B67 added and fixed with B3/B8/B9, §3d; Batch C review: B68–B78 added, all but B75 fixed, §3e; §6 Fix column + batch status). Read-only sweep: four parallel reviewers (server/scripts/CI, Movies page, analytics, shell/tests), then a merge pass. Earlier records: `docs/audit-findings-2026-10-08.md` (S/F/C/T IDs) and `docs/review-findings-2026-10-15.md` (R1–R7, all resolved). This file lists only **open** items. Line numbers are pointers, so re-check them before editing.
+Last full sweep: **2026-10-28** (v0.9.1, working tree on `main`). Last updated **2026-11-07**, v0.11.0 (Batch A review: B51–B60 added and fixed, §3c, §6 batch column; Batch B review: B61–B67 added and fixed with B3/B8/B9, §3d; Batch C review: B68–B78 added, all but B75 fixed, §3e; §6 Fix column + batch status). Updated **2026-11-14**, v0.11.1: Batch B re-review B79–B86 and follow-up B87–B93 added and fixed, §3f. Read-only sweep: four parallel reviewers (server/scripts/CI, Movies page, analytics, shell/tests), then a merge pass. Earlier records: `docs/audit-findings-2026-10-08.md` (S/F/C/T IDs) and `docs/review-findings-2026-10-15.md` (R1–R7, all resolved). This file lists only **open** items. Line numbers are pointers, so re-check them before editing.
 
 Severity: **High** = broken today / data loss / security / CI red · **Med** = wrong behavior users will hit · **Low** = polish, a11y, edge cases.
 Confidence: **H** = traced through the code and/or reproduced · **M** = needs a specific data shape or environment.
@@ -195,6 +195,29 @@ CR found 10, all checked against the code (BOM, `extrasaction`, CRLF reproduced 
 - ✅ **B66 — Python `os.replace` has no lock retry.** `backfill_posters.py:67`, `movie-search.py:155`: Excel/AV holding the file → `PermissionError` crash (up to 99 rows of backfill progress lost). Server retries EPERM/EBUSY/EACCES. *(Med, H)*
 - ✅ **B67 — Python session/temp-file code duplicated; fixed `.tmp` name shared.** Both scripts copy the session/Retry/`CSV_PATH`/rewrite code and use `CSV_PATH + ".tmp"`, so concurrent runs collide. *(cleanup)*
 
+## 3f. Found 2026-11-14 (Batch B re-review: `git diff 6e45db5 d79ac6a` on `catalogue_io.py`, `movie-search.py`, `backfill_posters.py`), fixed by `harden-python-catalogue-io`
+
+CR (high) found 8, all confirmed by reading the code; B85 also seen live (Hindi + "love" scanned 87 TMDB pages for one view). SR kept 0 at ≥8 confidence (formula injection 1, key leak 1, temp file 1, path-only SSRF 1). The manual GUI check of `fix-python-csv-writers` found one more bug, fixed before its archive: a failed title search showed "Connection Error" then "No Results".
+
+- ✅ **B79 — Python reads header names raw.** `catalogue_io.py:96`: no trim, blank cells not skipped, unlike the server's `mapHeaders`. A `Poster URL ` header makes backfill/search add a second `Poster URL`; the server then fails every add/delete with `DuplicateHeaderError`. A `Movie ID ` header defeats the duplicate check. *(High, H)*
+- ✅ **B80 — Python rewrites a file whose header repeats a column.** `catalogue_io.py:164`: `DictReader` keeps the last value of a repeated key, so a rewrite copies it into both columns and the first column's data is lost. The server refuses this file. *(Med, H)*
+- ✅ **B81 — Search tool saves Language/Runtime/Year from the list cells.** `movie-search.py:206`: if that movie's details fetch failed while listing, a later save stores those blank even though details now succeed. B63's no-partial-row rule is half kept. *(Med, H)*
+- ✅ **B82 — Backfill loses found posters on an early stop.** `backfill_posters.py:112`: Ctrl+C, a non-object TMDB body (`AttributeError` at `:55`), a disk error or a bad encoding at a checkpoint ends the run with no final save. *(Med, H)*
+- ✅ **B83 — Python duplicate check and append are not re-checked against the file.** `catalogue_io.py:138`: an in-app import between them gives a duplicate row; a small gap remains between a rewrite's fingerprint check and `os.replace`. *(Low, M)*
+- ✅ **B84 — Search window still freezes during fetches.** `movie-search.py:125`: the pool's `with` block runs on the Tk thread; save fetches credits/keywords serially. *(Low, H)*
+- ✅ **B85 — Language scan has no page cap.** `movie-search.py:267`: a broad query with a rare language reads every page on the Tk thread. *(Low, H)*
+- ✅ **B86 — Shared rules duplicated.** TMDB GET code in both scripts (already diverged); formula escaping only in `movie-search.py`; a new file's column order differs from `CATALOGUE_COLUMNS`. *(cleanup)*
+
+Follow-up `/code-review` (high) of the uncommitted `harden-python-catalogue-io` work, 2026-11-14: 7 found, all confirmed (B89 reproduced: ttk returns `'1917'` as int), all fixed in the same working tree (no OpenSpec change; verified by unit tests, a new server test and the live GUI driver).
+
+- ✅ **B87 — A blank header cell in the middle shifts appended values one column left.** Python `append_row` wrote only the named columns, and so did the server's `appendMovieToCsv` (`toCsvLine(row, csvHeaders)`): `Movie ID,,Name,…` put the name in the blank column. Both now write by position (`Catalogue.layout` / `csvLayout`). Server half was pre-existing. *(High, H)*
+- ✅ **B88 — `add_row_if_new` skipped the duplicate check after a header migration.** It re-read and appended directly; an in-app import of the same movie in between gave a duplicate. Now loops back to the check. *(Med, H)*
+- ✅ **B89 — Numeric titles crash the save summary.** Treeview returns `1917` as int; `', '.join` raised `TypeError` on the failed path, so no dialog appeared. *(Med, H)*
+- ✅ **B90 — Saves still did CSV I/O on the Tk thread.** One full read per selected movie plus up to ~1.5 s of lock retry. Appends now run in the save worker. *(Low, H)*
+- ✅ **B91 — A failed or empty search reset paging for the list still shown.** Next Page said "no more pages" and the language box re-ran the failed query. State now changes only when results arrive. *(Low, H)*
+- ✅ **B92 — Backfill's failed final save said "will retry at the next one".** On Ctrl+C/401 there is none; it now says the posters are lost and to re-run. *(Low, H)*
+- ✅ **B93 — A rejected TMDB key showed "Check your connection" in `movie-search.py`.** `401` is now named as an API-key problem. *(Low, H)*
+
 ## 3e. Found 2026-11-07 (Batch C review: `vite.config.ts`, `playwright.config.ts`, `eslint.config.mjs`, `scripts/check-bundle.mjs`), fixed by `harden-build-test-config` (B75 deferred)
 
 CR found 10, all checked against the code: 9 confirmed, 1 plausible but never observed (B75, deferred). SR kept 0 at ≥8 confidence (`dev:lan` proxy reach 4, by design; DNS rebinding 1, Vite 8.3.5 host check runs before the proxy; `/@fs` `.env` read 2, default `fs.deny`). Its doc-accuracy note is B78.
@@ -232,7 +255,7 @@ Excludes what `e2e-hardening` already plans (Add/Delete happy path, Stats slider
 | ✅ `e2e-hardening` (archived 2026-11-04) | e2e sleeps, unscoped selectors, vacuous tests, `retries`, Add/Delete/slider/PNG/empty-state/BottomNav tests, Python lint |
 | ✅ `reduce-bundle-size` (archived 2026-11-05) | `vendor-antd` chunk, `framer-motion` removal, bundle budget |
 | ✅ `upgrade-major-deps` (archived 2026-11-06) | antd 6, Vite 8, Express 5, TypeScript 6, concurrently 10; also fixed B1 |
-| `upgrade-typescript-7` (0/7, parked) | TypeScript 7, blocked until typescript-eslint supports it |
+| ✖ `upgrade-typescript-7` (removed 2026-11-14, never started) | TypeScript 7, blocked until typescript-eslint supports it; re-propose once `npm view typescript-eslint peerDependencies` allows 7 |
 
 ---|---|
 | `prod-deploy` (0/15) | prod SPA serving, `trust proxy`, README deployment drift, `public/index.html` (LAN exposure S10 moved to `harden-server-entry`, fixed) |
@@ -261,14 +284,14 @@ Excludes what `e2e-hardening` already plans (Add/Delete happy path, Stats slider
 
 Started 2026-11-04. Covers 75 source modules (67 at start, plus `hardening.test.ts`, `bootstrap.ts`, `bootstrap.test.ts`, and on 2026-11-06 `hosting.test.ts`, `check-bundle.mjs`, `tests/helpers.ts`, `search.ts`, `slugify.ts`) (`.ts`/`.tsx`/`.py`/`.mjs`, excluding `openspec/`). Tick ☑ when a pass is done and add any new findings as B-IDs above. **CR** = `/code-review <path>` · **SR** = `/security-review`. **Fix** = the pass's findings were verified by hand and fixed: ☑ fixed and its OpenSpec change archived · ◐ fix implemented, change not archived yet · ☐ not yet (or no review yet).
 
-**Progress (2026-11-07):** 10 of 75 modules reviewed (CR + SR): 8 fully fixed (rows 1, 2, 3, 6, 7, 8, 69, 72), 2 awaiting archive (rows 4, 5: `fix-python-csv-writers`, manual GUI check open). Next: Batch D. SR reviews pending branch changes, not a path, so it may need a scoped diff or explicit file instructions.
+**Progress (2026-11-14):** 10 of 75 modules reviewed (CR + SR): all 10 fully fixed (rows 1–8, 69, 72; rows 4, 5 via `fix-python-csv-writers` + re-review `harden-python-catalogue-io`, both archived 2026-11-14). Next: Batch D. SR reviews pending branch changes, not a path, so it may need a scoped diff or explicit file instructions.
 
 **Batches** (added 2026-11-07): rows stay per-file so ticks stay precise, but review one batch per pass, passing all its paths to `/code-review` so cross-file bugs inside a feature slice get caught. Tick each row the pass covered.
 
 | Batch | Scope | Rows | CR | SR | Fix | Findings · change |
 |---|---|---|---|---|---|---|
 | A | Server runtime | 1, 2, 3, 69 | ☑ | ☑ | ☑ | B51–B60 · `fix-server-batch-a-review` (archived) |
-| B | Python CSV writers | 4, 5 | ☑ | ☑ | ◐ | B61–B67 (+B3/B8/B9) · `fix-python-csv-writers` (manual GUI check open) |
+| B | Python CSV writers | 4, 5 | ☑ | ☑ | ☑ | B61–B67 (+B3/B8/B9) · `fix-python-csv-writers` (archived); re-review B79–B86 · `harden-python-catalogue-io` (archived); follow-up B87–B93 fixed |
 | C | Build/lint/test config + bundle check | 6, 7, 8, 72 | ☑ | ☑ | ☑ | B68–B78 (B75 deferred) · `harden-build-test-config` (archived) |
 | D | App shell | 9–16 | ☐ | ☐ | ☐ |  |
 | E | Contexts + hooks | 17–22 | ☐ | ☐ | ☐ |  |
@@ -317,8 +340,8 @@ Batch C (2026-11-07, rows 6, 7, 8, 72): CR found 10 (9 confirmed, B75 plausible 
 ### Python scripts (write to `src/movies.csv`)
 | # | Module | Batch | CR | SR | Fix |
 |---|---|---|---|---|---|
-| 4 | `movie-search.py` | B | ☑ | ☑ | ◐ |
-| 5 | `backfill_posters.py` | B | ☑ | ☑ | ◐ |
+| 4 | `movie-search.py` | B | ☑ | ☑ | ☑ |
+| 5 | `backfill_posters.py` | B | ☑ | ☑ | ☑ |
 
 ### Config
 | # | Module | Batch | CR | SR | Fix |
