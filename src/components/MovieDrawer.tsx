@@ -8,20 +8,15 @@ import { formatDateDDMMYYYY } from '../utils/formatDate';
 import { POSTER_FALLBACK } from '../utils/poster';
 import { useTheme } from '../contexts/ThemeContext';
 import { useMovies } from '../hooks/useMovies';
+import { useLatest } from '../hooks/useLatest';
+import { hasStatus, serverErrorMessage } from '../utils/httpError';
+import { voteColor } from '../utils/vote';
 
 const { Title } = Typography;
 
 interface MovieDrawerProps {
   movie: Movie | null;
   onClose: () => void;
-}
-
-function extractErrorMessage(err: unknown): string {
-  if (axios.isAxiosError(err)) {
-    const data = err.response?.data as { error?: string } | undefined;
-    return data?.error ?? 'Delete failed';
-  }
-  return 'Delete failed';
 }
 
 const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
@@ -36,27 +31,31 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
   if (currentId !== lastMovieId) {
     setLastMovieId(currentId);
     if (deleteError) setDeleteError(null);
+    // A delete still running for the previous movie isn't this movie's delete.
+    if (deleting) setDeleting(false);
   }
+  // The id the drawer shows now, read by a delete after its await.
+  const currentIdRef = useLatest(currentId);
 
   const handleDelete = async () => {
     if (!movie) return;
+    const id = movie['Movie ID'];
+    // UI effects apply only while the drawer still shows the movie this delete was started for.
+    const stillShown = () => currentIdRef.current === id;
     setDeleting(true);
     setDeleteError(null);
+    let error: string | null = null;
     try {
-      await axios.delete(`/api/movies/${encodeURIComponent(movie['Movie ID'])}`);
-      refetch();
-      onClose();
+      await axios.delete(`/api/movies/${encodeURIComponent(id)}`);
     } catch (err) {
       // 404 = already gone (e.g. deleted in another tab) — same end state as a successful delete.
-      if (axios.isAxiosError(err) && err.response?.status === 404) {
-        refetch();
-        onClose();
-        return;
-      }
-      setDeleteError(extractErrorMessage(err));
-    } finally {
-      setDeleting(false);
+      if (!hasStatus(err, 404)) error = serverErrorMessage(err) ?? 'Delete failed';
     }
+    refetch();
+    if (!stillShown()) return;
+    setDeleting(false);
+    if (error === null) onClose();
+    else setDeleteError(error);
   };
 
   const headerBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.85)';
@@ -74,13 +73,19 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
   };
 
   const voteCount = movie?.['Vote Count'];
+  const runtime = parseFloat(movie?.Runtime ?? '');
+  const vote = parseFloat(movie?.['Vote Average'] ?? '');
+  const rated = vote > 0; // false for 0 (unrated) and NaN
+  const releaseDate = formatDateDDMMYYYY(movie?.['Release Date']);
+  const releaseYear = movie?.['Release Year'].trim() ?? '';
+  const release = [releaseDate, releaseYear && `(${releaseYear})`].filter(Boolean).join(' ') || '—';
   const popularity = movie?.['Popularity Score'];
 
   return (
     <Drawer
       title={
         <Title level={5} style={{ margin: 0, color: isDark ? '#fff' : '#1e1e3f' }}>
-          🎬 {movie?.Name ?? ''}
+          <span aria-hidden="true">🎬 </span>{movie?.Name ?? ''}
         </Title>
       }
       placement="right"
@@ -147,11 +152,11 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
             </div>
             <div style={{ color: 'var(--text-primary)', fontSize: 13 }}>
               <span style={{ color: 'var(--text-secondary)', fontSize: 12, marginRight: 6 }}>Runtime</span>
-              {movie.Runtime} mins
+              {runtime > 0 ? `${movie.Runtime} mins` : '—'}
             </div>
             <div style={{ color: 'var(--text-primary)', fontSize: 13 }}>
               <span style={{ color: 'var(--text-secondary)', fontSize: 12, marginRight: 6 }}>Release</span>
-              {formatDateDDMMYYYY(movie['Release Date'])} ({movie['Release Year']})
+              {release}
             </div>
           </div>
         </div>
@@ -174,10 +179,14 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
           <Descriptions.Item label="Production Company">{movie['Production Company']}</Descriptions.Item>
           <Descriptions.Item label="Country">{movie['Production Country']}</Descriptions.Item>
           <Descriptions.Item label="Vote Average">
-            <Tag color={parseFloat(movie['Vote Average']) >= 7 ? 'green' : parseFloat(movie['Vote Average']) >= 5 ? 'gold' : 'red'}>
-              ⭐ {movie['Vote Average']}
-            </Tag>
-            {voteCount && voteCount !== '0' && (
+            {rated ? (
+              <Tag color={voteColor(vote)}>
+                ⭐ {movie['Vote Average']}
+              </Tag>
+            ) : (
+              <Tag>Not rated</Tag>
+            )}
+            {rated && voteCount && voteCount !== '0' && (
               <span style={{ color: 'var(--text-muted)', fontSize: 12, marginLeft: 8 }}>
                 <LikeOutlined style={{ marginRight: 3 }} />
                 {parseInt(voteCount).toLocaleString()} votes

@@ -5,6 +5,7 @@ import type { Movie } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
 import { getCardStyle } from '../utils/chartTheme';
 import { POSTER_FALLBACK } from '../utils/poster';
+import { voteColor } from '../utils/vote';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface MovieCardGridProps {
@@ -15,8 +16,6 @@ interface MovieCardGridProps {
   /** Receives the rows in the order currently shown (for Export CSV). */
   onDisplayedChange?: (rows: Movie[]) => void;
 }
-
-const voteColor = (vote: number): string => (vote >= 7 ? 'green' : vote >= 5 ? 'gold' : 'red');
 
 type SortKey = 'default' | 'name-asc' | 'name-desc' | 'year-desc' | 'year-asc' | 'vote-desc' | 'vote-asc' | 'runtime-desc' | 'runtime-asc';
 
@@ -94,6 +93,9 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick, filte
       {pageMovies.map((movie) => {
         const genres = movie.Genres.split(',').map(g => g.trim()).filter(Boolean).slice(0, 3);
         const vote = parseFloat(movie['Vote Average']);
+        const runtime = parseFloat(movie.Runtime);
+        const yearLanguage = [movie['Release Year'].trim(), getLanguageName(movie.Language)].filter(Boolean).join(' · ');
+        const detailsId = `movie-card-${movie['Movie ID']}-details`;
         return (
           <Col key={movie['Movie ID']} xs={24} sm={12} md={8} lg={6} xl={4}>
             <Card
@@ -103,6 +105,7 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick, filte
               role="button"
               tabIndex={0}
               aria-label={`View details for ${movie.Name}`}
+              aria-describedby={detailsId}
               onKeyDown={(e: React.KeyboardEvent) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
@@ -110,7 +113,7 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick, filte
                 }
               }}
               style={{ ...getCardStyle(isDark), height: '100%', cursor: 'pointer' }}
-              styles={{ body: { padding: 12, display: 'flex', flexDirection: 'column', gap: 6 } }}
+              styles={{ body: { padding: 12, display: 'flex', flexDirection: 'column' } }}
               cover={
                 <img
                   src={movie['Poster URL'] || POSTER_FALLBACK}
@@ -121,41 +124,47 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick, filte
                 />
               }
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
-                <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>
-                  {movie.Name}
-                </span>
-                {!isNaN(vote) && vote > 0 && (
-                  <Tag color={voteColor(vote)} style={{ flexShrink: 0, margin: 0 }}>
-                    ⭐ {vote.toFixed(1)}
-                  </Tag>
+              {/* aria-describedby target: the visible details are read after the card's name. The name
+                  itself is aria-hidden here — it is already in the card's aria-label, so it isn't read twice. */}
+              <div id={detailsId} style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                  <span aria-hidden="true" style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>
+                    {movie.Name}
+                  </span>
+                  {!isNaN(vote) && vote > 0 && (
+                    <Tag color={voteColor(vote)} style={{ flexShrink: 0, margin: 0 }}>
+                      ⭐ {vote.toFixed(1)}
+                    </Tag>
+                  )}
+                </div>
+
+                {yearLanguage && (
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                    {yearLanguage}
+                  </span>
+                )}
+
+                {movie.Director && (
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    Dir. {movie.Director}
+                  </span>
+                )}
+
+                {genres.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {genres.map((g) => (
+                      <Tag key={g} color="purple" style={{ margin: 0 }}>{g}</Tag>
+                    ))}
+                  </div>
+                )}
+
+                {runtime > 0 && (
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 'auto' }}>
+                    <ClockCircleOutlined style={{ marginRight: 4 }} />
+                    {movie.Runtime} mins
+                  </span>
                 )}
               </div>
-
-              <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                {movie['Release Year']} · {getLanguageName(movie.Language)}
-              </span>
-
-              {movie.Director && (
-                <span style={{ color: 'var(--text-secondary)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  Dir. {movie.Director}
-                </span>
-              )}
-
-              {genres.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {genres.map((g) => (
-                    <Tag key={g} color="purple" style={{ margin: 0 }}>{g}</Tag>
-                  ))}
-                </div>
-              )}
-
-              {movie.Runtime && (
-                <span style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 'auto' }}>
-                  <ClockCircleOutlined style={{ marginRight: 4 }} />
-                  {movie.Runtime} mins
-                </span>
-              )}
             </Card>
           </Col>
         );

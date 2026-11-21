@@ -1,18 +1,21 @@
 import React, { useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
+import { useLatest } from '../../hooks/useLatest';
+import { formatNumber, useClickHandlers, type ClickProps } from './chartHelpers';
 
-interface HorizontalBarChartProps {
+interface HorizontalBarChartProps extends ClickProps {
   data: ChartData<'bar'>;
   height?: number;
   isDark?: boolean;
   formatValue?: (n: number) => string;
-  onElementClick?: (index: number) => void;
-  /** Elements for which this returns false (e.g. "Other"/"Unknown") get no pointer cursor and no click. */
-  isClickable?: (index: number) => boolean;
 }
 
 const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 400, isDark = true, formatValue, onElementClick, isClickable }) => {
+  const click = useClickHandlers({ onElementClick, isClickable });
+  // Read at event time, so the options memo doesn't depend on the caller's function identity (B13).
+  const latest = useLatest({ formatValue });
+  const hasFormat = formatValue !== undefined;
   const options: ChartOptions<'bar'> = useMemo(() => {
     const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';
     const tickColor = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.75)';
@@ -22,20 +25,16 @@ const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 
       indexAxis: 'y' as const,
       responsive: true,
       maintainAspectRatio: false,
-      onClick: onElementClick
-        ? (_evt, elements) => { if (elements.length && (isClickable?.(elements[0].index) ?? true)) onElementClick(elements[0].index); }
-        : undefined,
-      onHover: onElementClick
-        ? (evt, elements) => { (evt.native?.target as HTMLElement)?.style.setProperty('cursor', elements.length && (isClickable?.(elements[0].index) ?? true) ? 'pointer' : 'default'); }
-        : undefined,
+      ...click,
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
             label: (ctx) => {
-              const raw = ctx.raw as number;
-              if (formatValue) return ` ${formatValue(raw)}`;
-              return ` ${raw.toFixed(2)}`;
+              const format = latest.current.formatValue;
+              // A null/non-number value shows "—" instead of throwing inside the callback.
+              if (format && typeof ctx.raw === 'number') return ` ${format(ctx.raw)}`;
+              return ` ${formatNumber(ctx.raw)}`;
             },
           },
         },
@@ -45,7 +44,7 @@ const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 
           grid: { color: gridColor },
           ticks: {
             color: tickColor,
-            ...(formatValue ? { callback: (value) => formatValue(value as number) } : {}),
+            ...(hasFormat ? { callback: (value) => latest.current.formatValue?.(Number(value)) ?? String(value) } : {}),
           },
         },
         y: {
@@ -54,7 +53,7 @@ const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 
         },
       },
     };
-  }, [isDark, formatValue, onElementClick, isClickable]);
+  }, [isDark, click, hasFormat, latest]);
 
   return (
     <div style={{ height }}>

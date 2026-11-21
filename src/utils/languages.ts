@@ -41,5 +41,8 @@ const LANGUAGE_MAP: Record<string, string> = {
 
 export function getLanguageName(code: string): string {
   if (!code) return code;
-  return LANGUAGE_MAP[code.toLowerCase()] ?? code;
+  // Own keys only: a plain object literal would otherwise resolve 'constructor' etc. via Object.prototype.
+  const key = code.toLowerCase();
+  // (hasOwnProperty.call, not Object.hasOwn: the root tsconfig's lib is ES2020.)
+  return Object.prototype.hasOwnProperty.call(LANGUAGE_MAP, key) ? LANGUAGE_MAP[key] : code;
 }

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Grid } from 'antd';
 import { Doughnut } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
+import { useClickHandlers, type ClickProps } from './chartHelpers';
 
 // Chart.js caps a bottom legend at half the chart height and drops rows past that, so on phones
 // (where the legend wraps to many rows) every doughnut uses the compact sizing.
@@ -10,17 +11,15 @@ const LEGEND_SIZES = {
   normal: { size: 12, padding: 20, boxWidth: 40 },
 } as const;
 
-interface DoughnutChartProps {
+interface DoughnutChartProps extends ClickProps {
   data: ChartData<'doughnut'>;
   isDark?: boolean;
-  onElementClick?: (index: number) => void;
-  /** Elements for which this returns false (e.g. "Other"/"Unknown") get no pointer cursor and no click. */
-  isClickable?: (index: number) => boolean;
 }
 
 const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, isDark = true, onElementClick, isClickable }) => {
-  // Strictly false: useBreakpoint() is {} on the first render, which must not count as "narrow".
+  // Strictly false (defensive): an unknown breakpoint must not count as "narrow".
   const compact = Grid.useBreakpoint().md === false;
+  const click = useClickHandlers({ onElementClick, isClickable });
 
   const options: ChartOptions<'doughnut'> = useMemo(() => {
     const textColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
@@ -29,12 +28,7 @@ const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, isDark = true, onEl
     return {
       responsive: true,
       maintainAspectRatio: false,
-      onClick: onElementClick
-        ? (_evt, elements) => { if (elements.length && (isClickable?.(elements[0].index) ?? true)) onElementClick(elements[0].index); }
-        : undefined,
-      onHover: onElementClick
-        ? (evt, elements) => { (evt.native?.target as HTMLElement)?.style.setProperty('cursor', elements.length && (isClickable?.(elements[0].index) ?? true) ? 'pointer' : 'default'); }
-        : undefined,
+      ...click,
       plugins: {
         legend: {
           position: 'bottom' as const,
@@ -47,7 +41,7 @@ const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, isDark = true, onEl
         },
       },
     };
-  }, [isDark, onElementClick, isClickable, compact]);
+  }, [isDark, click, compact]);
 
   return <Doughnut data={data} options={options} />;
 };

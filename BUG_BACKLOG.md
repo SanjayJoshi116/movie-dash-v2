@@ -1,23 +1,25 @@
 # Bug Backlog
 
-Last full sweep: **2026-10-28** (v0.9.1, working tree on `main`). Last updated **2026-11-07**, v0.11.0 (Batch A review: B51–B60 added and fixed, §3c, §6 batch column; Batch B review: B61–B67 added and fixed with B3/B8/B9, §3d; Batch C review: B68–B78 added, all but B75 fixed, §3e; §6 Fix column + batch status). Updated **2026-11-14**, v0.11.1: Batch B re-review B79–B86 and follow-up B87–B93 added and fixed, §3f. Read-only sweep: four parallel reviewers (server/scripts/CI, Movies page, analytics, shell/tests), then a merge pass. Earlier records: `docs/audit-findings-2026-10-08.md` (S/F/C/T IDs) and `docs/review-findings-2026-10-15.md` (R1–R7, all resolved). This file lists only **open** items. Line numbers are pointers, so re-check them before editing.
+Last full sweep: **2026-10-28** (v0.9.1, working tree on `main`). Last updated **2026-11-07**, v0.11.0 (Batch A review: B51–B60 added and fixed, §3c, §6 batch column; Batch B review: B61–B67 added and fixed with B3/B8/B9, §3d; Batch C review: B68–B78 added, all but B75 fixed, §3e; §6 Fix column + batch status). Updated **2026-11-14**, v0.11.1: Batch B re-review B79–B86 and follow-up B87–B93 added and fixed, §3f. Updated **2026-11-20**, v0.11.2 (all 75 §6 modules reviewed; fixes proposed, none applied yet): Batch D review (app shell) B94–B101 added, §3g, owned by `fix-app-shell-review`; Batch E review (contexts + hooks) B102–B107 added, §3h, owned by `fix-contexts-hooks-review`; Batch F review (Dashboard) B108–B116 added, §3i, owned by `fix-dashboard-review`; Batch G review (Movies page + filtering) B117–B123 added, §3j, owned by `fix-movies-filtering-review`; Batch H review (Movies views + mutations + export) B124–B130 added, §3k, owned by `fix-movies-views-review`; Batch I1 review (Stats page) B131–B135 added, §3l, owned by `fix-stats-review`; Batch I2 review (Stats tabs) B136–B138 added, §3m, owned by `fix-stats-tabs-review`; Batch J review (chart wrappers) B139–B142 added, §3n, owned by `fix-chart-wrappers-review`; Batch K review (utils + types) B143–B151 added, §3o, mostly owned by `fix-utils-types-review` (B146/B147 open); Batch L review (server tests) B152–B161 added, §3p, owned by `fix-server-tests-review`; Batch M review (e2e spec + helpers) B162–B171 added, §3q, owned by `fix-e2e-review`. Updated **2026-11-21**, v0.11.3: `fix-utils-types-review` applied and archived; B143–B145 and B148–B151 fixed, B15 partly fixed (new `npm run test:unit`), §6 rows 53, 56–61, 75 and Batch K Fix ☑. Updated **2026-11-21**, v0.11.4: `fix-contexts-hooks-review` applied and archived; B102–B107 (and B22, same as B102) fixed, §6 rows 17–22 and Batch E Fix ☑. Updated **2026-11-21**, v0.11.5: `fix-app-shell-review` (B94–B101, B27) and `fix-chart-wrappers-review` (B139–B142, B13 at wrapper level, B26) applied and archived; §6 rows 9–16, 44–51 and Batches D and J Fix ☑ (the Batch D row's extra cell repaired). v0.11.7 (2026-11-21): `/code-review` + `/simplify` of the staged 0.11.3–0.11.6 changes; B172–B176 added and fixed, §3r. v0.11.6 (2026-11-21): `fix-movies-views-review` (B124–B130, B14, B17, B19, B21, B31, B37; B24/B30 drawer and grid parts) applied and archived; §6 rows 26–29, 52 and Batch H Fix ☑. Same day as v0.11.2: older open items that the Batch D–H entries duplicate were cross-referenced both ways (◐ prefix = owned by an in-flight change). Read-only sweep: four parallel reviewers (server/scripts/CI, Movies page, analytics, shell/tests), then a merge pass. Earlier records: `docs/audit-findings-2026-10-08.md` (S/F/C/T IDs) and `docs/review-findings-2026-10-15.md` (R1–R7, all resolved). This file lists only **open** items. Line numbers are pointers, so re-check them before editing.
 
 Severity: **High** = broken today / data loss / security / CI red · **Med** = wrong behavior users will hit · **Low** = polish, a11y, edge cases.
 Confidence: **H** = traced through the code and/or reproduced · **M** = needs a specific data shape or environment.
 
 ---
 
-## 0. Automated checks (2026-11-06, v0.10.0)
+## 0. Automated checks (2026-11-21, v0.11.7; rows marked 0.10.0 were not re-run)
 
 | Check | Result |
 |---|---|
 | `npm run lint` | ✅ clean |
-| `npm run build` | ✅ passes, no chunk-size warning (Vite 8) |
-| `npm run check:bundle` | ✅ 361.68 kB gzip landing (budget 400) |
-| `npm run type-check` / `type-check:server` | ✅ clean (TypeScript 6.0.3) |
-| `npm run test:server` | ✅ 95/95 |
-| `npm run test:e2e` | ✅ 64/65 on the last full run; the one failure was B48, fixed after it (affected tests then passed 25/25 over 5 repeats) |
-| `npm audit --audit-level=high` | ✅ passes (10 moderate: `minimatch` under typescript-eslint) |
+| `npm run build` | ✅ passes, no chunk-size warning (Vite 8; it warns that `vite.config.ts` is ESM loaded as CommonJS, for the future native config loader) |
+| `npm run check:bundle` | ✅ 363.22 kB gzip landing (budget 400; measured with the movies-views fix) |
+| `npm run type-check` / `type-check:server` / `build:server` | ✅ clean (TypeScript 6.0.3) |
+| `npm run test:server` | ✅ 112/112 |
+| `npm run test:unit` | ✅ 26/26 (new in 0.11.3) |
+| `python -m unittest discover -s tests/python` | ✅ 38/38 |
+| `npm run test:e2e` | ✅ 94/94 (`CI=1`, real CSV) |
+| `npm audit --audit-level=high` | ✅ passes (10 moderate: `minimatch` under typescript-eslint) (0.10.0) |
 
 ---|---|
 | `npm run lint` | ✅ clean |
@@ -51,20 +53,20 @@ Confidence: **H** = traced through the code and/or reproduced · **M** = needs a
 
   *Fix:* use `utf-8-sig` at all Python read sites. The server should refuse to load or write a header with duplicate column names. *(H, reproduced)*
 
-- **B4 — Stats "Movies Released per Year" axis misordered, with an "Unknown" point.** `OverviewTab.tsx:121-122`. `groupByField(…, 'Release Year')` buckets blank years as `'Unknown'`, and the comparator `parseInt(a) - parseInt(b)` returns `NaN` for it. V8's sort then misorders the axis, e.g. `1999 2001 Unknown 1985 2005 2010`. It triggers on the real CSV (16 blank years). *Fix:* drop non-numeric keys before sorting (as Dashboard/RatingsTab do), and zero-fill gap years like the Dashboard trend. *(H, reproduced)*
+- ◐ *Owned by `fix-stats-review` (with B131–B135).* **B4 — Stats "Movies Released per Year" axis misordered, with an "Unknown" point.** `OverviewTab.tsx:121-122`. `groupByField(…, 'Release Year')` buckets blank years as `'Unknown'`, and the comparator `parseInt(a) - parseInt(b)` returns `NaN` for it. V8's sort then misorders the axis, e.g. `1999 2001 Unknown 1985 2005 2010`. It triggers on the real CSV (16 blank years). *Fix:* drop non-numeric keys before sorting (as Dashboard/RatingsTab do), and zero-fill gap years like the Dashboard trend. *(H, reproduced)*
 
 ---
 
 ## 2. Medium
 
 ### Data quality / "unknown" values
-- **B5 — Runtime `0` treated as a real runtime.** TMDB writes `0` for unknown runtimes, and the real CSV has 92 such rows.
+- ◐ *Owned by `fix-movies-filtering-review` (logged again as B119).* **B5 — Runtime `0` treated as a real runtime.** TMDB writes `0` for unknown runtimes, and the real CSV has 92 such rows.
   - `Movies.tsx:135-140` excludes only `NaN`, and `filterSpans.ts:21-22` counts `0` in the slider span. So `[0, 90]` and the Runtime tab's "< 60 min" drill-down (`[0, 59]`) list unknown-runtime films.
   - `RuntimeTab.tsx:45-47` ("Avg Vote by Runtime Length") also files runtime 0 under "< 60 min".
   - Dashboard, Overview and the other runtime stats already use `r > 0`.
   - The 0.9.0 "range filters exclude unknown values" fix is therefore incomplete for runtime. *Fix:* `r > 0` everywhere, via a shared `parseRuntime()`. *(H)*
-- **B6 — Rating averages include unrated (vote 0) movies.** `RatingsTab.tsx:39,64,89` (genre / language radar / year), `PeopleTab.tsx:37,57` (director / actor) and `RuntimeTab.tsx:47` filter only `!isNaN(v)`. Unrated 0.0 values drag averages down and count toward `MIN_FILMS`: a director with one 8.0 film and one unrated film shows 4.0 and qualifies for "2+ films". This violates "vote 0 = unrated, charts skip them". *Fix:* `v > 0`, via a shared `parseVote()`. *(H)*
-- **B7 — Dashboard "Top Rated" highlight has no vote-count floor.** `Dashboard.tsx:144-145`: a 10.0 from one vote wins. `TopNExplorer` already uses `MIN_VOTES_FOR_RATING` (50, with a fallback when <10 qualify). *Fix:* export that rule from one place and reuse it. *(H)*
+- ◐ *Owned by `fix-stats-tabs-review`.* **B6 — Rating averages include unrated (vote 0) movies.** `RatingsTab.tsx:39,64,89` (genre / language radar / year), `PeopleTab.tsx:37,57` (director / actor) and `RuntimeTab.tsx:47` filter only `!isNaN(v)`. Unrated 0.0 values drag averages down and count toward `MIN_FILMS`: a director with one 8.0 film and one unrated film shows 4.0 and qualifies for "2+ films". This violates "vote 0 = unrated, charts skip them". *Fix:* `v > 0`, via a shared `parseVote()`. *(H)*
+- ◐ *Owned by `fix-dashboard-review` (logged again as B108).* **B7 — Dashboard "Top Rated" highlight has no vote-count floor.** `Dashboard.tsx:144-145`: a 10.0 from one vote wins. `TopNExplorer` already uses `MIN_VOTES_FOR_RATING` (50, with a fallback when <10 qualify). *Fix:* export that rule from one place and reuse it. *(H)*
 
 ### Python tools (`movie-search.py`)
 - ✅ *Fixed 2026-11-07 by `fix-python-csv-writers`.* **B8 — A failed TMDB fetch still saves an incomplete row, and retry is then blocked.** `movie-search.py:77-105,215-247`. On a network error the fetchers show a dialog and return `{}`/`[]`, but the save continues with empty Genres/Director/Cast/Revenue/Budget/Votes/Poster. `is_duplicate` then refuses a re-add, so the CSV has to be hand-edited. (The server import correctly returns 502 and writes nothing.) *Fix:* fetchers return `None` on failure; skip the append if any fetch failed. *(H)*
@@ -76,17 +78,17 @@ Confidence: **H** = traced through the code and/or reproduced · **M** = needs a
 - **B12 — The Sidebar collapse trigger isn't keyboard-operable.** `Sidebar.tsx:43-46`. Ant's `Sider` trigger is a bare `<div onClick>` with no role, tabIndex or name. Between 576 and 768px the sidebar auto-collapses, and keyboard/SR users can't expand it. *Fix:* `trigger={null}` plus a real `<Button aria-label="Expand sidebar"/"Collapse sidebar">`. *(H)*
 
 ### Performance
-- **B13 — Chart options memoization defeated by inline callbacks.** The wrappers list `onElementClick`/`isClickable` as `useMemo` deps, but callers pass fresh functions every render (`Dashboard.tsx:204-221,311`, `OverviewTab.tsx:137-147,207,210`, every tab's `handleXClick`, every inline `isClickable`). Each parent render then rebuilds the options, and react-chartjs-2 5.3 calls `chart.update()`. Examples:
+- ✅ *Fixed 2026-11-21 in the chart wrappers by `fix-chart-wrappers-review` (`useLatest` ref; covers every caller, incl. B113). The caller `useCallback` tasks below are now optional cleanups: Dashboard part owned by `fix-dashboard-review` (logged again as B113, fixed with `useCallback` there); OverviewTab and ExploreTab call sites owned by `fix-stats-review`; People/Ratings/Runtime/BoxOffice call sites owned by `fix-stats-tabs-review`. Wrapper-level ref fix (covers every caller, makes those `useCallback` tasks optional) owned by `fix-chart-wrappers-review`. If the wrapper-level ref fix below is chosen instead, B113 becomes part of it.* **B13 — Chart options memoization defeated by inline callbacks.** The wrappers list `onElementClick`/`isClickable` as `useMemo` deps, but callers pass fresh functions every render (`Dashboard.tsx:204-221,311`, `OverviewTab.tsx:137-147,207,210`, every tab's `handleXClick`, every inline `isClickable`). Each parent render then rebuilds the options, and react-chartjs-2 5.3 calls `chart.update()`. Examples:
   - OverviewTab's count-up animation re-renders every ~10–20 ms for ~1 s, so both Overview charts update ~100× and stutter.
   - Opening the MovieDrawer on the Dashboard updates every chart.
 
   This contradicts CLAUDE.md's memoization claim. *Fix:* the wrappers keep the callbacks in a ref and drop them from the deps (one change for all charts), rather than adding `useCallback` at every site. *(H)*
 
 ### Export
-- **B14 — Export CSV has no UTF-8 BOM, so Excel garbles non-ASCII text.** `exportCsv.ts:38-39`. Excel on Windows opens a BOM-less CSV in the ANSI codepage, so "Amélie" etc. come out garbled (150 of 1,961 real rows). *Fix:* prepend `String.fromCharCode(0xFEFF)`, built that way per the CLAUDE.md BOM gotcha. The server loader already strips it on re-import. *(H)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B14 — Export CSV has no UTF-8 BOM, so Excel garbles non-ASCII text.** `exportCsv.ts:38-39`. Excel on Windows opens a BOM-less CSV in the ANSI codepage, so "Amélie" etc. come out garbled (150 of 1,961 real rows). *Fix:* prepend `String.fromCharCode(0xFEFF)`, built that way per the CLAUDE.md BOM gotcha. The server loader already strips it on re-import. *(H)*
 
 ### Tests
-- **B15 — No frontend unit tests.** The pure logic the specs depend on is reachable only through e2e, and mostly untested there:
+- ◐ *Partly fixed 2026-11-21 by `fix-utils-types-review` (added `npm run test:unit` and covers `formatRevenue`, `withAlpha`, `groupByField`, `topNWithOther`, `bucketToRange`/`countIntoBuckets`, `formatDate`, `getLanguageName`; the rest can use the same runner).* **B15 — No frontend unit tests.** The pure logic the specs depend on is reachable only through e2e, and mostly untested there:
   - `bucketToRange` / `countIntoBuckets`
   - `sanitizeFilters` / `clampFiltersToSpans`
   - `groupByField` / `MULTI_VALUED_FIELDS`
@@ -103,44 +105,44 @@ Confidence: **H** = traced through the code and/or reproduced · **M** = needs a
 
 ### Correctness / edge cases
 - ✅ *Fixed 2026-11-04 by `harden-catalogue-server`.* **B16 — `/api/movies` ETag can repeat across server restarts.** `server/app.ts:125,263-268`. `W/"v${catalogueVersion}"` restarts at 0 in each process, so a browser holding `v3` from an old process gets a `304` (stale list) once the new process reaches v3 with different data. This brings back S1 by another route. *Fix:* include a per-process boot id or the file fingerprint in the ETag. *(H)*
-- **B17 — Unguarded `.split` can crash a whole Stats tab.** `PeopleTab.tsx:24,75` and `ExploreTab.tsx:35,60` call `m['Actors/Actresses'].split` / `m.Genres.split` directly. csv-parser omits keys on short rows, and import drops fields that have no column. The resulting TypeError goes to the ErrorBoundary. *Fix:* `(m[field] ?? '').split`, or route all counting through `groupByField` (add `Actors/Actresses` to `MULTI_VALUED_FIELDS`). *(M)*
-- **B18 — Language radar can plot a fake 0.0 "Unknown" spoke.** `RatingsTab.tsx:71-73`: `top8` includes `'Unknown'` but `sums` keys only truthy languages. *Fix:* filter with `isDrillableLabel`. *(H, needs rows with empty Language)*
-- **B19 — Delete still in flight acts on a different movie's drawer.** `MovieDrawer.tsx:31-60`. `deleting` isn't reset when the movie changes. Repro: confirm Delete on A, close the drawer, open B → B shows a spinner, then A's completion closes B's drawer (or shows A's error in it). *Fix:* capture the id at call time and act only if it still matches; reset `deleting` in the `lastMovieId` render-phase block. *(H)*
-- **B20 — Search isn't trimmed or accent-folded.** `Movies.tsx:93-98`: "nolan " (trailing space) finds nothing, whitespace-only text turns on the chip and "Filters, active", and "amelie" ≠ "Amélie". *Fix:* `.trim()` for matching and the active check; optionally NFD-normalize both sides. *(H)*
-- **B21 — Hidden responsive column keeps sorting the export.** `MovieTable.tsx:70-147`. Sort by Genres/Actors at ≥992px, then narrow the window: Ant drops the hidden column's sort from the screen, but `sortedMovies` (and Export) keep it, and the sort silently returns when the window widens. *Fix:* clear `sort` when its column isn't visible at the current breakpoint, or drop `responsive` from sortable columns. *(M)*
-- **B22 — `ThemeContext` saves the OS-derived default on first render, so later OS theme changes are never followed.** `ThemeContext.tsx:39-44`. *Fix:* persist only in `toggleTheme`; optionally listen to `matchMedia` while nothing is saved. *(H)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review` (every site, by normalising missing fields in `MoviesContext`, with B129).* **B17 — Unguarded `.split` can crash a whole Stats tab.** `PeopleTab.tsx:24,75` and `ExploreTab.tsx:35,60` call `m['Actors/Actresses'].split` / `m.Genres.split` directly. csv-parser omits keys on short rows, and import drops fields that have no column. The resulting TypeError goes to the ErrorBoundary. *Fix:* `(m[field] ?? '').split`, or route all counting through `groupByField` (add `Actors/Actresses` to `MULTI_VALUED_FIELDS`). *(M)*
+- ◐ *Owned by `fix-stats-tabs-review`.* **B18 — Language radar can plot a fake 0.0 "Unknown" spoke.** `RatingsTab.tsx:71-73`: `top8` includes `'Unknown'` but `sums` keys only truthy languages. *Fix:* filter with `isDrillableLabel`. *(H, needs rows with empty Language)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B19 — Delete still in flight acts on a different movie's drawer.** `MovieDrawer.tsx:31-60`. `deleting` isn't reset when the movie changes. Repro: confirm Delete on A, close the drawer, open B → B shows a spinner, then A's completion closes B's drawer (or shows A's error in it). *Fix:* capture the id at call time and act only if it still matches; reset `deleting` in the `lastMovieId` render-phase block. *(H)*
+- ◐ *Trim part owned by `fix-movies-filtering-review` (logged again as B120); accent folding still open.* **B20 — Search isn't trimmed or accent-folded.** `Movies.tsx:93-98`: "nolan " (trailing space) finds nothing, whitespace-only text turns on the chip and "Filters, active", and "amelie" ≠ "Amélie". *Fix:* `.trim()` for matching and the active check; optionally NFD-normalize both sides. *(H)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B21 — Hidden responsive column keeps sorting the export.** `MovieTable.tsx:70-147`. Sort by Genres/Actors at ≥992px, then narrow the window: Ant drops the hidden column's sort from the screen, but `sortedMovies` (and Export) keep it, and the sort silently returns when the window widens. *Fix:* clear `sort` when its column isn't visible at the current breakpoint, or drop `responsive` from sortable columns. *(M)*
+- ✅ *Fixed 2026-11-21 by `fix-contexts-hooks-review` (logged again as B102).* **B22 — `ThemeContext` saves the OS-derived default on first render, so later OS theme changes are never followed.** `ThemeContext.tsx:39-44`. *Fix:* persist only in `toggleTheme`; optionally listen to `matchMedia` while nothing is saved. *(H)*
 - **B23 — The outer ErrorBoundary can't recover.** `main.tsx:50-54`. It sits outside Router/Theme/ConfigProvider with no `onReset`. A crash in TopBar/Sidebar/a provider shows an unthemed fallback on a white body with no nav, and "Try Again" re-renders the same tree. *Fix:* make its action `location.reload()`. *(H)*
 
 ### Display of missing values
-- **B24 — Blank/zero values render as junk.**
+- ◐ *Dashboard part owned by `fix-dashboard-review` (B114); MovieDrawer and MovieCardGrid parts fixed 2026-11-21 by `fix-movies-views-review`; Stats Overview part owned by `fix-stats-review`.* **B24 — Blank/zero values render as junk.**
   - `MovieDrawer.tsx:151,155,179-180` shows "Release  ()" for 16 blank-date rows, "0 mins" for 92 unknown runtimes, and a red "⭐ 0" for 303 unrated movies.
   - `MovieCardGrid.tsx:140,157` shows " · English" and "0 mins".
   - `Dashboard.tsx:353` Recent Releases shows "⭐ 0" / "⭐ ".
   - Stats Overview shows Earliest/Latest Release "0" when the year scope is empty (`OverviewTab.tsx:74-75`).
 
   *Fix:* render "—" or omit the field when it's blank/≤0; reuse the grid's `vote > 0` guard. *(H)*
-- **B25 — Stats has no empty state.** `Stats.tsx`. With an empty catalogue, or a year scope with no releases, the slider reads "1900 – 2026 · 0 movies" and the tabs show zeros. The Dashboard has an `Empty` state for this. *(H)*
-- **B26 — Count tooltips show 2 decimals.** `HorizontalBarChart.tsx:92` uses `raw.toFixed(2)` when there's no `formatValue`: "Appearances: 5.00", "142.00 mins". *Fix:* print integers as-is. *(H)*
-- **B27 — TopBar count badge shows "0 movies" after a failed first load.** `TopBar.tsx:32-49`. The count is unknown, not zero. *Fix:* hide it or show "–" when `error` is set. *(H)*
+- ◐ *Owned by `fix-stats-review`.* **B25 — Stats has no empty state.** `Stats.tsx`. With an empty catalogue, or a year scope with no releases, the slider reads "1900 – 2026 · 0 movies" and the tabs show zeros. The Dashboard has an `Empty` state for this. *(H)*
+- ✅ *Fixed 2026-11-21 by `fix-chart-wrappers-review` (also guards `null` values).* **B26 — Count tooltips show 2 decimals.** `HorizontalBarChart.tsx:92` uses `raw.toFixed(2)` when there's no `formatValue`: "Appearances: 5.00", "142.00 mins". *Fix:* print integers as-is. *(H)*
+- ✅ *Fixed 2026-11-21 by `fix-app-shell-review` (logged again as B95).* **B27 — TopBar count badge shows "0 movies" after a failed first load.** `TopBar.tsx:32-49`. The count is unknown, not zero. *Fix:* hide it or show "–" when `error` is set. *(H)*
 
 ### Accessibility
 - **B28 — Filter chips can't be removed from the keyboard, and every close icon is named "Close".** `ActiveFilters.tsx:20`. The Ant `Tag` close icon is `tabIndex=-1`. *Fix:* a focusable close button with `aria-label="Remove <chip>"`. *(H)*
 - **B29 — Range slider handles have no accessible name.** `FiltersDrawer.tsx:141-179`, `RangeSlider.tsx:28`: 8 unnamed `role="slider"` handles. *Fix:* `ariaLabelForHandle` / `ariaLabelledByForHandle`. *(H)*
-- **B30 — `aria-label` overrides hide visible data.**
+- ◐ *StatCard and Dashboard parts owned by `fix-dashboard-review` (B111); MovieCardGrid part fixed 2026-11-21 by `fix-movies-views-review` (`aria-describedby`).* **B30 — `aria-label` overrides hide visible data.**
   - `StatCard.tsx` ("Total Box Office: view details", so the amount is never read).
   - Dashboard highlight cards and Recent Releases items (drop the category, rating and date).
   - `MovieCardGrid.tsx:107-109` (`role="button"` + label means grid cards announce only the title; grid is the default view on mobile).
 
   *Fix:* include the values in the name, use `aria-describedby`, or use a real `<button>` on the title as `MovieTable` does. *(H)*
-- **B31 — MovieDrawer heading reads its 🎬 emoji.** `MovieDrawer.tsx:83`. This was missed by the 0.9.0 emoji sweep. *Fix:* `<span aria-hidden="true">`. *(H)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B31 — MovieDrawer heading reads its 🎬 emoji.** `MovieDrawer.tsx:83`. This was missed by the 0.9.0 emoji sweep. *Fix:* `<span aria-hidden="true">`. *(H)*
 - **B32 — No `<nav>` landmark on desktop.** `Sidebar.tsx`. `Sider` is an `<aside>` and Ant `Menu` is `role="menu"`, while the mobile `BottomNav` is a `<nav>`. *Fix:* wrap the menu in `<nav aria-label="Main">`. *(H)*
 - **B33 — `document.title` never changes and route changes aren't announced.** Every route, including 404, is titled "MovieDash". Focus stays on the nav link, and the 404 `Result` title isn't a heading. The e2e test "page title updates on navigation" only checks in-page headings, so its name is misleading. *Fix:* per-page `document.title`; move focus to the page `<h1>` on pathname change. *(H)*
-- **B34 — Low-contrast light-theme text in TopNExplorer.** `TopNExplorer.tsx:246,263,322` uses a hardcoded `rgba(30,30,63,0.45)` (≈2.9:1). This is the same faintness the file's own comment rejects for ranks 6–10. *Fix:* `var(--text-secondary)`. *(M)*
+- ◐ *Owned by `fix-stats-review`.* **B34 — Low-contrast light-theme text in TopNExplorer.** `TopNExplorer.tsx:246,263,322` uses a hardcoded `rgba(30,30,63,0.45)` (≈2.9:1). This is the same faintness the file's own comment rejects for ranks 6–10. *Fix:* `var(--text-secondary)`. *(M)*
 
 ### Visual / platform
 - **B35 — White flash before first paint and light browser chrome in dark theme.** `index.html`/`index.css`: no pre-hydration `data-theme`, no `body` background, no `color-scheme`. Dark users see a white page while the bundle loads, white overscroll, and light native scrollbars in Firefox. *Fix:* inline theme script, `body` background, `color-scheme` per theme. *(H)*
 - **B36 — Create React App leftovers.** `public/favicon.ico` is the stock React logo; `manifest.json` ("Create React App Sample"), `logo192.png` and `logo512.png` aren't referenced anywhere. `prod-deploy` task 4.1 removes only `public/index.html`. *Fix:* fold them into that cleanup. *(H)*
-- **B37 — Add Movie keeps showing "Added" for a movie deleted afterwards.** `AddMovieModal.tsx:81,150` (modal stays mounted). *Fix:* derive "added" from the current catalogue instead of local state. *(H)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B37 — Add Movie keeps showing "Added" for a movie deleted afterwards.** `AddMovieModal.tsx:81,150` (modal stays mounted). *Fix:* derive "added" from the current catalogue instead of local state. *(H)*
 
 ### Tooling
 - **B38 — Tests and configs are never type-checked.** `server/__tests__/*.ts`, `tests/app.spec.ts`, `vite.config.ts` and `playwright.config.ts` are in no tsconfig; `tsx --test` and Playwright strip types without checking. S9 fixed server source only. *Fix:* `tsconfig.test.json` plus a CI `tsc --noEmit -p` step. *(H)*
@@ -234,6 +236,159 @@ CR found 10, all checked against the code: 9 confirmed, 1 plausible but never ob
 - ✅ **B77 — `tseslint.config()` is deprecated** in typescript-eslint 8.72, which recommends `defineConfig()` from `eslint/config`. *(cleanup)*
 - ✅ **B78 — Docs say `dev:lan` keeps the API local.** README Security says "`npm run dev:lan` opens only the web app", and CLAUDE.md and the `vite.config.ts` comment say "the API stays loopback". Through the dev proxy, LAN devices can list, add and delete movies; only port 5000 itself stays loopback. *(Low, H, from SR)*
 
+## 3g. Found 2026-11-20 (Batch D review: app shell, §6 rows 9–16), owned by `fix-app-shell-review`
+
+CR (high) of `main.tsx`, `App.tsx`, `Sidebar.tsx`, `TopBar.tsx`, `BottomNav.tsx`, `ErrorBoundary.tsx`, `LoadingError.tsx`, `ScrollToTop.tsx` found 8, all confirmed by reading the code (B94 and B99 against `node_modules/antd` 6.7.0). SR found nothing (no HTML injection, eval or dynamic `href`; error text renders as escaped React text; theme storage is only compared to a fixed string). Already-logged B10, B11, B12, B23, B35 were re-checked: still open, not in this change.
+
+- ✅ *Fixed 2026-11-21 by `fix-app-shell-review`.* **B94 — Tablet-width loads show the sidebar expanded.** `App.tsx:44`. antd 6.7 `useBreakpoint` reads `matchMedia` on the first render, so `prevMd === screens.md` and the render-phase collapse never runs; the `App.tsx:48-49` comment and CLAUDE.md ("`{}` on the first render") are stale. *Fix:* `useState(() => screens.md === false)`. *(Med, H)*
+- ✅ *Fixed 2026-11-21 by `fix-app-shell-review`.* **B95 — A failed first load shows a "0 movies in catalogue" badge.** *(Same as B27.)* `TopBar.tsx:33` checks `loading` only, and `showZero` shows the empty array next to the error alert, so the data looks gone. *Fix:* no badge while `error` is set. *(Med, H)*
+- ✅ *Fixed 2026-11-21 by `fix-app-shell-review`.* **B96 — Load errors show axios's generic "Request failed with status code 503".** `MoviesContext.tsx:62` → `LoadingError.tsx:51`: the server's `{ error }` text ("Data still loading") is dropped, and the dev start-up race needs a manual Retry. *Fix:* prefer `response.data.error`; retry a first-load 503 once. *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-app-shell-review`.* **B97 — Crashed page stays in error when its own nav link is clicked.** `App.tsx:103`: the boundary is keyed on `pathname` only, so `/stats?tab=people` → `/stats` keeps the error view. *Fix:* reset on non-REPLACE location changes (not on `search` in the key: Stats' `?tab=` sync would remount it). *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-app-shell-review`.* **B98 — Back/Forward always jumps to the top.** `ScrollToTop.tsx:7` runs on POP too. *Fix:* skip when `useNavigationType() === 'POP'`. *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-app-shell-review`.* **B99 — Refresh spinner is never announced.** `TopBar.tsx:52`: antd `Spin` puts `aria-label` on a role-less `div`. *Fix:* always-mounted `role="status"` with visually hidden text. *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-app-shell-review`.* **B100 — Collapsed Sidebar logo link is announced as "play-circle".** `Sidebar.tsx:62`. *Fix:* `aria-label` on the link, icon `aria-hidden`. *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-app-shell-review`.* **B101 — BottomNav icons leak into link names** ("unordered-list Movies"). `BottomNav.tsx:55`. *Fix:* wrap icons in `aria-hidden`. *(Low, H)*
+
+## 3h. Found 2026-11-20 (Batch E review: contexts + hooks, §6 rows 17–22), owned by `fix-contexts-hooks-review`
+
+CR (high) of `MoviesContext.tsx`, `ThemeContext.tsx`, `DrilldownContext.tsx`, `useMovies.ts`, `useDebounce.ts`, `usePersistedFilters.ts` (plus their callers in `Movies.tsx`, `Stats.tsx`, `TopBar.tsx`, `MovieDrawer.tsx`, `AddMovieModal.tsx`) found 8, all confirmed by reading the code. Nothing found in `DrilldownContext.tsx` or `useMovies.ts`. Two were duplicates and are not logged again: the generic axios error text is B96 (fix it with the `extractErrorMessage` that `AddMovieModal.tsx:25` and `MovieDrawer.tsx:19` each define, moved to a shared util, not a third copy), and the missing `color-scheme` is B35. SR found nothing (fixed `/api/movies` URL and `/movies` navigation target, theme storage compared to fixed strings, restored filters shape-checked by `sanitizeFilters` and rendered as escaped React text, no HTML injection or eval). All six re-checked against the code 2026-11-20: still present.
+
+- ✅ *Fixed 2026-11-21 by `fix-contexts-hooks-review`.* **B102 — Theme stops following the OS after the first visit.** *(Same as B22.)* `ThemeContext.tsx:39-44`: the layout effect writes `localStorage.theme` on mount, so the OS-derived default is saved as if the user chose it, and later OS changes are ignored. CLAUDE.md promises the first-visit theme follows `prefers-color-scheme` "with no saved choice". *Fix:* write only in `toggleTheme`; while nothing is saved, follow `matchMedia` `change` events. *(Med, H)*
+- ✅ *Fixed 2026-11-21 by `fix-contexts-hooks-review`.* **B103 — A 200 response that isn't an array crashes every page.** `MoviesContext.tsx:56` stores `response.data` unchecked; a proxy or captive portal returning `index.html` or `{}` makes `movies.filter` throw in `Movies.tsx`/`Stats.tsx`, showing the crash screen instead of the load-error alert. *Fix:* `!Array.isArray(response.data)` → error / `refreshError` path. *(Med, H)*
+- ✅ *Fixed 2026-11-21 by `fix-contexts-hooks-review`.* **B104 — Old search still filters for 300 ms after Clear all or a drill-down.** `Movies.tsx:74`: `useDebounce` also delays programmatic resets to `''`, so the list lags the cleared input and chips, `filtersKey` changes twice (two page resets), and an Export in that window writes the old filtered rows. *Fix:* no debounce when the value becomes `''` (or when not typed). *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-contexts-hooks-review`.* **B105 — A drill-down first renders the saved filters, then the preset.** `Movies.tsx:64-72`: the preset from `location.state` is applied in a mount `useEffect`, after `usePersistedFilters` seeded state from sessionStorage, so the old list flashes, the one-time `clampFiltersToSpans` pass runs on the old filters, and preset ranges are never clamped. *Fix:* let `usePersistedFilters` take the preset as its initial state. *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-contexts-hooks-review`.* **B106 — Blocked `localStorage` stops saved filters restoring.** `usePersistedFilters.ts:42`: the legacy `localStorage.removeItem` shares a `try` with the `sessionStorage` read, so its exception returns `defaults` even though sessionStorage works. *Fix:* separate `try/catch` for the legacy cleanup. *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-contexts-hooks-review`.* **B107 — Theme storage key isn't namespaced.** `ThemeContext.tsx:17,42` uses `'theme'` (filters use `movieDash_…`), so another project on `localhost:3000` shares and flips it. *Fix:* `movieDash_theme`. Not migrated from `theme`: every existing value was auto-written by B102, so it isn't a real choice (design D2). *(Low, H)*
+
+## 3i. Found 2026-11-20 (Batch F review: Dashboard, §6 rows 23, 33–35), owned by `fix-dashboard-review`
+
+CR (high) of `Dashboard.tsx`, `PosterThumb.tsx`, `DashboardSection.tsx`, `StatCard.tsx` reported 10; 9 confirmed by reading the code, nothing in `PosterThumb.tsx`. Rejected: "mini charts first draw at phone height on desktop" (`Dashboard.tsx:126`) assumed `Grid.useBreakpoint()` is `{}` on the first render, but antd 6.7's `responsiveObserver.getSnapshot()` reads `matchMedia` before the first commit (same fact as B94). SR found nothing (fixed navigation targets, movie fields rendered as escaped React text, `Poster URL` only as `<img src>` under the CSP's `img-src`, hero colours are hard-coded hex).
+
+- **B108 — Dashboard "Top Rated" ignores vote count.** *(Same as B7.)* `Dashboard.tsx:151` picks the highest `Vote Average` with no `Vote Count` cutoff, so a 1-vote 10.0 beats The Godfather, while `TopNExplorer.tsx:50-61` requires ≥50 votes (dropped when <10 qualify). Breaks `accessible-ui` "Top-rated rankings require meaningful vote counts". *Fix:* shared `ratingPool()` in `statsHelpers.ts`. *(Med, H)*
+- **B109 — A failed drawer chunk breaks the Dashboard until reload.** *(Same root cause as B10 (React.lazy caches the rejection), at the Dashboard drawer instead of the route chunks; B10 stays open.)* `Dashboard.tsx:398`: the lazy `MovieDrawer` has no local error boundary, so a `ChunkLoadError` (network drop, redeploy) hits the route ErrorBoundary; React caches the rejected lazy payload, so "Try Again" throws it again. *Fix:* local boundary + re-created lazy on error, message instead of crash. *(Low, H)*
+- **B110 — Negative revenue lowers Total Box Office.** `Dashboard.tsx:133` sums `parseRevenue()`, which returns negatives as-is; `BoxOfficeTab.tsx:52` skips `rev <= 0`. *Fix:* sum only `> 0`. *(Low, H)*
+- **B111 — Clickable cards hide their value from screen readers.** *(Dashboard part of B30.)* `StatCard.tsx:22` ("Total Box Office: view details", no amount), `Dashboard.tsx:62` (highlights: no "Top Rated"/rating), `Dashboard.tsx:338` (recent releases: no date/rating): `aria-label` replaces the content name. *Fix:* include the shown values in the label. *(Low, H)*
+- **B112 — Recent Releases loses list semantics.** `Dashboard.tsx:336`: `role="button"` on `List.Item` overrides the `<li>` role (same pattern that broke MovieTable). *Fix:* real `<button>` inside the `<li>`. *(Low, H)*
+- **B113 — Mini charts rebuild on every Dashboard render.** *(Dashboard part of B13.)* `Dashboard.tsx:210-227, 317`: click handlers and the `isClickable` arrow are new each render, and the chart wrappers key their options `useMemo` on them, so opening the drawer re-runs `chart.update()` on all three. *Fix:* `useCallback`. *(Low, H)*
+- **B114 — Unrated movies show "⭐ 0"; averages show 0 with no data.** *(Dashboard part of B24.)* `Dashboard.tsx:359` and `:277` print the raw `Vote Average`; `:254-255` show `0.0 / 10` / `0 mins` with no known values. *Fix:* "Not rated" tag, "—" for empty averages. *(Low, H)*
+- **B115 — Hero tint only works with `#RRGGBB`.** `StatCard.tsx:29` appends `14` to `color`; any other format makes the background invalid and the card transparent. All current callers pass 6-digit hex. *Fix:* `withAlpha(color, 0.08)`, document hex-only. *(Nit, H)*
+- **B116 — Dashboard headings skip h4.** `DashboardSection.tsx:16` renders h5 under the h3 page title. *Fix:* `level={4}` with h5's font size. *(Nit, H)*
+
+## 3j. Found 2026-11-20 (Batch G review: Movies page + filtering, §6 rows 24, 30–32, 54, 55, 74), owned by `fix-movies-filtering-review`
+
+CR (high) of `Movies.tsx`, `FiltersDrawer.tsx`, `ActiveFilters.tsx`, `RangeSlider.tsx`, `filterChips.ts`, `filterSpans.ts`, `search.ts` reported 8; 7 confirmed by reading the code (B117 against `@rc-component/slider` `es/hooks/useOffset.js`), nothing in `ActiveFilters.tsx`. The eighth (old search filters for 300 ms after Clear all / a drill-down) is B104/B105, not logged again. SR found nothing (preset filters only used in memory, fixed navigation and export filename, chip/option text rendered as escaped React text, plain `includes` search with no regex; export goes through the shared formula guard).
+
+- **B117 — Vote slider rounds drill-down bounds.** `FiltersDrawer.tsx:155`: `step={0.1}` makes the slider align `[2, 3.999]` to `[2, 4]`, and moving either handle commits `4`, so 4.0 films (counted in "4–6") show in the "2–4" list. Breaks the bucket/filter rule. *Fix:* `RangeSlider` keeps an untouched end at its exact committed value. *(Med, H)*
+- **B118 — Revenue slider steps $1 by keyboard.** `FiltersDrawer.tsx:172`: no `step` (default 1) over up to ~$3B; each key press commits and refilters. *Fix:* rounded step ≈ span/100. *(Low, H)*
+- **B119 — Runtime 0 counts as a real runtime.** *(Same as B5.)* `filterSpans.ts:21`, `Movies.tsx:117-121`: TMDB's unknown runtime is stored as `'0'` (`server/app.ts:650`), so the slider starts at 0 and 0–90 lists it; `RuntimeTab.tsx:46` buckets it in "< 60 min". *Fix:* runtime ≤ 0 = unknown, like vote/revenue. *(Low, H)*
+- **B120 — Search isn't trimmed.** *(Trim part of B20.)* `search.ts:24`, `filterChips.ts:19,33`: "The Matrix " matches nothing; a lone space shows a blank "Search:" chip and the active badge. *Fix:* trim at match/active/chip time. *(Low, H)*
+- **B121 — Genre filter crashes without a `Genres` column.** *(B17 pattern; made redundant by B129's normalisation in `fix-movies-views-review`.)* `Movies.tsx:91` `movie.Genres.split` throws when the CSV lacks the column and a genre filter is saved (`FiltersDrawer.tsx:52` already guards). *Fix:* `(movie.Genres ?? '')`. *(Low, H)*
+- **B122 — Export CSV hint is mouse-only.** `Movies.tsx:202`: Tooltip on an unfocusable `InfoCircleOutlined`. *Fix:* hint on the button (Tooltip + `aria-describedby`). *(Low, H)*
+- **B123 — Export is always named `movies-filtered-N.csv`.** `Movies.tsx:198`, even with no filters. *Fix:* `movies-N.csv` unless filters are active. *(Nit, H)*
+
+## 3k. Found 2026-11-20 (Batch H review: Movies views + mutations + export, §6 rows 26–29, 52), owned by `fix-movies-views-review`
+
+CR (high) of `AddMovieModal.tsx`, `MovieDrawer.tsx`, `MovieTable.tsx`, `MovieCardGrid.tsx`, `exportCsv.ts` reported 10, all confirmed by reading the code. Three were already logged (B14, B19, B31). One widens B17 to these files (B129). Older open items in these files the review skipped (B21, B24 drawer/grid parts, B30 grid part, B37) were re-checked, are still present, and are owned by the same change. B49 (antd `List`) stays open. SR found nothing exploitable: search/import params are encoded and validated server-side, delete uses `encodeURIComponent`, posters are only `<img src>` under the CSP. B130's header gap needs a hand-edited CSV, so it is a hardening nit, not a vulnerability.
+
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B124 — Language column sorts by ISO code, not the shown name.** `MovieTable.tsx:47`: de/el/en sort as German, Greek, English; Export follows. *Fix:* compare `getLanguageName()`. *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B125 — A search submitted during another is silently dropped.** `AddMovieModal.tsx:49` returns while `searching`, but the inputs stay editable and Enter calls it, so "Alien" results show under "Aliens". This makes `searchIdRef` dead code and contradicts `catalog-persistence`'s own "Rapid successive searches" scenario. *Fix:* a new search replaces the running one (abort + id guard). *(Med, H)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B126 — Importing a movie that's already in the catalogue shows an error.** `AddMovieModal.tsx:83`: the server's 409 (added in another tab, by `movie-search.py`, or still in flight) is shown as an error, the row keeps Import, and every retry fails. *Fix:* treat 409 as added + `refetch()`. *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B127 — Blob URL revoked right after `click()`.** `exportCsv.ts:31`: some Safari/older Firefox versions cancel the download. *Fix:* revoke after a delay. *(Low, M)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B128 — Starting an import clears another operation's error.** `AddMovieModal.tsx:78` `setError(null)`, so a failed import's alert vanishes when the next starts. *Fix:* only searches clear the error. *(Nit, H)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B129 — Missing fields crash the grid, drawer and table sorters.** *(Batch K: a row missing trailing cells also crashes `formatDateDDMMYYYY(undefined)` in MovieTable/MovieDrawer, since `Release Date` is the last column; `fix-utils-types-review` makes that helper tolerate it too.)* `MovieCardGrid.tsx:95`, `MovieDrawer.tsx:166` `.Genres.split`; `MovieTable.tsx:35-115`, `MovieCardGrid.tsx:39-40` `localeCompare` on fields a short row or a missing column leaves undefined. B17 pattern. *Fix:* normalise every `CATALOGUE_COLUMNS` field to a string once in `MoviesContext` (also fixes B17). *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-movies-views-review`.* **B130 — Export header cells skip the formula guard.** `exportCsv.ts:22`: extra column names only get `escapeCsvField`. Needs a hand-edited CSV header. *Fix:* `sanitizeCsvValue` on headers too. *(Nit, H)*
+
+## 3l. Found 2026-11-20 (Batch I1 review: Stats page, §6 rows 25, 36–38, 43), owned by `fix-stats-review`
+
+CR (high) of `Stats.tsx`, `TopNExplorer.tsx`, `ChartBlock.tsx`, `OverviewTab.tsx`, `ExploreTab.tsx` reported 10, all checked against the code. Nothing in `ChartBlock.tsx`. Five were already logged: the per-year "Unknown" point and gap years (B4), Earliest/Latest "0" (B24 Stats part), no empty state (B25), faint light-theme text (B34). The open OverviewTab/ExploreTab part of B13 is in the same files and is owned by the same change. One finding was weaker than reported: "Top 10 toolbar scrolls the page sideways on a phone". Playwright at 320 and 375 px with 12 mocked rows showed no page scroll; the Select shrinks to 87 px instead (B132). The null `Genres.split` in ExploreTab is B17 (owned by `fix-movies-views-review`). SR found nothing: `?tab=` and `location.state.tab` are checked against `TAB_KEYS`, movie fields are rendered as escaped React text or drawn on the canvas, and the only `href` is a `canvas.toDataURL` PNG with a filename built from hard-coded titles. Drill-downs go to the fixed `/movies` path with in-memory state.
+
+- **B131 — Stats Release Year Range isn't re-checked when the data changes.** `Stats.tsx:40, 113`: `yearRange` changes only on commit or Reset, so after a refresh the label can show years outside `[yearMin, yearMax]` while the Slider clamps its handles, and Reset stays visible even when the range covers everything. *Fix:* render-phase clamp; reset when there's no overlap or it covers the full span. *(Low, H)*
+- **B132 — Top 10 metric Select is squeezed at phone width.** `TopNExplorer.tsx:82-88`: the toolbar row doesn't wrap, so at 320 px the 200 px Select shrinks to 87 px and "Highest Rated" is cut off. *Fix:* `flexWrap: 'wrap'`, Select `maxWidth: '100%'`. *(Low, H)*
+- **B133 — "Oldest" ranks undated movies and orders ties by file position.** `TopNExplorer.tsx:35`: `-(year || 9999)` gives undated movies a finite -9999, so they can appear with an empty value cell. Ranking by year only leaves same-year movies in CSV order, while "Most Recent" uses the full date. *Fix:* rank by `Release Date`, falling back to the year, otherwise NaN. *(Low, H)*
+- **B134 — Stats language bars have no hover feedback.** `OverviewTab.tsx:116` sets `hoverBackgroundColor` equal to `backgroundColor`. CLAUDE.md says to leave it unset. *(Nit, H)*
+- **B135 — Earliest/Latest Release spread every year into `Math.min/max`.** `OverviewTab.tsx:74-75`: this throws `RangeError` past the engine's argument limit (~100k+ rows). *Fix:* one loop, as `Stats.tsx` does. *(Nit, H)*
+
+## 3m. Found 2026-11-20 (Batch I2 review: Stats tabs, §6 rows 39–42), owned by `fix-stats-tabs-review`
+
+CR (high) of `PeopleTab.tsx`, `RatingsTab.tsx`, `RuntimeTab.tsx`, `BoxOfficeTab.tsx` reported 10, all checked against the code.
+- **Already logged:** B6 (rating averages count unrated movies), B18 (fake "Unknown"/0.0 radar spoke) and the rest of B13 (inline chart callbacks, plus `formatRoi` defined inside `BoxOfficeTab`).
+- **Owned by other changes:** runtime 0 in "< 60 min" is B119 (`fix-movies-filtering-review` 3.3); the unguarded `Actors/Actresses` `.split` is B17 (`fix-movies-views-review`).
+- **Rejected (2):** "empty runtime bucket shows Avg Vote 0.00 and drills to an empty list" and "zero-count vote bars are clickable". A 0-value bar has no area: Chart.js 4 `BarElement.inRange` uses `_isBetween` (epsilon 1e-6) with the default `intersect: true`, so it can't be hovered or clicked.
+
+SR found nothing: CSV strings only reach Chart.js labels and data (canvas text, no HTML tooltips), callbacks return plain strings, colours are fixed tokens, and drill-downs go to the fixed `/movies` path with in-memory state.
+
+- **B136 — "Average Vote by Year" skips years with no data.** `RatingsTab.tsx:87-109`: only years with data are labelled, on a category axis, so 1962 → 1971 looks like adjacent years. *Fix:* label every year from min to max; empty years are `null` (line breaks there, not clickable). *(Low, H)*
+- **B137 — Radar point borders are hardcoded hex.** `RatingsTab.tsx:82` `pointBorderColor: isDark ? '#fff' : '#1e1e3f'`, which breaks the CLAUDE.md "never hardcode hex in a chart dataset" rule. *Fix:* remove it (falls back to `borderColor`). *(Nit, H)*
+- **B138 — Scatter sets `hoverBackgroundColor`.** `RatingsTab.tsx:125`; CLAUDE.md says to leave it unset. *(Nit, H)*
+
+## 3n. Found 2026-11-20 (Batch J review: chart wrappers, §6 rows 44–51), owned by `fix-chart-wrappers-review`
+
+CR (high) of the 8 files in `src/components/Charts/` reported 7, checked against the code and Chart.js 4's defaults in `node_modules`. Nothing in `RadarChart.tsx` or `MatrixChart.tsx`.
+- **Already logged:** the options memo rebuilt on every render is B13 (fixed here inside the wrappers with a latest-ref, so the callers' `useCallback` tasks in three other changes become optional). The 2-decimal tooltip is B26 (plus a `null` value throwing in the tooltip callback).
+- **Weaker than reported (B140):** "smoothed line dips below zero". Chart.js's `capBezierPoints: true` clips to the chart area, so the dip isn't visible when 0 is the axis bottom; the curve still bends past the data elsewhere.
+- **Rejected:** "pointer cursor stuck when `onElementClick` is removed". No caller passes it conditionally.
+
+SR found nothing: no HTML tooltips or raw-HTML sinks, callbacks return plain strings drawn on the canvas, `onHover` only sets `cursor` to fixed values, colours are constants, and the matrix plugin is a bundled npm dependency.
+
+- ✅ *Fixed 2026-11-21 by `fix-chart-wrappers-review`.* **B139 — Line-chart points are hard to hover or click.** `LineChart.tsx:50`: Chart.js defaults to `nearest` + `intersect: true`, and the point hit circle is radius 3 + `hitRadius` 1 (8 px). A near miss on the Dashboard trend or a Stats year line gives no tooltip, cursor or drill-down. *Fix:* `interaction: { mode: 'index', intersect: false }`. *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-chart-wrappers-review`.* **B140 — Smoothed lines bend past the data.** `LineChart.tsx:49` `tension: 0.4` with cubic interpolation overshoots between points (zero-filled trend years make it common). *Fix:* `cubicInterpolationMode: 'monotone'`. *(Nit, H)*
+- ✅ *Fixed 2026-11-21 by `fix-chart-wrappers-review`.* **B141 — Scatter tooltip hardcodes "votes" and "/10".** `ScatterChart.tsx:26-28` ignores `xLabel`/`yLabel`; correct today only because the one caller is the vote scatter. *Fix:* build it from the axis labels. *(Nit, H)*
+- ✅ *Fixed 2026-11-21 by `fix-chart-wrappers-review`.* **B142 — Single-series charts show a legend that hides all the data.** `BarChart.tsx:29`, `LineChart.tsx:29`: clicking the only entry (e.g. "Movies" on the Dashboard rating chart) empties the chart. *Fix:* legend only when there's more than one dataset. *(Low, H)*
+
+## 3o. Found 2026-11-20 (Batch K review: utils + types, §6 rows 53, 56–61, 75), mostly owned by `fix-utils-types-review`
+
+CR (high) of `statsHelpers.ts`, `chartTheme.ts`, `formatDate.ts`, `languages.ts`, `path.ts`, `poster.ts`, `types/movie.ts`, `slugify.ts` reported 9, all confirmed by reading the code. Nothing in `path.ts`, `poster.ts` or `slugify.ts`. The crash from a row missing its trailing cells (csv-parser omits those keys, and `Release Date` is last) is B129, owned by `fix-movies-views-review`. SR found nothing exploitable: `slugify` maps everything outside `[a-z0-9]` to `-` and only ever gets fixed titles, poster URLs only reach `<img src>` under the CSP, `normalizePath` only highlights nav, all regexes are literals, and `__proto__` keys can't pollute `Object.prototype`. SR noted one functional bug (B151).
+
+- ✅ *Fixed 2026-11-21 by `fix-utils-types-review`.* **B143 — `formatRevenue` shows `$1000K` / `$1000.0M`.** `statsHelpers.ts:118-124` picks the unit before rounding: 999,600 → `$1000K`, 999,960,000 → `$1000.0M`. Seen on the Dashboard total, the revenue slider tooltip and chips. *Fix:* round, then move up a unit. *(Low, H)*
+- ✅ *Fixed 2026-11-21 by `fix-utils-types-review`.* **B144 — `makeDoughnut` sets `hoverBackgroundColor`.** `statsHelpers.ts:88`; CLAUDE.md says to leave it unset, and slices get no hover highlight. *(Nit, H)*
+- ✅ *Fixed 2026-11-21 by `fix-utils-types-review`.* **B145 — `makePolar` builds fills with `c + 'cc'`.** `statsHelpers.ts:98`; CLAUDE.md says to use `withAlpha`. *(Nit, H)*
+- **B146 — Language case/whitespace variants split into separate slices.** `statsHelpers.ts:22` keys single-valued fields by raw value, so `'en'` and `'EN'` / `' en'` are two "English" slices. Only hand-edited rows have them (TMDB sends lowercase ISO). Folding only in the chart would break drill-down count consistency, because the Movies language filter matches exactly. *Fix:* trim + lowercase `Language` in the same row normalisation as B129. **Open, not owned by any change.** *(Nit, M)*
+- **B147 — Names that contain a comma are split into fake categories.** `statsHelpers.ts:14`: `MULTI_VALUED_FIELDS` split on every `,` because `catalog-data-format` joins names with `, ` and has no escaping, so a company like "Example Films, Inc." counts as two. *Fix:* a format decision: strip commas from names on import (server + `movie-search.py`) or change the separator. **Open, needs a user decision.** *(Low, M)*
+- ✅ *Fixed 2026-11-21 by `fix-utils-types-review`.* **B148 — `formatDateDDMMYYYY` garbles anything that isn't `YYYY-MM-DD`.** `formatDate.ts:2`: `2020-05-12T00:00:00Z` → `12T00:00:00Z-05-2020`. *Fix:* exact match, otherwise show as-is. *(Nit, H)*
+- ✅ *Fixed 2026-11-21 by `fix-utils-types-review`.* **B149 — Nothing checks that `CATALOGUE_COLUMNS` lists every `Movie` field.** `types/movie.ts:22`: a field added to `Movie` only compiles and is silently left out of export and new-file headers. *Fix:* `as const satisfies` + a compile-time missing-key check. *(Nit, H)*
+- ✅ *Fixed 2026-11-21 by `fix-utils-types-review`.* **B150 — `withAlpha` silently mis-parses anything but `#RRGGBB`.** `chartTheme.ts:27`: `#fff` → `rgba(0, 15, 255, a)`. *Fix:* accept `#RGB`/`#RRGGBB`, throw otherwise. *(Nit, H)*
+- ✅ *Fixed 2026-11-21 by `fix-utils-types-review`.* **B151 — `getLanguageName` returns inherited properties.** `languages.ts:44` reads a plain object, so `'constructor'` returns a function. *Fix:* `Object.hasOwn`. *(Nit, H)*
+
+## 3p. Found 2026-11-20 (Batch L review: server tests, §6 rows 62–66, 68, 70, 71), owned by `fix-server-tests-review`
+
+CR (high) of `server/__tests__/*` reported 10, all confirmed by reading the tests and the server code. None is a production bug; `npm run test:server` passes 112/112, and the BOM escape in `helpers.ts` is intact. Nothing in `hosting.test.ts`. SR found nothing: no test file is in `server/tsconfig.json`'s `include` or imported by production code, `fsHooks`/`onBeforeLoad`/`logger`/`tmdb` are `createApp()` options that `server.ts` never sets from a request, keys are placeholders, every TMDB call is stubbed, and every write stays inside a `mkdtemp` folder.
+
+- **B152 — Apostrophe round-trip test never reloads.** `persistence.test.ts:244`: `appendFileSync(path, '')` writes 0 bytes, so the fingerprint doesn't change and the load-time un-escape of a stored `''-ism` is never tested (single-prefix values are covered at `:221`). *Fix:* restart on the same folder. *(Low, H)*
+- **B153 — "Duplicate caught inside the queue" may never reach the queue.** `persistence.test.ts:114`: `sleep(30)`; if the append lands first, the pre-check (`app.ts:603-605`) returns 409 with no TMDB call, and the test passes even with the in-queue check deleted. *Fix:* a `reached` promise in the stub; assert TMDB was called. *(Low, H)*
+- **B154 — `armedStat` faults are never checked to have fired.** `hardening.test.ts:259, 310`: the import test passes without testing the failure if stat #4 never happens, and the delete test passes without testing the retry if #2 lands before the read. *Fix:* return `fired` and assert it, plus the retry or the logged failure. *(Low, H)*
+- **B155 — Deadline test's "shrinking timeouts" check passes with no retry.** `tmdb-client.test.ts:112`: `.every()` on an empty `slice(1)`. *Fix:* `attempts() >= 2`. *(Low, H)*
+- **B156 — Shutdown only tested with drain finishing last.** `bootstrap.test.ts:103`: dropping `closed` from `Promise.all` (`bootstrap.ts:133`) still passes. *Fix:* add the drain-first case. *(Low, H)*
+- **B157 — `drain()` test sleeps instead of waiting for the delete.** `hardening.test.ts:216`: `sleep(50)` twice; it fails on a loaded runner. *Fix:* a `reached` promise in the rename hook. *(Low, H)*
+- **B158 — Failed-write test relies on `chmod`, which root ignores.** `persistence.test.ts:74`: it fails in a root container. *Fix:* fail through `fsHooks` (`rename` + a new `appendFile` hook). *(Low, H)*
+- **B159 — Test name claims more than it checks.** `tmdb-client.test.ts:89`: "every attempt … bounded by the deadline" checks one attempt's `instanceof`. *(Nit, H)*
+- **B160 — Stale comment.** `data-format.test.ts:18` says get-by-id doesn't reload; it does (`reloadForRead`). *(Nit, H)*
+- **B161 — 502 test stubs an error the real client can't throw.** `routes.test.ts:117` uses `new Error('boom')`; use `tmdbError(500)` and a network-error `TmdbRequestError`. *(Nit, H)*
+
+## 3q. Found 2026-11-20 (Batch M review: e2e spec + helpers, §6 rows 67, 73), owned by `fix-e2e-review`
+
+CR (high) of `tests/app.spec.ts` and `tests/helpers.ts` reported 10, all confirmed by reading the specs and the app code. None is a production bug. Already logged and not repeated: B33, B48, B146. No CLAUDE.md rule broken (no `waitForTimeout`, `test` comes from helpers, 65 tests / 13 suites). SR found no current way to write the real catalogue: every spec uses the guarded `page`, spec mocks hand unhandled requests back with `route.fallback()`, `page.request` is only used for `GET /api/movies`, there are no keys and no real TMDB calls, and nothing in `src/` imports `tests/`.
+
+- **B162 — Director/runtime/revenue filter tests check only the chip.** `app.spec.ts:368-395`: removing those filters from `Movies.tsx` keeps all three green. *Fix:* mocked rows + exact `expectTotal`. *(Med, H)*
+- **B163 — "Multiple filters combined" never checks the count.** `app.spec.ts:764-776`: `allInnerTexts()` is read straight away, and an empty table passes the cell loop. *Fix:* compute the AND count, check it's > 0, then `expectTotal`. *(Med, H)*
+- **B164 — The e2e write guard routes only `page`.** `helpers.ts:17`: `page.request`, the `request` fixture and new pages/contexts skip it, and lint only checks the import, while CLAUDE.md says e2e "can never write the real CSV". Nothing misuses it today. *Fix:* `context.route`, a GET-only `request` fixture, and lint bans on `.request` writes and `newContext`. *(Low, H)*
+- **B165 — `yearSpan()` returns ±Infinity and spreads into `Math.min/max`.** `helpers.ts:174`: the two callers handle a one-year dataset differently (one fails, one skips). *(Nit, H)*
+- **B166 — `voteBucketCounts()` copies the bucket bounds.** `app.spec.ts:817`: the test drifts if `RATING_BUCKETS` changes. *Fix:* share them via `src/utils/chartBuckets.ts` + `countIntoBuckets`. *(Low, H)*
+- **B167 — Language test counts by display name, while the filter matches the code.** `app.spec.ts:190`: it fails on `'en'`/`'EN'` data (B146). *(Nit, H)*
+- **B168 — `selectInDrawer(option)` matches by substring.** `helpers.ts:77`: "Drama" can pick "Docudrama". Latent: no caller passes `option`. *(Nit, H)*
+- **B169 — `chooseOption()` puts the option text unescaped into a CSS selector.** `helpers.ts:94`. *Fix:* `getByTitle(…, { exact: true })`. *(Nit, H)*
+- **B170 — Two test names claim more than they check.** `app.spec.ts:264` (pagination "functional": visibility only), `:801` ("rating colour": any tag). *(Nit, H)*
+- **B171 — Duplicate JSDoc on `paginationTotal()`.** `helpers.ts:104-105`. *(Nit, H)*
+
+## 3r. Found 2026-11-21 (`/code-review` high of the staged 0.11.3–0.11.6 changes), fixed in 0.11.7
+
+CR of the staged diff (Batches D, E, H, J, K fixes) reported 1 important bug and 4 nits, all confirmed and fixed. A `/simplify` pass on the same diff made only quality changes (see CHANGELOG 0.11.7).
+
+- ✅ *Fixed 2026-11-21 (0.11.7).* **B172 — Same-URL nav link still didn't clear a crashed page.** `App.tsx`: React Router makes a `Link` to the current URL a REPLACE, and the B97 fix skipped every REPLACE, so only Stats (whose URL always has `?tab=`) recovered. *Fix:* skip only a REPLACE with the same pathname and a different search (Stats' `?tab=` sync). No e2e: nothing in the app can force a page crash. *(Med, H)*
+- ✅ *Fixed 2026-11-21 (0.11.7).* **B173 — A crash caused by a navigation rendered twice.** `ErrorBoundary.tsx`: the error state and the new `resetKey` arrived in the same commit, so `componentDidUpdate` cleared the error at once and the page threw again. *Fix:* store `errorKey` (the key at crash time) via `getDerivedStateFromProps`, and clear only when the key differs from it. *(Nit, H)*
+- ✅ *Fixed 2026-11-21 (0.11.7).* **B174 — Hidden-column sort check used `.some`.** `MovieTable.tsx`: antd shows a column if any listed breakpoint matches, so "hidden" means `.every(bp => screens[bp] === false)`. Latent (one breakpoint per column). *(Nit, H)*
+- ✅ *Fixed 2026-11-21 (0.11.7).* **B175 — Grid card title read twice.** `MovieCardGrid.tsx`: the `aria-describedby` target contained the title, which is also in `aria-label`. *Fix:* title span `aria-hidden`; e2e asserts the description doesn't contain it. *(Nit, H)*
+- ✅ *Fixed 2026-11-21 (0.11.7).* **B176 — Grid tags override the global Tag margin.** `MovieCardGrid.tsx`: `margin: 0` on rating/genre tags goes against CLAUDE.md's "don't re-style tags per call site" (existed before this diff). *Fix (user choice):* keep it, documented in CLAUDE.md as the one exception, since the flex rows space tags with `gap`. *(Nit, H)*
+
 ## 4. Spec scenarios with no test at all
 
 Excludes what `e2e-hardening` already plans (Add/Delete happy path, Stats slider + Reset, PNG download, Dashboard empty state, mobile BottomNav, grid sort).
@@ -282,9 +437,9 @@ Excludes what `e2e-hardening` already plans (Add/Delete happy path, Stats slider
 
 ## 6. Per-module review tracker
 
-Started 2026-11-04. Covers 75 source modules (67 at start, plus `hardening.test.ts`, `bootstrap.ts`, `bootstrap.test.ts`, and on 2026-11-06 `hosting.test.ts`, `check-bundle.mjs`, `tests/helpers.ts`, `search.ts`, `slugify.ts`) (`.ts`/`.tsx`/`.py`/`.mjs`, excluding `openspec/`). Tick ☑ when a pass is done and add any new findings as B-IDs above. **CR** = `/code-review <path>` · **SR** = `/security-review`. **Fix** = the pass's findings were verified by hand and fixed: ☑ fixed and its OpenSpec change archived · ◐ fix implemented, change not archived yet · ☐ not yet (or no review yet).
+Started 2026-11-04. Covers 75 source modules (67 at start, plus `hardening.test.ts`, `bootstrap.ts`, `bootstrap.test.ts`, and on 2026-11-06 `hosting.test.ts`, `check-bundle.mjs`, `tests/helpers.ts`, `search.ts`, `slugify.ts`) (`.ts`/`.tsx`/`.py`/`.mjs`, excluding `openspec/`). Tick ☑ when a pass is done and add any new findings as B-IDs above. **CR** = `/code-review <path>` · **SR** = `/security-review`. **Fix** = the pass's findings were verified by hand and fixed: ☑ fixed and its OpenSpec change archived · ◐ fix implemented, change not archived yet · ☑ | ☑not yet (or no review yet).
 
-**Progress (2026-11-14):** 10 of 75 modules reviewed (CR + SR): all 10 fully fixed (rows 1–8, 69, 72; rows 4, 5 via `fix-python-csv-writers` + re-review `harden-python-catalogue-io`, both archived 2026-11-14). Next: Batch D. SR reviews pending branch changes, not a path, so it may need a scoped diff or explicit file instructions.
+**Progress (2026-11-21):** 75 of 75 modules reviewed (CR + SR). 10 fully fixed (rows 1–8, 69, 72; rows 4, 5 via `fix-python-csv-writers` + re-review `harden-python-catalogue-io`, both archived 2026-11-14). Batch D (rows 9–16) reviewed 2026-11-20: B94–B101, fixed by `fix-app-shell-review`, archived 2026-11-21. Batch E (rows 17–22) reviewed 2026-11-20: B102–B107, SR found nothing, fixed by `fix-contexts-hooks-review`, archived 2026-11-21. Batch F (rows 23, 33–35) reviewed 2026-11-20: B108–B116, SR found nothing, fix proposed as `fix-dashboard-review`. Batch G (rows 24, 30–32, 54, 55, 74) reviewed 2026-11-20: B117–B123, SR found nothing, fix proposed as `fix-movies-filtering-review`. Batch H (rows 26–29, 52) reviewed 2026-11-20: B124–B130 plus older B14/B17/B19/B21/B24/B30/B31/B37, SR found nothing, fixed by `fix-movies-views-review`, archived 2026-11-21. Batch I1 (rows 25, 36–38, 43) reviewed 2026-11-20: B131–B135 plus older B4/B13/B24/B25/B34, SR found nothing, fix proposed as `fix-stats-review`. Batch I2 (rows 39–42) reviewed 2026-11-20: B136–B138 plus older B6/B13/B18 (B17, B119 owned elsewhere; 2 findings rejected), SR found nothing, fix proposed as `fix-stats-tabs-review`. Batch J (rows 44–51) reviewed 2026-11-20: B139–B142 plus older B13 (wrapper fix)/B26 (1 finding rejected), SR found nothing, fixed by `fix-chart-wrappers-review`, archived 2026-11-21. Batch K (rows 53, 56–61, 75) reviewed 2026-11-20: B143–B151 (B146/B147 left open; the trailing-cells crash is B129), SR found nothing, fixed by `fix-utils-types-review`, archived 2026-11-21. Batch L (rows 62–66, 68, 70, 71) reviewed 2026-11-20: B152–B161 (tests only, no production bug), SR found nothing, fix proposed as `fix-server-tests-review`. Batch M (rows 67, 73) reviewed 2026-11-20: B162–B171 (tests only), SR found nothing, fix proposed as `fix-e2e-review`. All batches reviewed. Before logging a batch's findings, check §1–§3 for an older ID first (Batches D–G re-logged B5, B7, B13, B20, B22, B24, B27, B30). SR reviews pending branch changes, not a path, so it may need a scoped diff or explicit file instructions.
 
 **Batches** (added 2026-11-07): rows stay per-file so ticks stay precise, but review one batch per pass, passing all its paths to `/code-review` so cross-file bugs inside a feature slice get caught. Tick each row the pass covered.
 
@@ -293,17 +448,17 @@ Started 2026-11-04. Covers 75 source modules (67 at start, plus `hardening.test.
 | A | Server runtime | 1, 2, 3, 69 | ☑ | ☑ | ☑ | B51–B60 · `fix-server-batch-a-review` (archived) |
 | B | Python CSV writers | 4, 5 | ☑ | ☑ | ☑ | B61–B67 (+B3/B8/B9) · `fix-python-csv-writers` (archived); re-review B79–B86 · `harden-python-catalogue-io` (archived); follow-up B87–B93 fixed |
 | C | Build/lint/test config + bundle check | 6, 7, 8, 72 | ☑ | ☑ | ☑ | B68–B78 (B75 deferred) · `harden-build-test-config` (archived) |
-| D | App shell | 9–16 | ☐ | ☐ | ☐ |  |
-| E | Contexts + hooks | 17–22 | ☐ | ☐ | ☐ |  |
-| F | Dashboard page + its components | 23, 33, 34, 35 | ☐ | ☐ | ☐ |  |
-| G | Movies page + filtering | 24, 30, 31, 32, 54, 55, 74 | ☐ | ☐ | ☐ |  |
-| H | Movies views + mutations + export | 26, 27, 28, 29, 52 | ☐ | ☐ | ☐ |  |
-| I1 | Stats page, TopNExplorer, ChartBlock, Overview/Explore tabs | 25, 36, 37, 38, 43 | ☐ | ☐ | ☐ |  |
-| I2 | People/Ratings/Runtime/BoxOffice tabs | 39, 40, 41, 42 | ☐ | ☐ | ☐ |  |
-| J | Chart wrappers | 44–51 | ☐ | ☐ | ☐ |  |
-| K | Remaining utils + types | 53, 56–61, 75 | ☐ | ☐ | ☐ |  |
-| L | Server tests | 62–66, 68, 70, 71 | ☐ | ☐ | ☐ |  |
-| M | E2E spec + helpers | 67, 73 | ☐ | ☐ | ☐ |  |
+| D | App shell | 9–16 | ☑ | ☑ | ☑ | B94–B101 (B95 = B27) · `fix-app-shell-review` (archived 2026-11-21) |
+| E | Contexts + hooks | 17–22 | ☑ | ☑ | ☑ | B102–B107 (dupes of B96, B35; B102 = B22) · `fix-contexts-hooks-review` (archived 2026-11-21) |
+| F | Dashboard page + its components | 23, 33, 34, 35 | ☑ | ☑ | ☑ | ☑| B108–B116 · `fix-dashboard-review` (proposed) |
+| G | Movies page + filtering | 24, 30, 31, 32, 54, 55, 74 | ☑ | ☑ | ☑ | ☑| B117–B123 (dupe of B104/B105) · `fix-movies-filtering-review` (proposed) |
+| H | Movies views + mutations + export | 26, 27, 28, 29, 52 | ☑ | ☑ | ☑ | B124–B130 (+ B14, B17, B19, B21, B24, B30, B31, B37) · `fix-movies-views-review` (archived 2026-11-21) |
+| I1 | Stats page, TopNExplorer, ChartBlock, Overview/Explore tabs | 25, 36, 37, 38, 43 | ☑ | ☑ | ☐ | B131–B135 (+ B4, B13, B24, B25, B34) · `fix-stats-review` (proposed) |
+| I2 | People/Ratings/Runtime/BoxOffice tabs | 39, 40, 41, 42 | ☑ | ☑ | ☐ | B136–B138 (+ B6, B13, B18) · `fix-stats-tabs-review` (proposed) |
+| J | Chart wrappers | 44–51 | ☑ | ☑ | ☑ | B139–B142 (+ B13 wrapper fix, B26) · `fix-chart-wrappers-review` (archived 2026-11-21) |
+| K | Remaining utils + types | 53, 56–61, 75 | ☑ | ☑ | ☑ | B143–B151 (B146/B147 open; + B15 part, B129 note) · `fix-utils-types-review` (archived 2026-11-21) |
+| L | Server tests | 62–66, 68, 70, 71 | ☑ | ☑ | ☐ | B152–B161 · `fix-server-tests-review` (proposed) |
+| M | E2E spec + helpers | 67, 73 | ☑ | ☑ | ☐ | B162–B171 · `fix-e2e-review` (proposed) |
 
 ### Server (highest security priority)
 
@@ -353,102 +508,102 @@ Batch C (2026-11-07, rows 6, 7, 8, 72): CR found 10 (9 confirmed, B75 plausible 
 ### Frontend: entry / app shell
 | # | Module | Batch | CR | SR | Fix |
 |---|---|---|---|---|---|
-| 9 | `src/main.tsx` | D | ☐ | ☐ | ☐ |
-| 10 | `src/App.tsx` | D | ☐ | ☐ | ☐ |
-| 11 | `src/components/Sidebar.tsx` | D | ☐ | ☐ | ☐ |
-| 12 | `src/components/TopBar.tsx` | D | ☐ | ☐ | ☐ |
-| 13 | `src/components/BottomNav.tsx` | D | ☐ | ☐ | ☐ |
-| 14 | `src/components/ErrorBoundary.tsx` | D | ☐ | ☐ | ☐ |
-| 15 | `src/components/LoadingError.tsx` | D | ☐ | ☐ | ☐ |
-| 16 | `src/components/ScrollToTop.tsx` | D | ☐ | ☐ | ☐ |
+| 9 | `src/main.tsx` | D | ☑ | ☑ | ☑ |
+| 10 | `src/App.tsx` | D | ☑ | ☑ | ☑ |
+| 11 | `src/components/Sidebar.tsx` | D | ☑ | ☑ | ☑ |
+| 12 | `src/components/TopBar.tsx` | D | ☑ | ☑ | ☑ |
+| 13 | `src/components/BottomNav.tsx` | D | ☑ | ☑ | ☑ |
+| 14 | `src/components/ErrorBoundary.tsx` | D | ☑ | ☑ | ☑ |
+| 15 | `src/components/LoadingError.tsx` | D | ☑ | ☑ | ☑ |
+| 16 | `src/components/ScrollToTop.tsx` | D | ☑ | ☑ | ☑ |
 
 ### Frontend: contexts / hooks
 | # | Module | Batch | CR | SR | Fix |
 |---|---|---|---|---|---|
-| 17 | `src/contexts/MoviesContext.tsx` | E | ☐ | ☐ | ☐ |
-| 18 | `src/contexts/ThemeContext.tsx` | E | ☐ | ☐ | ☐ |
-| 19 | `src/contexts/DrilldownContext.tsx` | E | ☐ | ☐ | ☐ |
-| 20 | `src/hooks/useMovies.ts` | E | ☐ | ☐ | ☐ |
-| 21 | `src/hooks/useDebounce.ts` | E | ☐ | ☐ | ☐ |
-| 22 | `src/hooks/usePersistedFilters.ts` | E | ☐ | ☐ | ☐ |
+| 17 | `src/contexts/MoviesContext.tsx` | E | ☑ | ☑ | ☑ |
+| 18 | `src/contexts/ThemeContext.tsx` | E | ☑ | ☑ | ☑ |
+| 19 | `src/contexts/DrilldownContext.tsx` | E | ☑ | ☑ | ☑ |
+| 20 | `src/hooks/useMovies.ts` | E | ☑ | ☑ | ☑ |
+| 21 | `src/hooks/useDebounce.ts` | E | ☑ | ☑ | ☑ |
+| 22 | `src/hooks/usePersistedFilters.ts` | E | ☑ | ☑ | ☑ |
 
 ### Frontend: pages
 | # | Module | Batch | CR | SR | Fix |
 |---|---|---|---|---|---|
-| 23 | `src/pages/Dashboard.tsx` | F | ☐ | ☐ | ☐ |
-| 24 | `src/pages/Movies.tsx` | G | ☐ | ☐ | ☐ |
-| 25 | `src/pages/Stats.tsx` | I1 | ☐ | ☐ | ☐ |
+| 23 | `src/pages/Dashboard.tsx` | F | ☑ | ☑ | ☐ |
+| 24 | `src/pages/Movies.tsx` | G | ☑ | ☑ | ☐ |
+| 25 | `src/pages/Stats.tsx` | I1 | ☑ | ☑ | ☐ |
 
 ### Frontend: Movies page components (incl. mutations)
 | # | Module | Batch | CR | SR | Fix |
 |---|---|---|---|---|---|
-| 26 | `src/components/AddMovieModal.tsx` | H | ☐ | ☐ | ☐ |
-| 27 | `src/components/MovieDrawer.tsx` | H | ☐ | ☐ | ☐ |
-| 28 | `src/components/MovieTable.tsx` | H | ☐ | ☐ | ☐ |
-| 29 | `src/components/MovieCardGrid.tsx` | H | ☐ | ☐ | ☐ |
-| 30 | `src/components/FiltersDrawer.tsx` | G | ☐ | ☐ | ☐ |
-| 31 | `src/components/ActiveFilters.tsx` | G | ☐ | ☐ | ☐ |
-| 32 | `src/components/RangeSlider.tsx` | G | ☐ | ☐ | ☐ |
-| 33 | `src/components/PosterThumb.tsx` | F | ☐ | ☐ | ☐ |
+| 26 | `src/components/AddMovieModal.tsx` | H | ☑ | ☑ | ☑ |
+| 27 | `src/components/MovieDrawer.tsx` | H | ☑ | ☑ | ☑ |
+| 28 | `src/components/MovieTable.tsx` | H | ☑ | ☑ | ☑ |
+| 29 | `src/components/MovieCardGrid.tsx` | H | ☑ | ☑ | ☑ |
+| 30 | `src/components/FiltersDrawer.tsx` | G | ☑ | ☑ | ☐ |
+| 31 | `src/components/ActiveFilters.tsx` | G | ☑ | ☑ | ☐ |
+| 32 | `src/components/RangeSlider.tsx` | G | ☑ | ☑ | ☐ |
+| 33 | `src/components/PosterThumb.tsx` | F | ☑ | ☑ | ☐ |
 
 ### Frontend: Dashboard / shared display components
 | # | Module | Batch | CR | SR | Fix |
 |---|---|---|---|---|---|
-| 34 | `src/components/DashboardSection.tsx` | F | ☐ | ☐ | ☐ |
-| 35 | `src/components/StatCard.tsx` | F | ☐ | ☐ | ☐ |
-| 36 | `src/components/TopNExplorer.tsx` | I1 | ☐ | ☐ | ☐ |
+| 34 | `src/components/DashboardSection.tsx` | F | ☑ | ☑ | ☐ |
+| 35 | `src/components/StatCard.tsx` | F | ☑ | ☑ | ☐ |
+| 36 | `src/components/TopNExplorer.tsx` | I1 | ☑ | ☑ | ☐ |
 
 ### Frontend: Stats tabs
 | # | Module | Batch | CR | SR | Fix |
 |---|---|---|---|---|---|
-| 37 | `src/components/StatsTabs/ChartBlock.tsx` | I1 | ☐ | ☐ | ☐ |
-| 38 | `src/components/StatsTabs/OverviewTab.tsx` | I1 | ☐ | ☐ | ☐ |
-| 39 | `src/components/StatsTabs/PeopleTab.tsx` | I2 | ☐ | ☐ | ☐ |
-| 40 | `src/components/StatsTabs/RatingsTab.tsx` | I2 | ☐ | ☐ | ☐ |
-| 41 | `src/components/StatsTabs/RuntimeTab.tsx` | I2 | ☐ | ☐ | ☐ |
-| 42 | `src/components/StatsTabs/BoxOfficeTab.tsx` | I2 | ☐ | ☐ | ☐ |
-| 43 | `src/components/StatsTabs/ExploreTab.tsx` | I1 | ☐ | ☐ | ☐ |
+| 37 | `src/components/StatsTabs/ChartBlock.tsx` | I1 | ☑ | ☑ | ☐ |
+| 38 | `src/components/StatsTabs/OverviewTab.tsx` | I1 | ☑ | ☑ | ☐ |
+| 39 | `src/components/StatsTabs/PeopleTab.tsx` | I2 | ☑ | ☑ | ☐ |
+| 40 | `src/components/StatsTabs/RatingsTab.tsx` | I2 | ☑ | ☑ | ☐ |
+| 41 | `src/components/StatsTabs/RuntimeTab.tsx` | I2 | ☑ | ☑ | ☐ |
+| 42 | `src/components/StatsTabs/BoxOfficeTab.tsx` | I2 | ☑ | ☑ | ☐ |
+| 43 | `src/components/StatsTabs/ExploreTab.tsx` | I1 | ☑ | ☑ | ☐ |
 
 ### Frontend: chart wrappers
 | # | Module | Batch | CR | SR | Fix |
 |---|---|---|---|---|---|
-| 44 | `src/components/Charts/BarChart.tsx` | J | ☐ | ☐ | ☐ |
-| 45 | `src/components/Charts/HorizontalBarChart.tsx` | J | ☐ | ☐ | ☐ |
-| 46 | `src/components/Charts/LineChart.tsx` | J | ☐ | ☐ | ☐ |
-| 47 | `src/components/Charts/DoughnutChart.tsx` | J | ☐ | ☐ | ☐ |
-| 48 | `src/components/Charts/PolarAreaChart.tsx` | J | ☐ | ☐ | ☐ |
-| 49 | `src/components/Charts/RadarChart.tsx` | J | ☐ | ☐ | ☐ |
-| 50 | `src/components/Charts/MatrixChart.tsx` | J | ☐ | ☐ | ☐ |
-| 51 | `src/components/Charts/ScatterChart.tsx` | J | ☐ | ☐ | ☐ |
+| 44 | `src/components/Charts/BarChart.tsx` | J | ☑ | ☑ | ☑ |
+| 45 | `src/components/Charts/HorizontalBarChart.tsx` | J | ☑ | ☑ | ☑ |
+| 46 | `src/components/Charts/LineChart.tsx` | J | ☑ | ☑ | ☑ |
+| 47 | `src/components/Charts/DoughnutChart.tsx` | J | ☑ | ☑ | ☑ |
+| 48 | `src/components/Charts/PolarAreaChart.tsx` | J | ☑ | ☑ | ☑ |
+| 49 | `src/components/Charts/RadarChart.tsx` | J | ☑ | ☑ | ☑ |
+| 50 | `src/components/Charts/MatrixChart.tsx` | J | ☑ | ☑ | ☑ |
+| 51 | `src/components/Charts/ScatterChart.tsx` | J | ☑ | ☑ | ☑ |
 
 ### Frontend: utils / types
 | # | Module | Batch | CR | SR | Fix |
 |---|---|---|---|---|---|
-| 52 | `src/utils/exportCsv.ts` | H | ☐ | ☐ | ☐ |
-| 53 | `src/utils/statsHelpers.ts` | K | ☐ | ☐ | ☐ |
-| 54 | `src/utils/filterChips.ts` | G | ☐ | ☐ | ☐ |
-| 55 | `src/utils/filterSpans.ts` | G | ☐ | ☐ | ☐ |
-| 56 | `src/utils/chartTheme.ts` | K | ☐ | ☐ | ☐ |
-| 57 | `src/utils/formatDate.ts` | K | ☐ | ☐ | ☐ |
-| 58 | `src/utils/languages.ts` | K | ☐ | ☐ | ☐ |
-| 59 | `src/utils/path.ts` | K | ☐ | ☐ | ☐ |
-| 60 | `src/utils/poster.ts` | K | ☐ | ☐ | ☐ |
-| 61 | `src/types/movie.ts` | K | ☐ | ☐ | ☐ |
-| 74 | `src/utils/search.ts` (added 0.10.0: shared Movies search) | G | ☐ | ☐ | ☐ |
-| 75 | `src/utils/slugify.ts` (added 0.10.0) | K | ☐ | n/a (pure string helper) | ☐ |
+| 52 | `src/utils/exportCsv.ts` | H | ☑ | ☑ | ☑ |
+| 53 | `src/utils/statsHelpers.ts` | K | ☑ | ☑ | ☑ |
+| 54 | `src/utils/filterChips.ts` | G | ☑ | ☑ | ☐ |
+| 55 | `src/utils/filterSpans.ts` | G | ☑ | ☑ | ☐ |
+| 56 | `src/utils/chartTheme.ts` | K | ☑ | ☑ | ☑ |
+| 57 | `src/utils/formatDate.ts` | K | ☑ | ☑ | ☑ |
+| 58 | `src/utils/languages.ts` | K | ☑ | ☑ | ☑ |
+| 59 | `src/utils/path.ts` | K | ☑ | ☑ | ☑ |
+| 60 | `src/utils/poster.ts` | K | ☑ | ☑ | ☑ |
+| 61 | `src/types/movie.ts` | K | ☑ | ☑ | ☑ |
+| 74 | `src/utils/search.ts` (added 0.10.0: shared Movies search) | G | ☑ | ☑ | ☐ |
+| 75 | `src/utils/slugify.ts` (added 0.10.0) | K | ☑ | ☑ | ☑ |
 
 ### Tests
 | # | Module | Batch | CR | SR | Fix |
 |---|---|---|---|---|---|
-| 62 | `server/__tests__/helpers.ts` | L | ☐ | ☐ | ☐ |
-| 63 | `server/__tests__/routes.test.ts` | L | ☐ | ☐ | ☐ |
-| 64 | `server/__tests__/persistence.test.ts` | L | ☐ | ☐ | ☐ |
-| 65 | `server/__tests__/data-format.test.ts` | L | ☐ | ☐ | ☐ |
-| 66 | `server/__tests__/tmdb-client.test.ts` | L | ☐ | ☐ | ☐ |
-| 67 | `tests/app.spec.ts` | M | ☐ | ☐ | ☐ |
-| 68 | `server/__tests__/hardening.test.ts` (added 0.9.2) | L | ☐ | n/a (test-only) | ☐ |
+| 62 | `server/__tests__/helpers.ts` | L | ☑ | ☑ | ☐ |
+| 63 | `server/__tests__/routes.test.ts` | L | ☑ | ☑ | ☐ |
+| 64 | `server/__tests__/persistence.test.ts` | L | ☑ | ☑ | ☐ |
+| 65 | `server/__tests__/data-format.test.ts` | L | ☑ | ☑ | ☐ |
+| 66 | `server/__tests__/tmdb-client.test.ts` | L | ☑ | ☑ | ☐ |
+| 67 | `tests/app.spec.ts` | M | ☑ | ☑ | ☐ |
+| 68 | `server/__tests__/hardening.test.ts` (added 0.9.2) | L | ☑ | ☑ | ☐ |
 | 69 | `server/bootstrap.ts` (added by `harden-server-entry`) | A | ☑ | ☑ | ☑ |
-| 70 | `server/__tests__/bootstrap.test.ts` (added by `harden-server-entry`) | L | ☐ | n/a (test-only) | ☐ |
-| 71 | `server/__tests__/hosting.test.ts` (added by `prod-deploy`) | L | ☐ | n/a (test-only) | ☐ |
+| 70 | `server/__tests__/bootstrap.test.ts` (added by `harden-server-entry`) | L | ☑ | ☑ | ☐ |
+| 71 | `server/__tests__/hosting.test.ts` (added by `prod-deploy`) | L | ☑ | ☑ | ☐ |
 | 72 | `scripts/check-bundle.mjs` (added by `reduce-bundle-size`) | C | ☑ | ☑ | ☑ |
-| 73 | `tests/helpers.ts` (added by `e2e-hardening`) | M | ☐ | n/a (test-only) | ☐ |
+| 73 | `tests/helpers.ts` (added by `e2e-hardening`) | M | ☑ | ☑ | ☐ |

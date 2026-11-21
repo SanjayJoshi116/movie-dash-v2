@@ -3,6 +3,173 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.11.7] - 2026-11-21
+
+`/simplify` and `/code-review` (high) pass over the staged Batch D/E/H/J/K fixes (0.11.3–0.11.6). The review logged B172–B176, all fixed here. The simplify pass changes no behaviour except trimming in `formatDateDDMMYYYY`.
+
+### Fixed
+- **Clicking a crashed Movies or Dashboard page's own nav link didn't clear the error** (B172, a gap in the B97 fix). React Router turns a link to the URL already shown into a REPLACE navigation, and the boundary skipped every REPLACE. Now it skips only a REPLACE that keeps the path and changes the query string (Stats' `?tab=` sync).
+- **A navigation that itself crashed the page rendered and logged it twice** (B173). The boundary records the `resetKey` the crash happened under (`errorKey`) and clears only on a newer one.
+- **The hidden-column sort check used `.some` on the column's breakpoints** (B174). antd shows a column when any listed breakpoint matches, so the check now uses `.every`. This was latent, since every column lists one breakpoint.
+- **Screen readers read each grid card's title twice** (B175). The title in the card body is `aria-hidden`, since it is already in the card's label.
+
+### Changed
+- **Chart wrappers:** the click wiring that 5 wrappers each repeated is now one `useClickHandlers()` hook in `Charts/chartHelpers.ts`. It returns `{}` without a handler and changes only when a handler appears or disappears.
+- **Server error text:** one `serverErrorMessage()` plus a `hasStatus(err, n)` helper in the new `src/utils/httpError.ts` replace 3 copies (`AddMovieModal`, `MovieDrawer`, `MoviesContext`).
+- **`voteColor`** moved to the new `src/utils/vote.ts`. The drawer and the grid share it; the drawer used to inline its own copy.
+- **`MovieDrawer`:** the latest-id ref uses `useLatest`. Delete has one `refetch()` and one close-or-error step; a 404 counts as success.
+- **`AddMovieModal`:** a 409 is turned into success in one place. The unused `alreadyImported` field is gone from the client result type.
+- **`ThemeContext`:** it stores the saved choice and the OS preference, and derives `isDark`/`hasChoice` from them (was three state values).
+- **`formatDateDDMMYYYY`:** trims its input, so a blank value gives `''`. The drawer's own `.trim()` guard is gone, and the unit test checks blank and padded input.
+- **e2e:** `tmdbResult()`/`openAddMovie()` are reused by the Add Movie tests, one `CanvasTextWindow` type replaces a repeated cast, and the existing `nextFrames()` replaces an inline copy. The grid-description test also checks the title isn't repeated.
+- **CLAUDE.md:** documents `useClickHandlers`, the new `resetKey` rule, the new utils, and the grid tags' `margin: 0` as the one exception to the global Tag margin (B176).
+- `BUG_BACKLOG.md`: new §3r with B172–B176, all fixed.
+
+## [0.11.6] - 2026-11-21
+
+Batch H fixes (Movies views, mutations and export): OpenSpec `fix-movies-views-review` is applied and archived, and its requirements are synced into the `accessible-ui`, `catalog-persistence` and `movie-browsing` main specs. Five of the eleven review-fix changes are now archived; six are still open.
+
+### Fixed — Add Movie
+- **A search typed while another was running was silently dropped** (B125), so the list showed results for the old text. A new search now replaces the running one: its request is aborted and a late reply is ignored. This also resolves a contradiction in the `catalog-persistence` spec.
+- **Importing a movie already in the catalogue showed an error** (B126). A `409` now marks the row "Added" and refreshes the catalogue.
+- **"Added" stuck to a movie deleted afterwards** (B37). "Added" now follows the current catalogue, so Import comes back after a delete.
+- **Starting an import hid an earlier import's error** (B128). Only a new search clears the error, and the alert can be dismissed.
+
+### Fixed — movie details and views
+- **A delete still running acted on a different movie's drawer** (B19). It closes the drawer or shows its error only if the drawer still shows the movie it was started for, and switching movies clears the loading state.
+- **The drawer heading's 🎬 was read aloud** (B31). It is now `aria-hidden`.
+- **Blank or zero values showed as real ones** (B24, drawer and grid parts). Runtime 0 shows "—" (and no "0 mins" on cards), a blank date or year is left out instead of "Release  ()", and a vote of 0 shows a "Not rated" tag instead of a red "⭐ 0".
+- **The Language column sorted by ISO code** (B124). It sorts by the language name it shows (de/el/en → English, German, Greek).
+- **A hidden column kept sorting the rows and the export** (B21). A sort on a column hidden at the current width is cleared and stays cleared when the window widens again.
+- **Grid cards announced only the movie name** (B30, grid part). Cards keep their label and add their visible details as an accessible description.
+- **Missing fields crashed the grid, drawer, table sorters and Stats tabs** (B129, B17). Each fetched row is normalised once in `MoviesContext`: every catalogue column becomes a string (`''` when missing), so no view needs its own guard.
+
+### Fixed — export
+- **Excel garbled accented titles** (B14). The CSV starts with a UTF-8 BOM.
+- **Column names skipped the formula guard** (B130). Header cells are guarded like data cells.
+- **The download link was released straight after `click()`** (B127), which can cancel the download in some browsers. It is now released after 1 s.
+
+### Added
+- 11 e2e tests (83 → 94): rapid successive searches, `409` shown as Added, Import offered again after a delete, an earlier import error kept visible, a delete finishing after switching movies, unknown values in the drawer, Language sort, a sort cleared when its column is hidden (table and export), a row missing Genres/Release Date in every view, grid-card accessible descriptions, export BOM and guarded header names.
+
+### Changed
+- The Add Movie e2e test's already-imported result is now a catalogue row, since "Added" no longer comes from the search result's `alreadyImported` flag.
+- `BUG_BACKLOG.md`: B14, B17, B19, B21, B31, B37 and B124–B130 marked fixed; B24/B30 drawer and grid parts noted; §6 rows 26–29, 52 and Batch H set to Fix ☑; §0 checks re-run.
+
+### Notes
+- `fix-movies-filtering-review`'s B121 guard (Genres filter without a `Genres` column) is now redundant but harmless, since missing fields are normalised to `''`.
+
+## [0.11.5] - 2026-11-21
+
+Batch D (app shell) and Batch J (chart wrappers) fixes: OpenSpec `fix-app-shell-review` and `fix-chart-wrappers-review` are applied and archived, and their requirements are synced into the `accessible-ui`, `analytics-drilldown` and `frontend-performance` main specs. Four of the eleven review-fix changes have now landed; seven are still open.
+
+### Fixed — app shell
+- **Tablet-width loads showed the sidebar expanded** (B94). antd 6.7's `useBreakpoint()` is real on the first render, so the old collapse-on-change never ran; `collapsed` now starts from the first-render breakpoint.
+- **A failed first load showed "0 movies in catalogue"** (B95, same as B27). The count badge is hidden while the first load has failed.
+- **Load errors showed axios's generic text** (B96). The error shows the server's `{ error }` message, and a first-load `503` ("still loading") is retried once after 1 s.
+- **A crashed page stayed crashed when its own nav link was clicked** (B97). The error boundary also resets on PUSH/POP navigations within a section; REPLACE navigations (Stats' `?tab=` sync) don't, so tab switches never remount Stats.
+- **Back/Forward forced the page to the top** (B98). `ScrollToTop` skips POP navigations. (Chromium already restored the position after the old reset, so this matters for other browsers.)
+- **The refresh spinner was never announced** (B99). TopBar has an always-mounted `role="status"` region with "Refreshing catalogue…" text; new `.visually-hidden` utility in `index.css`.
+- **The collapsed sidebar logo was announced as "play-circle"** (B100) and **BottomNav icons leaked into link names** (B101). The logo link is named "MovieDash – Dashboard"; nav icons are `aria-hidden`.
+
+### Fixed — chart wrappers
+- **Charts redrew on every unrelated parent re-render** (B13). Callback props are read at event time through a new `useLatest()` hook, so the options memo no longer depends on callers' function identities. Measured on the Stats Overview: about 50 redraws per chart while the counters animate before, about 10 (the end of the first animation) after. The per-caller `useCallback` tasks in `fix-dashboard-review`, `fix-stats-review` and `fix-stats-tabs-review` are now optional.
+- **Count tooltips showed `23.00`** (B26). Integers print as-is, other values with at most 2 decimals, and a missing value shows "—" instead of throwing.
+- **Line points were hard to hover or click** (B139). Line charts use index-mode interaction: anywhere in a year's column targets it, and the pointer cursor still matches what a click does.
+- **Smoothed lines bent past the data** (B140). Monotone interpolation keeps them smooth without overshooting.
+- **The scatter tooltip hardcoded "votes" and "/10"** (B141). It names values by the chart's axis labels.
+- **Single-series charts showed a legend whose only entry hid all the data** (B142). The legend is shown only with more than one dataset.
+
+### Added
+- 10 e2e tests (73 → 83) and 3 unit tests (23 → 26, `formatNumber`). Every new e2e test except two guards was confirmed to fail on the previous code; the guards are "Stats tab switches don't remount" and "Back keeps the scroll", which Chromium can't reproduce. Canvas-drawn text (tooltips, legends) is checked by recording `fillText` calls.
+
+### Changed
+- E2E nav-link lookups use `exact: true`, since the logo link's name now contains "Dashboard".
+- `BUG_BACKLOG.md`: B94–B101, B27, B13, B26 and B139–B142 marked fixed; §6 rows 9–16, 44–51 and Batches D and J set to Fix ☑; §0 checks re-run.
+
+### Notes
+- The pending check from `fix-contexts-hooks-review` is done: "Unexpected response from the server" passes through the new `errorMessage` helper unchanged and doesn't trigger the 503 retry.
+
+## [0.11.4] - 2026-11-21
+
+Batch E fixes (contexts and hooks): OpenSpec `fix-contexts-hooks-review` is applied and archived, and its requirements are synced into the `movie-browsing` main spec.
+
+### Fixed
+- **The theme followed the OS only on the first visit** (B102, same as B22). The OS-derived default was saved on mount as if the user had chosen it. Now only the theme toggle saves a choice, and until then the theme follows `prefers-color-scheme`, including changes while the app is open.
+- **A 200 response that isn't a list crashed every page** (B103). It is now a failed load: the first load shows the load error with Retry, and a refresh keeps the last data and shows the refresh error.
+- **The old search kept filtering for 300 ms after it was cleared** (B104). Clearing the search (Clear all, its chip, or emptying the box) applies at once; typing is still debounced. `useDebounce` takes an optional `immediate` predicate.
+- **A drill-down first rendered the filters saved earlier in the session** (B105). The drill-down's filters are now the Movies page's initial state (`usePersistedFilters(defaults, preset)`), and they are clamped to the data like restored filters.
+- **Blocked `localStorage` stopped saved filters restoring** (B106). The legacy cleanup has its own `try`.
+- **The theme was stored under the bare key `theme`** (B107), which another app on the same origin could read or overwrite. It is now `movieDash_theme`.
+
+### Added
+- 8 e2e tests (65 → 73): theme follows the OS until a toggle, a toggled choice wins after reload, another app's `theme` key is ignored, filters restore with `localStorage` blocked, a non-list response shows the load error, Clear all skips the debounce (Playwright clock), a drill-down never renders the saved filters, and a decade drill-down past the data is clamped. Each one was confirmed to fail on the previous code.
+
+### Changed
+- `BUG_BACKLOG.md`: B102–B107 and B22 marked fixed; §6 rows 17–22 and Batch E set to Fix ☑ (the Batch E row had an extra cell, now repaired).
+
+### Notes
+- **Existing users see their OS theme once.** The old `theme` key is neither read nor removed: every value in it was written on mount, so it can't be told apart from a real choice. One toggle saves the preference again.
+- The planned "vote drill-down clamped to the data" test was replaced by a decade (year) drill-down: vote ranges are never clamped, because the vote slider is fixed at 0–10 by design.
+- When `fix-app-shell-review` lands, check that its `errorMessage` helper passes "Unexpected response from the server" through unchanged and that the error doesn't trigger its 503 retry.
+
+## [0.11.3] - 2026-11-21
+
+Batch K fixes (utilities and types): OpenSpec `fix-utils-types-review` is applied and archived, and its requirements are synced into the `analytics-drilldown` and `dev-quality-gates` main specs. This is the first of the 11 review-fix changes from 0.11.2 to land.
+
+### Added
+- **Frontend unit tests:** `npm run test:unit` (`tsx --test tests/unit/*.test.ts`, Node's `node:test`, no new dependency). 23 tests cover `formatRevenue`, `withAlpha`, `formatDateDDMMYYYY`, `getLanguageName`, `groupByField`, `topNWithOther` and `bucketToRange`/`countIntoBuckets`. CI runs them after the server tests, and Playwright ignores `tests/unit/` (B15, part).
+- Compile-time check that `CATALOGUE_COLUMNS` lists every `Movie` field: it is now `as const satisfies`, and a missing field fails the build (B149).
+
+### Fixed
+- Revenue labels at unit boundaries: 999,600 now reads `$1.0M` instead of `$1000K`, and 999,960,000 reads `$1.0B` instead of `$1000.0M` (B143).
+- Doughnut charts no longer set `hoverBackgroundColor`, so Chart.js derives the hover colour (B144). Polar-area fills use `withAlpha(c, 0.8)` instead of appending `'cc'` to the hex (B145).
+- `formatDateDDMMYYYY` reformats only an exact `YYYY-MM-DD` value and returns anything else unchanged; a missing value gives `''` instead of throwing (B148).
+- `withAlpha` accepts `#RGB` as well as `#RRGGBB` and throws a `TypeError` for any other format, so a bad colour no longer renders silently wrong (B150).
+- `getLanguageName('constructor')` (and other inherited keys) returns the code instead of a function (B151).
+
+### Changed
+- `.gitignore`: `*.tmp.test.ts` for ad-hoc unit tests.
+- `BUG_BACKLOG.md`: B143–B145 and B148–B151 marked fixed, B15 partly fixed, §6 rows 53, 56–61, 75 and Batch K set to Fix ☑, §0 checks re-run.
+
+### Notes
+- B146 (language case variants) and B147 (commas inside names) stay open, as planned in 0.11.2.
+- `getLanguageName` uses `Object.prototype.hasOwnProperty.call`, not `Object.hasOwn` as the design first said: the root tsconfig's `lib` is ES2020.
+
+## [0.11.2] - 2026-11-20
+
+Per-module review finished: every one of the 75 source modules in `BUG_BACKLOG.md` §6 now has a `/code-review` (high) and a `/security-review`. This release records the findings and the proposed fixes only. **No application code changed.**
+
+### Added
+- **11 OpenSpec changes proposing the review fixes**, one per batch. None is applied yet.
+
+  | Batch | Area | Change | B-IDs |
+  |---|---|---|---|
+  | D | App shell | `fix-app-shell-review` | B94–B101 |
+  | E | Contexts and hooks | `fix-contexts-hooks-review` | B102–B107 |
+  | F | Dashboard | `fix-dashboard-review` | B108–B116 |
+  | G | Movies page and filtering | `fix-movies-filtering-review` | B117–B123 |
+  | H | Movies views, add/delete and export | `fix-movies-views-review` | B124–B130 |
+  | I1 | Stats page, Overview and Explore tabs, Top 10 | `fix-stats-review` | B131–B135, plus older B4, B13, B24, B25, B34 |
+  | I2 | People, Ratings, Runtime and Box Office tabs | `fix-stats-tabs-review` | B136–B138, plus older B6, B13, B18 |
+  | J | Chart wrappers | `fix-chart-wrappers-review` | B139–B142, plus older B13 and B26 (fixed inside the wrappers) |
+  | K | Utilities and types (adds `npm run test:unit`) | `fix-utils-types-review` | B143–B151 |
+  | L | Server tests | `fix-server-tests-review` | B152–B161 |
+  | M | End-to-end tests and helpers | `fix-e2e-review` | B162–B171 |
+
+- `BUG_BACKLOG.md`: B94–B171 logged in §3g–§3q, with rejected findings and the reason for each. Older items covered by a proposed change are marked ◐ and point to the new ID.
+
+### Changed
+- `BUG_BACKLOG.md` §6: code review and security review are ticked for all 75 modules. The Fix column stays ☐ until each change is applied.
+
+### Notes
+- **No exploitable vulnerability found.** The security review of Batches I1–M found nothing at HIGH or MEDIUM confidence.
+- **Two findings are logged but left open:**
+  - B146: `'en'` and `'EN'` show as separate languages. The fix belongs with the row clean-up planned for B129.
+  - B147: names that contain a comma are split into separate categories. This needs a CSV format decision first.
+- **The proposed changes overlap.** Several edit the same files, so whichever is applied second needs a rebase.
+- **B13 needs a decision.** The fix inside the chart wrappers makes the per-caller `useCallback` tasks in the Dashboard and Stats changes optional.
+
 ## [0.11.1] - 2026-11-14
 
 Batch B (Python CSV writers) closed out: a high-effort re-review of `fix-python-csv-writers` (B79–B86, OpenSpec `harden-python-catalogue-io`), a `/simplify` pass, and a follow-up review (B87–B93). Both OpenSpec changes are archived, and their requirements are synced into the `catalog-persistence` main spec. The parked `upgrade-typescript-7` change was dropped; re-propose it once typescript-eslint supports TypeScript 7.

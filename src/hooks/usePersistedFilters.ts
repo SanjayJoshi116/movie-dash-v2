@@ -36,10 +36,29 @@ export function sanitizeFilters(raw: unknown, defaults: FilterState): FilterStat
   };
 }
 
-export function usePersistedFilters(defaults: FilterState): [FilterState, (f: FilterState) => void] {
+/**
+ * Movies page filters, kept in sessionStorage for the tab. A drill-down `preset` (merged over
+ * `defaults`) becomes the initial state and replaces the saved filters, so they never render first.
+ */
+export function usePersistedFilters(
+  defaults: FilterState,
+  preset?: Partial<FilterState> | null,
+): [FilterState, (f: FilterState) => void] {
   const [filters, setFiltersRaw] = useState<FilterState>(() => {
+    // Own try: a throwing localStorage (blocked site data) must not skip the sessionStorage read.
     try {
       localStorage.removeItem(OLD_STORAGE_KEY);
+    } catch { /* localStorage blocked — nothing to clean up */ }
+    if (preset) {
+      // Sanitized: router state survives a reload in the history entry, so it isn't trusted.
+      const initial = sanitizeFilters({ ...defaults, ...preset }, defaults);
+      // Idempotent, so StrictMode's double initializer call is harmless.
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+      } catch { /* ignore quota errors */ }
+      return initial;
+    }
+    try {
       const stored = sessionStorage.getItem(STORAGE_KEY);
       if (stored) return sanitizeFilters(JSON.parse(stored), defaults);
     } catch { /* ignore parse errors or private-browsing restrictions */ }

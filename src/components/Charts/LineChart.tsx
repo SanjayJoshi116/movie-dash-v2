@@ -1,16 +1,18 @@
 import React, { useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
+import { useClickHandlers, type ClickProps } from './chartHelpers';
 
-interface LineChartProps {
+interface LineChartProps extends ClickProps {
   data: ChartData<'line'>;
   isDark?: boolean;
-  onElementClick?: (index: number) => void;
-  /** Elements for which this returns false (e.g. "Other"/"Unknown") get no pointer cursor and no click. */
-  isClickable?: (index: number) => boolean;
 }
 
 const LineChart: React.FC<LineChartProps> = ({ data, isDark = true, onElementClick, isClickable }) => {
+  const click = useClickHandlers({ onElementClick, isClickable });
+  // A legend with one entry only lets the user hide all the data (B142).
+  const multiSeries = data.datasets.length > 1;
+
   const options: ChartOptions<'line'> = useMemo(() => {
     const textColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
     const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';
@@ -19,14 +21,13 @@ const LineChart: React.FC<LineChartProps> = ({ data, isDark = true, onElementCli
     return {
       responsive: true,
       maintainAspectRatio: false,
-      onClick: onElementClick
-        ? (_evt, elements) => { if (elements.length && (isClickable?.(elements[0].index) ?? true)) onElementClick(elements[0].index); }
-        : undefined,
-      onHover: onElementClick
-        ? (evt, elements) => { (evt.native?.target as HTMLElement)?.style.setProperty('cursor', elements.length && (isClickable?.(elements[0].index) ?? true) ? 'pointer' : 'default'); }
-        : undefined,
+      // Hovering anywhere over a year's column targets that year, instead of an 8 px circle
+      // around the point (B139). onClick/onHover get the same element list, so cursor = click.
+      interaction: { mode: 'index' as const, intersect: false },
+      ...click,
       plugins: {
         legend: {
+          display: multiSeries,
           position: 'bottom' as const,
           labels: {
             color: textColor,
@@ -46,11 +47,12 @@ const LineChart: React.FC<LineChartProps> = ({ data, isDark = true, onElementCli
         },
       },
       elements: {
-        line: { tension: 0.4 },
+        // Monotone: smooth, but never above or below neighbouring points (B140).
+        line: { tension: 0.4, cubicInterpolationMode: 'monotone' as const },
         point: { radius: 3, hoverRadius: 6 },
       },
     };
-  }, [isDark, onElementClick, isClickable]);
+  }, [isDark, click, multiSeries]);
 
   return <Line data={data} options={options} />;
 };

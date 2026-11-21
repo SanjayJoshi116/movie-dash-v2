@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  // tests/unit/*.test.ts are node:test unit tests (npm run test:unit), not Playwright specs.
+  testIgnore: ['unit/**'],
   timeout: 30000,
   expect: { timeout: 10000 },
   fullyParallel: false,

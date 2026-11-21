@@ -61,6 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
     >
       <Link
         to="/"
+        aria-label="MovieDash – Dashboard"
         style={{
           height: 64,
           display: 'flex',
@@ -74,7 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
           textDecoration: 'none',
         }}
       >
-        <PlayCircleOutlined style={{ fontSize: 22, color: ACCENT, flexShrink: 0 }} />
+        <PlayCircleOutlined aria-hidden="true" style={{ fontSize: 22, color: ACCENT, flexShrink: 0 }} />
         {!collapsed && (
           <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 17, letterSpacing: 0.5, whiteSpace: 'nowrap' }}>
             Movie<span style={{ color: ACCENT }}>Dash</span>

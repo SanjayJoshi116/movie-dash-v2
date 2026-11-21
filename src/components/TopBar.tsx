@@ -8,7 +8,7 @@ import { SPACING } from '../utils/chartTheme';
 const { Header } = Layout;
 
 const TopBar: React.FC = () => {
-  const { movies, loading, refreshing, refreshError, refetch } = useMovies();
+  const { movies, loading, error, refreshing, refreshError, refetch } = useMovies();
   const { isDark, toggleTheme } = useTheme();
 
   return (
@@ -30,9 +30,10 @@ const TopBar: React.FC = () => {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: SPACING.sm }}>
+        {/* No count while the first load has failed: "0 movies" would make the data look gone. */}
         {loading ? (
           <Spin size="small" />
-        ) : (
+        ) : error ? null : (
           <Badge
             count={movies.length.toLocaleString()}
             overflowCount={999999}
@@ -48,8 +49,17 @@ const TopBar: React.FC = () => {
             }}
           />
         )}
-        {/* Background refetch after add/delete: the page stays mounted, so signal it here instead. */}
-        {refreshing && <Spin size="small" aria-label="Refreshing catalogue" />}
+        {/* Background refetch after add/delete: the page stays mounted, so signal it here instead.
+            The status region is always mounted (a live region must exist before its content changes
+            to be announced); antd's Spin aria-label lands on a role-less div, so real text is used. */}
+        <span role="status">
+          {refreshing && (
+            <>
+              <Spin size="small" aria-hidden="true" />
+              <span className="visually-hidden">Refreshing catalogue…</span>
+            </>
+          )}
+        </span>
         {refreshError && (
           <Tooltip title={`Couldn't refresh the catalogue (${refreshError}) — showing the last loaded data. Click to retry.`}>
             <Button

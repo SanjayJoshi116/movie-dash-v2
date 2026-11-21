@@ -52,7 +52,7 @@ const BottomNav: React.FC = () => {
               textDecoration: 'none',
             }}
           >
-            {item.icon}
+            <span aria-hidden="true">{item.icon}</span>
             <span style={{ fontSize: 11, fontWeight: active ? 600 : 400 }}>{item.label}</span>
           </Link>
         );

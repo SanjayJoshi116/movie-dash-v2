@@ -43,6 +43,7 @@ yarn-error.log*
 # throwaway scripts (e.g. one-off screenshot capture, ad-hoc verification specs/configs)
 *.tmp.mjs
 *.tmp.spec.ts
+*.tmp.test.ts
 *.tmp.config.ts
 
 # python (movie-search.py, backfill_posters.py, catalogue_io.py, tests/python)

@@ -1,10 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Modal, Input, Button, Space, List, Alert, Avatar, Tag, Typography } from 'antd';
 import { SearchOutlined, CheckOutlined, PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useMovies } from '../hooks/useMovies';
 import { getLanguageName } from '../utils/languages';
 import { POSTER_FALLBACK } from '../utils/poster';
+import { hasStatus, serverErrorMessage } from '../utils/httpError';
 
 const { Text } = Typography;
 
@@ -14,7 +15,6 @@ interface TmdbSearchResult {
   year: string;
   language: string;
   posterUrl: string;
-  alreadyImported: boolean;
 }
 
 interface AddMovieModalProps {
@@ -22,16 +22,10 @@ interface AddMovieModalProps {
   onClose: () => void;
 }
 
-function extractErrorMessage(err: unknown): string {
-  if (axios.isAxiosError(err)) {
-    const data = err.response?.data as { error?: string } | undefined;
-    return data?.error ?? 'Request failed';
-  }
-  return 'Request failed';
-}
+const requestError = (err: unknown) => serverErrorMessage(err) ?? 'Request failed';
 
 const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
-  const { refetch } = useMovies();
+  const { movies, refetch } = useMovies();
   const [query, setQuery] = useState('');
   const [actor, setActor] = useState('');
   const [year, setYear] = useState('');
@@ -44,9 +38,23 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
   const [importingIds, setImportingIds] = useState<ReadonlySet<number>>(new Set());
   // Only the latest search's response may update results — guards against out-of-order replies.
   const searchIdRef = useRef(0);
+  // The running search's request; a new search aborts it.
+  const searchAbortRef = useRef<AbortController | null>(null);
+
+  // "Added" means "in the current catalogue". `justImported` covers the gap between a
+  // successful import (or a 409 "already in catalogue") and refetch() landing; it is cleared
+  // whenever the catalogue changes, so a movie deleted later offers Import again.
+  const catalogueIds = useMemo(() => new Set(movies.map((m) => m['Movie ID'])), [movies]);
+  const [justImported, setJustImported] = useState<ReadonlySet<number>>(new Set());
+  const [prevMovies, setPrevMovies] = useState(movies);
+  if (movies !== prevMovies) {
+    setPrevMovies(movies);
+    if (justImported.size > 0) setJustImported(new Set());
+  }
+  const isAdded = (id: number) => catalogueIds.has(String(id)) || justImported.has(id);
+  const markImported = (id: number) => setJustImported((prev) => new Set(prev).add(id));
 
   const handleSearch = async () => {
-    if (searching) return;
     if (!query.trim() && !actor.trim()) {
       setError('Enter a movie name or actor name');
       return;
@@ -55,18 +63,23 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
       setError('Year must be 4 digits, e.g. 1999');
       return;
     }
+    // A new search replaces one still running: abort its request and ignore its reply.
+    searchAbortRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
     const searchId = ++searchIdRef.current;
     setSearching(true);
     setError(null);
     try {
       const res = await axios.get<{ results: TmdbSearchResult[] }>('/api/tmdb/search', {
         params: { query: query.trim(), actor: actor.trim(), year: year.trim() },
+        signal: controller.signal,
       });
       if (searchId !== searchIdRef.current) return;
       setResults(res.data.results);
     } catch (err) {
-      if (searchId !== searchIdRef.current) return;
-      setError(extractErrorMessage(err));
+      if (searchId !== searchIdRef.current || axios.isCancel(err)) return;
+      setError(requestError(err));
       setResults([]);
     } finally {
       if (searchId === searchIdRef.current) setSearching(false);
@@ -74,14 +87,17 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
   };
 
   const handleImport = async (movieId: number) => {
+    // Doesn't clear `error`: an earlier failure stays visible until dismissed or a new search.
     setImportingIds((prev) => new Set(prev).add(movieId));
-    setError(null);
     try {
-      await axios.post('/api/tmdb/import', { movieId });
-      setResults((prev) => prev.map((r) => (r.id === movieId ? { ...r, alreadyImported: true } : r)));
+      await axios.post('/api/tmdb/import', { movieId }).catch((err: unknown) => {
+        // 409 = already in the catalogue (e.g. added from another tab): same end state as an import.
+        if (!hasStatus(err, 409)) throw err;
+      });
+      markImported(movieId);
       refetch();
     } catch (err) {
-      setError(extractErrorMessage(err));
+      setError(requestError(err));
     } finally {
       setImportingIds((prev) => {
         const next = new Set(prev);
@@ -147,7 +163,7 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
         renderItem={(item) => (
           <List.Item
             actions={[
-              item.alreadyImported ? (
+              isAdded(item.id) ? (
                 <Tag icon={<CheckOutlined />} color="success" key="added">Added</Tag>
               ) : (
                 <Button

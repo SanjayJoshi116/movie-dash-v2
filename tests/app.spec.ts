@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { Page, Locator } from '@playwright/test';
 import {
   test,
@@ -29,6 +30,29 @@ async function expectFirstTwoOrdered(page: Page, names: Locator, dir: 1 | -1) {
   const [a, b] = await names.evaluateAll((els) => els.slice(0, 2).map((e) => e.textContent ?? ''));
   const cmp = await page.evaluate(([x, y]) => x.localeCompare(y), [a, b] as const);
   expect(dir * cmp, `"${a}" vs "${b}"`).toBeLessThanOrEqual(0);
+}
+
+/**
+ * Chart.js draws tooltips and legends on the canvas, so they aren't in the DOM. This init script
+ * records every `fillText` call with its canvas; `canvasTexts` reads them back for one canvas.
+ */
+type CanvasTextWindow = Window & { __canvasTexts: { c: HTMLCanvasElement; t: string }[] };
+
+async function recordCanvasText(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as CanvasTextWindow;
+    w.__canvasTexts = [];
+    const orig = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text: string, x: number, y: number, maxWidth?: number) {
+      w.__canvasTexts.push({ c: this.canvas, t: String(text) });
+      return maxWidth === undefined ? orig.call(this, text, x, y) : orig.call(this, text, x, y, maxWidth);
+    };
+  });
+}
+
+function canvasTexts(canvas: Locator): Promise<string[]> {
+  return canvas.evaluate((c) => (window as unknown as CanvasTextWindow)
+    .__canvasTexts.filter((e) => e.c === c).map((e) => e.t));
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
@@ -76,6 +100,39 @@ test.describe('Dashboard', () => {
     await page.reload();
     await waitForStats(page);
     await expect(page.getByRole('tab', { name: /Box Office/, selected: true })).toBeVisible();
+  });
+
+  test('a click well above a release-trend point still drills down to that year', async ({ page }) => {
+    // 2015–2024, five movies a year except one in 2020, so the 2020 point sits near the bottom.
+    const rows = Array.from({ length: 10 }, (_, y) => Array.from({ length: y === 5 ? 1 : 5 }, (_, k) =>
+      makeMovie(y * 10 + k + 1, { 'Release Year': String(2015 + y), 'Release Date': `${2015 + y}-01-15` }))).flat();
+    await mockMovies(page, rows);
+    await page.goto('/');
+    const canvas = page.getByText('Movies Released — 2015–2024', { exact: true }).locator('xpath=..').locator('canvas');
+    await expect(canvas).toBeVisible();
+    await canvas.scrollIntoViewIfNeeded();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('trend canvas not visible');
+    // Category points sit at plotLeft + i * step; plot area ≈ canvas minus the y-axis labels.
+    const plotLeft = box.x + 36;
+    const step = (box.x + box.width - 8 - plotLeft) / 9;
+    // 30% down the canvas: far above the 2020 point (value 1 of 5), so only index-mode hit-testing reaches it.
+    await page.mouse.move(plotLeft + 5 * step, box.y + box.height * 0.3);
+    await expect.poll(() => canvas.evaluate((el) => (el as HTMLElement).style.cursor)).toBe('pointer');
+    await page.mouse.click(plotLeft + 5 * step, box.y + box.height * 0.3);
+    await expect(page).toHaveURL('/movies');
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Year: 2020–2020' })).toBeVisible();
+    await expectTotal(page, 1);
+  });
+
+  test('the single-series rating distribution draws no legend', async ({ page }) => {
+    await recordCanvasText(page);
+    await page.goto('/');
+    const canvas = page.getByText('Rating Distribution', { exact: true }).locator('xpath=..').locator('canvas');
+    await expect(canvas).toBeVisible();
+    // Bars (and so axis labels) are drawn; the dataset label "Movies" would only appear in a legend.
+    await expect.poll(() => canvasTexts(canvas)).toContain('0–2');
+    expect(await canvasTexts(canvas)).not.toContain('Movies');
   });
 
   test('empty catalogue shows the Empty view with a Go to Movies CTA', async ({ page }) => {
@@ -401,8 +458,19 @@ test.describe('Movies Advanced Filters', () => {
 // ── Movies — Add & Delete (all mutations mocked; the real CSV is never written) ──
 
 test.describe('Movies Add & Delete', () => {
+  const tmdbResult = (id: number, title: string) =>
+    ({ id, title, year: '2024', language: 'en', posterUrl: '', alreadyImported: false });
+
+  async function openAddMovie(page: Page) {
+    await page.getByRole('button', { name: 'Add Movie' }).click();
+    const modal = page.getByRole('dialog', { name: 'Add Movie from TMDB' });
+    await expect(modal).toBeVisible();
+    return modal;
+  }
+
   test('Add Movie: search, import, Added state and refetch', async ({ page }) => {
-    const base = [makeMovie(1), makeMovie(2)];
+    // 'Added' comes from the catalogue, so the already-imported result is one of its rows.
+    const base = [makeMovie(1), makeMovie(2, { 'Movie ID': '999002', Name: 'Mock Already There' })];
     const imported = makeMovie(3, { 'Movie ID': '999001', Name: 'Mock Import One' });
     const setMovies = await mockMovies(page, base);
 
@@ -412,7 +480,7 @@ test.describe('Movies Add & Delete', () => {
       return route.fulfill({
         json: {
           results: [
-            { id: 999001, title: 'Mock Import One', year: '2024', language: 'en', posterUrl: '', alreadyImported: false },
+            tmdbResult(999001, 'Mock Import One'),
             { id: 999002, title: 'Mock Already There', year: '2019', language: 'fr', posterUrl: '', alreadyImported: true },
           ],
         },
@@ -427,9 +495,7 @@ test.describe('Movies Add & Delete', () => {
     await page.goto('/movies');
     await waitForTable(page);
     await expectTotal(page, 2);
-    await page.getByRole('button', { name: 'Add Movie' }).click();
-    const modal = page.getByRole('dialog', { name: 'Add Movie from TMDB' });
-    await expect(modal).toBeVisible();
+    const modal = await openAddMovie(page);
 
     await modal.getByPlaceholder('Movie name').fill('Mock');
     await modal.getByRole('button', { name: 'Search' }).click();
@@ -453,6 +519,42 @@ test.describe('Movies Add & Delete', () => {
     await expect(modal).not.toBeVisible();
     await expectTotal(page, 3);
     await expect(page.locator('.ant-table-row', { hasText: 'Mock Import One' })).toBeVisible();
+  });
+
+  test('background refresh after an import is announced as a status', async ({ page }) => {
+    const base = [makeMovie(1), makeMovie(2)];
+    const imported = makeMovie(3, { 'Movie ID': '999001', Name: 'Mock Import One' });
+    let importDone = false;
+    let release: () => void = () => {};
+    const held = new Promise<void>((r) => { release = r; });
+    await page.route('**/api/movies', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      if (!importDone) return route.fulfill({ json: base });
+      await held; // hold the refetch so the refresh state stays visible
+      return route.fulfill({ json: [...base, imported] });
+    });
+    await page.route(/\/api\/tmdb\/search(\?|$)/, (route) => route.fulfill({
+      json: { results: [tmdbResult(999001, 'Mock Import One')] },
+    }));
+    await page.route('**/api/tmdb/import', (route) => {
+      importDone = true;
+      return route.fulfill({ status: 201, json: { movie: imported } });
+    });
+
+    await page.goto('/movies');
+    await waitForTable(page);
+    const status = page.getByRole('status').filter({ hasText: 'Refreshing catalogue' });
+    await expect(status).toHaveCount(0);
+
+    const modal = await openAddMovie(page);
+    await modal.getByPlaceholder('Movie name').fill('Mock');
+    await modal.getByRole('button', { name: 'Search' }).click();
+    await modal.getByRole('button', { name: 'Import' }).click();
+
+    await expect(status).toHaveCount(1);
+    release();
+    await expect(page.getByTitle('3 movies in catalogue')).toBeVisible();
+    await expect(status).toHaveCount(0);
   });
 
   test('Delete: Popconfirm, refetch, drawer closes and the row is gone', async ({ page }) => {
@@ -486,6 +588,185 @@ test.describe('Movies Add & Delete', () => {
     await expect(page.locator('.ant-table-row', { hasText: victim.Name })).toHaveCount(0);
     await expect(page.getByTitle('2 movies in catalogue')).toBeVisible();
   });
+
+  test('Add Movie: a new search replaces one still running', async ({ page }) => {
+    await mockMovies(page, [makeMovie(1)]);
+    let releaseAlien: () => void = () => {};
+    const alienHeld = new Promise<void>((r) => { releaseAlien = r; });
+    const state = { alienRequested: false, alienReplied: false };
+    await page.route(/\/api\/tmdb\/search(\?|$)/, async (route) => {
+      const query = new URL(route.request().url()).searchParams.get('query');
+      if (query === 'Alien') {
+        state.alienRequested = true;
+        await alienHeld;
+        state.alienReplied = true;
+        // The client aborted this request, so fulfilling it may fail; that's the point.
+        return route.fulfill({ json: { results: [tmdbResult(1, 'Alien Result')] } }).catch(() => {});
+      }
+      return route.fulfill({ json: { results: [tmdbResult(2, 'Aliens Result')] } });
+    });
+
+    await page.goto('/movies');
+    await waitForTable(page);
+    const modal = await openAddMovie(page);
+    const name = modal.getByPlaceholder('Movie name');
+    await name.fill('Alien');
+    await name.press('Enter');
+    await expect.poll(() => state.alienRequested).toBe(true);
+    await name.fill('Aliens');
+    await name.press('Enter');
+
+    const items = modal.locator('.ant-list-item');
+    await expect(items.filter({ hasText: 'Aliens Result' })).toBeVisible();
+    releaseAlien();
+    await expect.poll(() => state.alienReplied).toBe(true);
+    await expect(items.filter({ hasText: 'Aliens Result' })).toBeVisible();
+    await expect(items.filter({ hasText: 'Alien Result' })).toHaveCount(0);
+    await expect(modal.getByRole('button', { name: 'Search' })).not.toHaveClass(/ant-btn-loading/);
+  });
+
+  test('Add Movie: a 409 "already in catalogue" shows Added, not an error', async ({ page }) => {
+    const base = [makeMovie(1)];
+    const setMovies = await mockMovies(page, base);
+    await page.route(/\/api\/tmdb\/search(\?|$)/, (route) =>
+      route.fulfill({ json: { results: [tmdbResult(999001, 'Added Elsewhere')] } }));
+    await page.route('**/api/tmdb/import', (route) => {
+      // Another tab added it: the server already has it, so the refetch includes it.
+      setMovies([...base, makeMovie(2, { 'Movie ID': '999001', Name: 'Added Elsewhere' })]);
+      return route.fulfill({ status: 409, json: { error: 'Movie already in catalogue' } });
+    });
+
+    await page.goto('/movies');
+    await waitForTable(page);
+    const modal = await openAddMovie(page);
+    await modal.getByPlaceholder('Movie name').fill('Added');
+    await modal.getByRole('button', { name: 'Search' }).click();
+    const row = modal.locator('.ant-list-item').filter({ hasText: 'Added Elsewhere' });
+    await row.getByRole('button', { name: 'Import' }).click();
+
+    await expect(row.getByText('Added', { exact: true })).toBeVisible();
+    await expect(page.getByTitle('2 movies in catalogue')).toBeVisible();
+    await expect(row.getByText('Added', { exact: true })).toBeVisible();
+    await expect(modal.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('Add Movie: a movie deleted after importing offers Import again', async ({ page }) => {
+    const base = [makeMovie(1), makeMovie(2)];
+    const imported = makeMovie(3, { 'Movie ID': '999001', Name: 'Short Lived' });
+    const setMovies = await mockMovies(page, base);
+    await page.route(/\/api\/tmdb\/search(\?|$)/, (route) =>
+      route.fulfill({ json: { results: [tmdbResult(999001, 'Short Lived')] } }));
+    await page.route('**/api/tmdb/import', (route) => {
+      setMovies([...base, imported]);
+      return route.fulfill({ status: 201, json: { movie: imported } });
+    });
+    await page.route('**/api/movies/*', (route) => {
+      if (route.request().method() !== 'DELETE') return route.fallback();
+      setMovies(base);
+      return route.fulfill({ json: { ok: true } });
+    });
+
+    await page.goto('/movies');
+    await waitForTable(page);
+    const modal = await openAddMovie(page);
+    await modal.getByPlaceholder('Movie name').fill('Short');
+    await modal.getByRole('button', { name: 'Search' }).click();
+    const row = modal.locator('.ant-list-item').filter({ hasText: 'Short Lived' });
+    await row.getByRole('button', { name: 'Import' }).click();
+    await expect(row.getByText('Added', { exact: true })).toBeVisible();
+    await expect(page.getByTitle('3 movies in catalogue')).toBeVisible();
+    await modal.locator('.ant-modal-footer').getByRole('button', { name: 'Close' }).click();
+    await expect(modal).not.toBeVisible();
+
+    await page.locator('.ant-table-row', { hasText: 'Short Lived' }).click();
+    const drawer = page.locator('.ant-drawer-open');
+    await drawer.getByRole('button', { name: 'Delete' }).click();
+    await page.locator('.ant-popconfirm').getByRole('button', { name: 'Delete' }).click();
+    await expect(page.getByTitle('2 movies in catalogue')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Add Movie' }).click();
+    await expect(row.getByRole('button', { name: 'Import' })).toBeVisible();
+    await expect(row.getByText('Added', { exact: true })).toHaveCount(0);
+  });
+
+  test('Add Movie: starting another import keeps an earlier import error visible', async ({ page }) => {
+    await mockMovies(page, [makeMovie(1)]);
+    await page.route(/\/api\/tmdb\/search(\?|$)/, (route) =>
+      route.fulfill({ json: { results: [tmdbResult(999001, 'Movie A'), tmdbResult(999002, 'Movie B')] } }));
+    let releaseB: () => void = () => {};
+    const bHeld = new Promise<void>((r) => { releaseB = r; });
+    await page.route('**/api/tmdb/import', async (route) => {
+      const { movieId } = route.request().postDataJSON() as { movieId: number };
+      if (movieId === 999001) return route.fulfill({ status: 500, json: { error: 'Failed to save movie' } });
+      await bHeld;
+      return route.fulfill({ status: 500, json: { error: 'B failed too' } });
+    });
+
+    await page.goto('/movies');
+    await waitForTable(page);
+    const modal = await openAddMovie(page);
+    await modal.getByPlaceholder('Movie name').fill('Movie');
+    await modal.getByRole('button', { name: 'Search' }).click();
+    const items = modal.locator('.ant-list-item');
+    await items.filter({ hasText: 'Movie A' }).getByRole('button', { name: 'Import' }).click();
+    const alert = modal.getByRole('alert');
+    await expect(alert).toContainText('Failed to save movie');
+
+    const importB = items.filter({ hasText: 'Movie B' }).getByRole('button', { name: 'Import' });
+    await importB.click();
+    await expect(importB).toHaveClass(/ant-btn-loading/);
+    await expect(alert).toContainText('Failed to save movie');
+    releaseB();
+    await expect(alert).toContainText('B failed too');
+  });
+
+  test('Delete: a delete for movie A finishing after switching to B leaves B alone', async ({ page }) => {
+    const rows = [makeMovie(1), makeMovie(2), makeMovie(3)];
+    const [a, b] = rows;
+    const setMovies = await mockMovies(page, rows);
+    let releaseDelete: () => void = () => {};
+    const deleteHeld = new Promise<void>((r) => { releaseDelete = r; });
+    await page.route('**/api/movies/*', async (route) => {
+      if (route.request().method() !== 'DELETE') return route.fallback();
+      await deleteHeld;
+      setMovies(rows.filter((m) => m !== a));
+      return route.fulfill({ json: { ok: true } });
+    });
+
+    await page.goto('/movies');
+    await waitForTable(page);
+    await page.locator('.ant-table-row', { hasText: a.Name }).click();
+    const drawer = page.locator('.ant-drawer-open');
+    await expect(drawer.getByRole('heading', { name: a.Name })).toBeVisible();
+    await drawer.getByRole('button', { name: 'Delete' }).click();
+    await page.locator('.ant-popconfirm').getByRole('button', { name: 'Delete' }).click();
+    await expect(drawer.getByRole('button', { name: 'Delete' })).toHaveClass(/ant-btn-loading/);
+
+    await drawer.locator('.ant-drawer-close').click();
+    await expect(page.locator('.ant-drawer-open')).toHaveCount(0);
+    await page.locator('.ant-table-row', { hasText: b.Name }).click();
+    await expect(drawer.getByRole('heading', { name: b.Name })).toBeVisible();
+    await expect(drawer.getByRole('button', { name: 'Delete' })).not.toHaveClass(/ant-btn-loading/);
+
+    releaseDelete();
+    await expectTotal(page, 2);
+    await expect(drawer.getByRole('heading', { name: b.Name })).toBeVisible();
+    await expect(drawer.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('drawer shows unknown runtime, rating and date as unknown', async ({ page }) => {
+    const odd = makeMovie(1, { Name: 'Unknowns', 'Vote Average': '0', 'Vote Count': '0', Runtime: '0', 'Release Date': '' });
+    await mockMovies(page, [odd, makeMovie(2)]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    await page.locator('.ant-table-row', { hasText: 'Unknowns' }).click();
+    const drawer = page.locator('.ant-drawer-open');
+    await expect(drawer.getByText('Not rated')).toBeVisible();
+    await expect(drawer).not.toContainText('0 mins');
+    await expect(drawer).not.toContainText('⭐');
+    await expect(drawer).not.toContainText('()');
+    await expect(drawer).toContainText(`(${odd['Release Year']})`);
+  });
 });
 
 // ── Navigation ─────────────────────────────────────────────────────────────
@@ -509,7 +790,7 @@ test.describe('Navigation', () => {
 
   test('sidebar navigates back to Dashboard', async ({ page }) => {
     await page.goto('/stats');
-    await page.getByRole('link', { name: 'Dashboard' }).click();
+    await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
     await expect(page).toHaveURL('/');
     await expect(page.getByRole('heading', { name: 'Highlights' })).toBeVisible();
   });
@@ -533,6 +814,58 @@ test.describe('Navigation', () => {
     await expect(page.locator('.ant-layout-sider-collapsed')).toBeVisible();
   });
 
+  test('tablet-width load starts with the sidebar collapsed', async ({ page }) => {
+    await page.setViewportSize({ width: 700, height: 900 });
+    await page.goto('/');
+    await expect(page.locator('.ant-layout-sider')).toBeVisible();
+    await expect(page.locator('.ant-layout-sider-collapsed')).toBeVisible();
+  });
+
+  test('collapsed sidebar brand link is named for the app and the Dashboard', async ({ page }) => {
+    await page.setViewportSize({ width: 700, height: 900 });
+    await page.goto('/movies');
+    await expect(page.locator('.ant-layout-sider-collapsed')).toBeVisible();
+    await page.getByRole('link', { name: 'MovieDash – Dashboard', exact: true }).click();
+    await expect(page).toHaveURL('/');
+  });
+
+  test('Back keeps the scroll position; a nav link opens the new section at the top', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Highlights' })).toBeVisible();
+    const scrollable = () => page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+    expect(await scrollable(), 'precondition: Dashboard must be scrollable').toBeGreaterThan(300);
+    await page.evaluate(() => window.scrollTo(0, 300));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    await page.getByRole('link', { name: 'Movies', exact: true }).click();
+    await waitForTable(page);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
+    // Record every scroll position from here on: the browser may restore after an app-forced
+    // scrollTo(0, 0), so the final position alone can't show whether the app jumped to the top.
+    await page.evaluate(() => {
+      const w = window as unknown as { __scrolls: number[] };
+      w.__scrolls = [];
+      addEventListener('scroll', () => w.__scrolls.push(window.scrollY));
+    });
+    await page.goBack();
+    await expect(page.getByRole('heading', { name: 'Highlights' })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    const scrolls = await page.evaluate(() => (window as unknown as { __scrolls: number[] }).__scrolls);
+    const firstUp = scrolls.findIndex((y) => y > 0);
+    expect(scrolls.slice(firstUp).filter((y) => y === 0), `scroll positions after Back: ${scrolls.join(', ')}`).toEqual([]);
+
+    await page.goForward();
+    await waitForTable(page);
+    expect(await scrollable(), 'precondition: Movies must be scrollable').toBeGreaterThan(200);
+    await page.evaluate(() => window.scrollTo(0, 200));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await page.getByRole('link', { name: 'Stats', exact: true }).click();
+    await waitForStats(page);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  });
+
   test('page title updates on navigation', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
@@ -548,26 +881,56 @@ test.describe('Navigation', () => {
 test.describe('Mobile', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
+  test('a sort on a column hidden by narrowing is cleared, also for export', async ({ page }) => {
+    // Default order Mock 01..03; by Actors/Actresses ascending: 03, 01, 02.
+    const rows = [
+      makeMovie(1, { 'Actors/Actresses': 'Bea' }),
+      makeMovie(2, { 'Actors/Actresses': 'Cid' }),
+      makeMovie(3, { 'Actors/Actresses': 'Ada' }),
+    ];
+    const defaultOrder = rows.map((m) => m.Name);
+    await mockMovies(page, rows);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/movies');
+    await waitForTable(page);
+    const names = page.locator('.ant-table-row .movie-name-button');
+    await page.locator('.ant-table-thead th', { hasText: 'Actors/Actresses' }).click();
+    await expect(names).toHaveText([rows[2].Name, rows[0].Name, rows[1].Name]);
+
+    await page.setViewportSize({ width: 800, height: 900 });
+    await expect(page.locator('.ant-table-thead th', { hasText: 'Actors/Actresses' })).toHaveCount(0);
+    await expect(names).toHaveText(defaultOrder);
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: /Export CSV/i }).click();
+    const csv = readFileSync(await (await downloadPromise).path(), 'utf8');
+    const exported = csv.split('\n').slice(1).map((line) => line.split(',')[1]);
+    expect(exported).toEqual(defaultOrder);
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.locator('.ant-table-thead th[aria-sort]')).toHaveCount(0);
+    await expect(names).toHaveText(defaultOrder);
+  });
+
   test('phone viewport shows BottomNav instead of the Sidebar, and its links work', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
     const nav = page.getByRole('navigation');
     await expect(nav).toBeVisible();
     await expect(page.locator('.ant-layout-sider')).toHaveCount(0);
-    await expect(nav.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
+    await expect(nav.getByRole('link', { name: 'Dashboard', exact: true })).toHaveAttribute('aria-current', 'page');
 
-    await nav.getByRole('link', { name: 'Movies' }).click();
+    await nav.getByRole('link', { name: 'Movies', exact: true }).click();
     await expect(page).toHaveURL('/movies');
-    await expect(nav.getByRole('link', { name: 'Movies' })).toHaveAttribute('aria-current', 'page');
-    await expect(nav.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current', 'page');
+    await expect(nav.getByRole('link', { name: 'Movies', exact: true })).toHaveAttribute('aria-current', 'page');
+    await expect(nav.getByRole('link', { name: 'Dashboard', exact: true })).not.toHaveAttribute('aria-current', 'page');
     // Below the sm breakpoint the Movies page defaults to the card grid.
     await expect(page.locator('.ant-card[role="button"]').first()).toBeVisible();
 
-    await nav.getByRole('link', { name: 'Stats' }).click();
+    await nav.getByRole('link', { name: 'Stats', exact: true }).click();
     await expect(page).toHaveURL('/stats');
     await expect(page.getByRole('heading', { name: 'Statistics Dashboard', exact: true })).toBeVisible();
 
-    await nav.getByRole('link', { name: 'Dashboard' }).click();
+    await nav.getByRole('link', { name: 'Dashboard', exact: true }).click();
     await expect(page).toHaveURL('/');
   });
 });
@@ -641,6 +1004,39 @@ test.describe('Stats Page', () => {
 
     await chooseOption(page, 'Top 10 metric', 'Longest Runtime');
     await expect(pane.getByText('mins').first()).toBeVisible();
+  });
+
+  test('People: count tooltips show whole numbers, not ".00"', async ({ page }) => {
+    const rows = Array.from({ length: 10 }, (_, i) => makeMovie(i + 1, { 'Actors/Actresses': `Star One, Extra ${i + 1}` }));
+    await mockMovies(page, rows);
+    await recordCanvasText(page);
+    await page.goto('/stats?tab=people');
+    await waitForStats(page);
+    const canvas = activeTabPane(page).getByRole('heading', { name: 'Top 15 Actors & Actresses' })
+      .locator('xpath=../..').locator('canvas');
+    await expect(canvas).toBeVisible();
+    await canvas.scrollIntoViewIfNeeded();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('actors canvas not visible');
+    // "Star One" (10 movies) is the first, full-width bar: sweep down its left part until its tooltip draws.
+    let texts: string[] = [];
+    for (let y = box.y + 4; y < box.y + box.height / 3 && !texts.includes(' 10'); y += 4) {
+      await page.mouse.move(box.x + box.width * 0.4, y);
+      await nextFrames(page);
+      texts = await canvasTexts(canvas);
+    }
+    expect(texts).toContain(' 10');
+    expect(texts.filter((t) => /\.00$/.test(t))).toEqual([]);
+  });
+
+  test('switching tabs updates ?tab= without remounting the Stats page', async ({ page }) => {
+    const heading = page.getByRole('heading', { name: 'Statistics Dashboard', exact: true });
+    await heading.evaluate((el) => { (el as HTMLElement).dataset.e2eMarker = 'mounted-once'; });
+    await page.getByRole('tab', { name: /People/ }).click();
+    await expect(page).toHaveURL('/stats?tab=people');
+    await page.getByRole('tab', { name: /Ratings/ }).click();
+    await expect(page).toHaveURL('/stats?tab=ratings');
+    await expect(heading).toHaveAttribute('data-e2e-marker', 'mounted-once');
   });
 
   test('tab switch keeps previously loaded tab (no destroyInactiveTabPane)', async ({ page }) => {
@@ -719,6 +1115,37 @@ test.describe('Theme', () => {
     await page.locator('button[title*="dark mode"]').click();
     await expect(html(page)).toHaveAttribute('data-theme', 'dark');
   });
+
+  const savedTheme = (page: Page) => page.evaluate(() => localStorage.getItem('movieDash_theme'));
+
+  test('first visit saves nothing and follows OS changes live', async ({ page }) => {
+    await page.goto('/');
+    await expect(html(page)).toHaveAttribute('data-theme', 'dark');
+    expect(await savedTheme(page)).toBeNull();
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect(html(page)).toHaveAttribute('data-theme', 'light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(html(page)).toHaveAttribute('data-theme', 'dark');
+    expect(await savedTheme(page)).toBeNull();
+  });
+
+  test('a toggled choice wins over later OS changes, also after reload', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('button[title*="light mode"]').click();
+    await expect(html(page)).toHaveAttribute('data-theme', 'light');
+    expect(await savedTheme(page)).toBe('light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(html(page)).toHaveAttribute('data-theme', 'light');
+    await page.reload();
+    await expect(html(page)).toHaveAttribute('data-theme', 'light');
+  });
+
+  test('a bare "theme" key from another app on the same origin is ignored', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('theme', 'light'));
+    await page.goto('/');
+    await expect(html(page)).toHaveAttribute('data-theme', 'dark');
+    expect(await page.evaluate(() => localStorage.getItem('theme'))).toBe('light');
+  });
 });
 
 // ── Persistence ────────────────────────────────────────────────────────────
@@ -742,11 +1169,159 @@ test.describe('Filter Persistence', () => {
     // Cleanup
     await page.locator('button[title="Clear all filters"]').click();
   });
+
+  test('filters restore with localStorage blocked; theme toggle still works', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'localStorage', {
+        get() { throw new DOMException('blocked', 'SecurityError'); },
+      });
+    });
+    await page.goto('/movies');
+    await waitForTable(page);
+    await openFiltersDrawer(page);
+    const genre = await selectInDrawer(page, 'Genre');
+    await closeFiltersDrawer(page);
+    const chip = page.locator('.ant-tag').filter({ hasText: genre });
+    await expect(chip).toBeVisible();
+
+    await page.reload();
+    await waitForTable(page);
+    await expect(chip).toBeVisible();
+
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.locator('button[title*="light mode"]').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  });
 });
 
 // ── Edge Cases ─────────────────────────────────────────────────────────────
 
 test.describe('Edge Cases', () => {
+  test('table sorts Language by the name it shows', async ({ page }) => {
+    await mockMovies(page, [
+      makeMovie(1, { Language: 'en' }),
+      makeMovie(2, { Language: 'de' }),
+      makeMovie(3, { Language: 'el' }),
+    ]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    await page.locator('.ant-table-thead th', { hasText: 'Language' }).click();
+    const languageCells = page.locator('.ant-table-row td:nth-child(3)');
+    await expect(languageCells).toHaveText(['English', 'German', 'Greek']);
+  });
+
+  test('a row missing Genres and Release Date renders in every view', async ({ page }) => {
+    const short = makeMovie(1, { Name: 'Short Row' });
+    delete short.Genres;
+    delete short['Release Date'];
+    await mockMovies(page, [short, makeMovie(2), makeMovie(3)]);
+    const errors: string[] = [];
+    page.on('pageerror', (err) => errors.push(err.message));
+
+    await page.goto('/movies');
+    await waitForTable(page);
+    for (const column of ['Genres', 'Release Date']) {
+      await page.locator('.ant-table-thead th', { hasText: column }).click();
+      await expect(page.locator('.ant-table-row')).toHaveCount(3);
+    }
+    await page.locator('.ant-table-row', { hasText: 'Short Row' }).click();
+    const drawer = page.locator('.ant-drawer-open');
+    await expect(drawer.getByRole('heading', { name: 'Short Row' })).toBeVisible();
+    await drawer.locator('.ant-drawer-close').click();
+    await expect(page.locator('.ant-drawer-open')).toHaveCount(0);
+
+    await page.getByText('Grid', { exact: true }).click();
+    await expect(page.locator('.ant-card[role="button"]')).toHaveCount(3);
+
+    await page.goto('/stats');
+    await waitForStats(page);
+    for (const tab of [/Explore/, /People/]) {
+      await page.getByRole('tab', { name: tab }).click();
+      await expect(page.getByRole('tab', { name: tab, selected: true })).toBeVisible();
+      await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test('grid cards describe their visible details', async ({ page }) => {
+    const movie = makeMovie(1, { Name: 'Described', 'Release Year': '1994', Director: 'Jane Doe' });
+    await mockMovies(page, [movie]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    await page.getByText('Grid', { exact: true }).click();
+    const card = page.getByRole('button', { name: 'View details for Described' });
+    await expect(card).toHaveAccessibleDescription(/1994.*Jane Doe/);
+    // The name is already the card's label, so the description doesn't repeat it.
+    await expect(card).not.toHaveAccessibleDescription(/Described/);
+  });
+
+  test('CSV export starts with a UTF-8 BOM and guards header names', async ({ page }) => {
+    await mockMovies(page, [makeMovie(1, { '=X': 'extra' }), makeMovie(2)]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: /Export CSV/i }).click();
+    const bytes = readFileSync(await (await downloadPromise).path());
+    expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    const header = bytes.subarray(3).toString('utf8').split('\n')[0].split(',');
+    expect(header).toContain("'=X");
+    expect(header).not.toContain('=X');
+  });
+
+  test("a failed first load shows the server's reason and no catalogue count", async ({ page }) => {
+    const reason = 'Catalogue file could not be loaded; see server log';
+    await page.route('**/api/movies', (route) => route.fulfill({ status: 500, json: { error: reason } }));
+    await page.goto('/movies');
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expect(page.locator('[title$="movies in catalogue"]')).toHaveCount(0);
+  });
+
+  test('a first-load 503 is retried once automatically', async ({ page }) => {
+    const rows = [makeMovie(1), makeMovie(2)];
+    // 503 for every request in the first 300 ms (StrictMode's dev double-fetch lands there too);
+    // only the automatic retry, ~1 s later, gets data. Without the retry the page shows the error.
+    let firstAt: number | undefined;
+    await page.route('**/api/movies', (route) => {
+      firstAt ??= Date.now();
+      return Date.now() - firstAt < 300
+        ? route.fulfill({ status: 503, json: { error: 'Data still loading' } })
+        : route.fulfill({ json: rows });
+    });
+    await page.goto('/movies');
+    await waitForTable(page);
+    await expectTotal(page, 2);
+    await expect(page.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+    await expect(page.getByText('Data still loading')).toHaveCount(0);
+  });
+
+  test('a 200 response that is not a list shows the load error, not the crash screen', async ({ page }) => {
+    await page.route('**/api/movies', (route) =>
+      route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>proxy</title>' }));
+    await page.goto('/movies');
+    await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expect(page.getByText('Unexpected response from the server')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Try Again' })).toHaveCount(0);
+  });
+
+  test('Clear all drops the search at once, without waiting for the debounce', async ({ page }) => {
+    const movies = await fetchMovies(page);
+    const term = movies[0].Name;
+    await page.clock.install();
+    await page.goto('/movies');
+    await waitForTable(page);
+    await page.clock.pauseAt(Date.now() + 60_000);
+
+    await searchBox(page).fill(term);
+    await page.clock.runFor(400);
+    await expectTotal(page, searchMatchCount(movies, term));
+
+    // Clock stays paused: a cleared search must not wait for the 300 ms timer.
+    await page.locator('button[title="Clear all filters"]').click();
+    await expect(searchBox(page)).toHaveValue('');
+    await expectTotal(page, movies.length);
+  });
+
   test('multiple filters combined', async ({ page }) => {
     const movies = await fetchMovies(page);
     await page.goto('/movies');
@@ -904,6 +1479,58 @@ test.describe('Drill-down consistency', () => {
     await expect(page.locator('.ant-tag').filter({ hasText: `Year: ${yearMin + 1}–${yearMax}` })).toBeVisible();
     await expect(page.locator('.ant-tag').filter({ hasText: 'Vote:' })).toBeVisible();
     await expectTotal(page, counts[index]);
+  });
+
+  test('a drill-down never renders the filters saved earlier in the session', async ({ page }) => {
+    const saved = 'zz-saved-search-no-match';
+    await page.addInitScript((text) => {
+      sessionStorage.setItem('movieDash_filters_v2', JSON.stringify({ search: text }));
+      const w = window as unknown as { __sawSaved: boolean };
+      w.__sawSaved = false;
+      // Read the mutation records, not the live DOM: the saved filters may be replaced within the
+      // same task, before this callback runs, so only the records still show what was rendered.
+      const has = (v: string | null | undefined) => !!v && v.includes(text);
+      new MutationObserver((records) => {
+        if (location.pathname !== '/movies') return;
+        for (const r of records) {
+          const added = [...r.addedNodes].some((n) => has(n.textContent)
+            || (n instanceof Element && [...n.querySelectorAll('input')].some((i) => has(i.value) || has(i.getAttribute('value')))));
+          if (added || has(r.oldValue) || (r.type === 'characterData' && has(r.target.textContent))) w.__sawSaved = true;
+        }
+      }).observe(document, {
+        subtree: true, childList: true, characterData: true, characterDataOldValue: true,
+        attributes: true, attributeFilter: ['value'], attributeOldValue: true,
+      });
+    }, saved);
+
+    const movies = await fetchMovies(page);
+    const counts = voteBucketCounts(movies, 5, 2);
+    const index = counts.indexOf(Math.max(...counts));
+    await page.goto('/');
+    const canvas = page.getByText('Rating Distribution', { exact: true }).locator('xpath=..').locator('canvas');
+    await expect(canvas).toBeVisible();
+    await clickVerticalBar(page, canvas, index, 5);
+    await expect(page).toHaveURL('/movies');
+    await waitForTable(page);
+    await expectTotal(page, counts[index]);
+    await expect(searchBox(page)).toHaveValue('');
+    expect(await page.evaluate(() => (window as unknown as { __sawSaved: boolean }).__sawSaved)).toBe(false);
+  });
+
+  test('a decade drill-down past the data is clamped like a restored range', async ({ page }) => {
+    const rows = Array.from({ length: 10 }, (_, i) =>
+      makeMovie(i + 1, { 'Release Year': String(2015 + i), 'Release Date': `${2015 + i}-01-15` }));
+    await mockMovies(page, rows);
+    await page.goto('/stats?tab=runtime');
+    await waitForStats(page);
+    const canvas = activeTabPane(page)
+      .getByRole('heading', { name: 'Avg Runtime by Decade' })
+      .locator('xpath=../..').locator('canvas');
+    await clickVerticalBar(page, canvas, 1, 2); // bars: 2010s, 2020s
+    await expect(page).toHaveURL('/movies');
+    await waitForTable(page);
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Year: 2020–2024' })).toBeVisible();
+    await expectTotal(page, 5);
   });
 
   test('unknown ?tab= falls back to Overview and fixes the URL', async ({ page }) => {

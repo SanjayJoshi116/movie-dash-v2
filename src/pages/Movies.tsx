@@ -32,22 +32,27 @@ const DEFAULT_FILTERS: FilterState = {
   revenueRange: null,
 };
 
+const isEmptySearch = (v: string) => v === '';
+
 const Movies: React.FC = () => {
   const { movies, loading, error, refetch } = useMovies();
   const screens = Grid.useBreakpoint();
-  const [filters, setFilters] = usePersistedFilters(DEFAULT_FILTERS);
+  const location = useLocation();
+  const navigate = useNavigate();
+  // A drill-down's filters (Dashboard/Stats chart clicks) are the page's initial filters, so the
+  // filters saved earlier in the session never render first; the clamp below then applies to them too.
+  const presetFilters = (location.state as { presetFilters?: Partial<FilterState> } | null)?.presetFilters ?? null;
+  const [filters, setFilters] = usePersistedFilters(DEFAULT_FILTERS, presetFilters);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [view, setView] = useState<'table' | 'grid'>('table');
   const [viewDefaulted, setViewDefaulted] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [addMovieOpen, setAddMovieOpen] = useState(false);
-  const location = useLocation();
-  const navigate = useNavigate();
   // Rows in the order the active view shows them (it reports them) — what Export CSV writes.
   const displayedRef = useRef<Movie[]>([]);
   const handleDisplayedChange = useCallback((rows: Movie[]) => { displayedRef.current = rows; }, []);
 
-  // Once the catalogue has loaded, clamp ranges restored from sessionStorage to the current data
+  // Once the catalogue has loaded, clamp ranges restored from sessionStorage (or a drill-down preset) to the current data
   // span (it may have changed since they were saved). Render-phase, once per mount — not an effect.
   const [rangesClamped, setRangesClamped] = useState(false);
   if (!rangesClamped && !loading && movies.length > 0) {
@@ -61,17 +66,15 @@ const Movies: React.FC = () => {
     if (!screens.sm) setView('grid');
   }
 
+  // The preset was consumed as initial state; clear the router state once so a later re-render
+  // or back/forward doesn't re-apply it (syncing the URL is external-system work, hence an effect).
   useEffect(() => {
-    const presetFilters = (location.state as { presetFilters?: Partial<FilterState> } | null)?.presetFilters;
-    if (presetFilters) {
-      setFilters({ ...DEFAULT_FILTERS, ...presetFilters });
-      navigate(location.pathname, { replace: true, state: null });
-    }
-    // Consume drill-down filters passed via navigate() state (e.g. from Dashboard chart clicks) exactly once on arrival.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (presetFilters) navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once on arrival
   }, []);
 
-  const debouncedSearch = useDebounce(filters.search, 300);
+  // Typing is debounced; clearing applies at once, so the old search never filters an empty box.
+  const debouncedSearch = useDebounce(filters.search, 300, isEmptySearch);
   // Changes whenever the effective filters do (debounced search) — the views reset to page 1 on it.
   const filtersKey = useMemo(() => JSON.stringify({ ...filters, search: debouncedSearch }), [filters, debouncedSearch]);
   const filtersActive = isFiltersActive(filters);

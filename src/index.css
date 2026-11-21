@@ -144,3 +144,16 @@ code {
 .ant-card.lift-on-hover:hover {
   transform: translateY(-2px) scale(var(--lift-scale, 1.02));
 }
+
+/* Text for assistive technology only (standard clip pattern). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

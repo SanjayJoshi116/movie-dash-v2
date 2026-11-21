@@ -102,7 +102,7 @@ The system SHALL return status codes and messages that reflect the actual failur
 - **THEN** the response status is `413`, not `500`
 
 ### Requirement: Add Movie search and import behave predictably under rapid input
-The Add Movie dialog SHALL show results only for the most recently submitted search, and SHALL NOT start a new search while one is in progress. It SHALL show the in-progress state of each movie being imported separately.
+The Add Movie dialog SHALL show results only for the most recently submitted search. Submitting a search while another is in progress SHALL replace it: the earlier search's results SHALL never be shown. The dialog SHALL show the in-progress state of each movie being imported separately. A movie SHALL be shown as added exactly when it is in the current catalogue, including when the server reports it is already there. Starting a search or an import SHALL NOT hide an error from a different, earlier operation.
 
 #### Scenario: Rapid successive searches
 - **WHEN** the user searches "Alien" then quickly searches "Aliens"
@@ -111,6 +111,18 @@ The Add Movie dialog SHALL show results only for the most recently submitted sea
 #### Scenario: Two imports in flight
 - **WHEN** the user starts importing movie A and then movie B before A completes
 - **THEN** each row shows its own in-progress state until its own request completes
+
+#### Scenario: Added from another tab
+- **WHEN** a search result was added to the catalogue from another tab and the user clicks Import on it
+- **THEN** the row shows "Added", no error is shown, and the catalogue includes the movie
+
+#### Scenario: Deleted after importing
+- **WHEN** the user imports a movie, deletes it from the details drawer, and reopens Add Movie with the same results
+- **THEN** the row offers Import again
+
+#### Scenario: Earlier import failed
+- **WHEN** importing movie A failed and its error is showing, and the user starts importing movie B
+- **THEN** movie A's error stays visible
 
 ### Requirement: Deleting an already-removed movie recovers gracefully
 The movie details drawer SHALL treat a "not found" response to a delete as the movie already being gone. It SHALL refresh the catalogue and close, rather than leaving a stale entry and an error on screen.
@@ -335,3 +347,10 @@ Every row a bundled script appends SHALL have its text values escaped against sp
 #### Scenario: New file
 - **WHEN** the search tool saves a movie and no catalogue file exists
 - **THEN** the new file's header starts with the server's catalogue columns in order, and `Keywords/Tags` comes after them
+
+### Requirement: A delete affects only the movie it was started for
+When a delete completes, the details drawer SHALL close or show the delete's error only if it still shows the movie the delete was started for. A drawer showing a different movie SHALL NOT show the earlier delete as in progress.
+
+#### Scenario: Drawer switched during a delete
+- **WHEN** the user confirms Delete on movie A, closes the drawer, and opens movie B before A's delete completes
+- **THEN** B's Delete button is not shown as in progress, B's drawer stays open when A's delete completes, and A's error (if any) is not shown on B

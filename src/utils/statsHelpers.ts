@@ -1,6 +1,6 @@
 import type { ChartData } from 'chart.js';
 import type { Movie } from '../types/movie';
-import { CHART_PALETTE } from './chartTheme';
+import { CHART_PALETTE, withAlpha } from './chartTheme';
 
 // Fields stored as comma-joined lists of full names (catalog-data-format spec) — a movie counts
 // once toward each listed value, so a UK/US co-production adds to both countries rather than
@@ -85,7 +85,7 @@ export const VOTE_MAX = 10;
 export function makeDoughnut(data: Record<string, number>, label: string): ChartData<'doughnut'> {
   return {
     labels: Object.keys(data),
-    datasets: [{ label, data: Object.values(data), backgroundColor: CHART_PALETTE, hoverBackgroundColor: CHART_PALETTE }],
+    datasets: [{ label, data: Object.values(data), backgroundColor: CHART_PALETTE }],
   };
 }
 
@@ -95,7 +95,7 @@ export function makePolar(data: Record<string, number>, label: string): ChartDat
     datasets: [{
       label,
       data: Object.values(data),
-      backgroundColor: CHART_PALETTE.map(c => c + 'cc'),
+      backgroundColor: CHART_PALETTE.map(c => withAlpha(c, 0.8)),
       borderColor: CHART_PALETTE,
       borderWidth: 1,
     }],
@@ -109,13 +109,28 @@ export function parseRevenue(val: string): number {
   return isNaN(num) ? 0 : num;
 }
 
+// Largest first: [size, suffix, decimals].
+const REVENUE_UNITS: readonly (readonly [number, string, number])[] = [
+  [1_000_000_000, 'B', 1],
+  [1_000_000, 'M', 1],
+  [1_000, 'K', 0],
+];
+
+const formatInUnit = (n: number, [size, suffix, digits]: readonly [number, string, number]): string =>
+  `$${(n / size).toFixed(digits)}${suffix}`;
+
 // Used for aggregates, axis ticks, slider/chip bounds — so 0 is a real "$0", not "missing".
+// Rounds first, then moves up a unit if the rounded value reaches 1000 (999,600 → $1.0M, not $1000K).
 export function formatRevenue(n: number): string {
   if (!Number.isFinite(n)) return 'N/A';
   if (n < 0) return `-${formatRevenue(-n)}`;
   if (n === 0) return '$0';
-  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n.toFixed(0)}`;
+  for (let i = 0; i < REVENUE_UNITS.length; i++) {
+    const unit = REVENUE_UNITS[i];
+    if (n < unit[0]) continue;
+    const rounded = Number((n / unit[0]).toFixed(unit[2]));
+    return rounded >= 1000 && i > 0 ? formatInUnit(n, REVENUE_UNITS[i - 1]) : formatInUnit(n, unit);
+  }
+  const whole = Math.round(n);
+  return whole >= 1000 ? formatInUnit(n, REVENUE_UNITS[REVENUE_UNITS.length - 1]) : `$${whole}`;
 }

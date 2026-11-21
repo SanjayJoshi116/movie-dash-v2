@@ -19,11 +19,16 @@ export interface Movie {
 }
 
 /** Every Movie field, in the CSV's column order — the fixed column set for CSV export. */
-export const CATALOGUE_COLUMNS: readonly (keyof Movie)[] = [
+export const CATALOGUE_COLUMNS = [
   'Movie ID', 'Name', 'Language', 'Runtime', 'Release Year', 'Genres', 'Director',
   'Actors/Actresses', 'Production Company', 'Production Country', 'Box Office Revenue',
   'Budget', 'Popularity Score', 'Vote Average', 'Vote Count', 'Poster URL', 'Release Date',
-];
+] as const satisfies readonly (keyof Movie)[];
+
+// Compile-time check: adding a Movie field without listing it above fails the build here.
+type MissingColumn = Exclude<keyof Movie, (typeof CATALOGUE_COLUMNS)[number]>;
+const _allColumnsListed: [MissingColumn] extends [never] ? true : never = true;
+void _allColumnsListed;
 
 export interface FilterState {
   search: string;

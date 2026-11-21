@@ -44,7 +44,8 @@ const columns: ColumnsType<Movie> = [
     dataIndex: 'Language',
     key: 'Language',
     width: 110,
-    sorter: (a, b) => a.Language.localeCompare(b.Language),
+    // Sort by the name shown, not the ISO code (de/el/en → English, German, Greek).
+    sorter: (a, b) => getLanguageName(a.Language).localeCompare(getLanguageName(b.Language)),
     render: (code: string) => getLanguageName(code),
   },
   {
@@ -129,6 +130,13 @@ const MovieTable: React.FC<MovieTableProps> = ({ movies, onRowClick, filtersKey,
   if (filtersKey !== prevFiltersKey) {
     setPrevFiltersKey(filtersKey);
     setPage(1);
+  }
+
+  // A sort on a column hidden at this width would keep ordering the rows (and the export)
+  // unseen — clear it. Render-phase, so it stays cleared when the window widens again.
+  const sortedColumn = columns.find((c) => c.key === sort.columnKey);
+  if (sort.order && sortedColumn?.responsive?.every((bp) => screens[bp] === false)) {
+    setSort({ columnKey: undefined, order: null });
   }
 
   const controlledColumns = useMemo<ColumnsType<Movie>>(

@@ -62,7 +62,7 @@ The Stats page SHALL show the Overview tab when the requested tab is not one of 
 - **THEN** the URL contains `tab=boxoffice` without the user switching tabs, and reloading shows the Box Office tab
 
 ### Requirement: Money values are labelled accurately
-Charts SHALL display a zero amount as `$0` and a negative amount with a leading minus sign. "N/A" SHALL be reserved for values that are missing.
+Charts SHALL display a zero amount as `$0` and a negative amount with a leading minus sign. "N/A" SHALL be reserved for values that are missing. A shortened amount SHALL never show 1000 or more of a unit; it SHALL move up to the next unit instead.
 
 #### Scenario: Axis origin
 - **WHEN** a box-office chart is rendered
@@ -71,6 +71,14 @@ Charts SHALL display a zero amount as `$0` and a negative amount with a leading 
 #### Scenario: Break-even profit
 - **WHEN** a movie's profit is exactly zero
 - **THEN** its tooltip reads `$0`
+
+#### Scenario: Just under a million
+- **WHEN** an amount of 999,600 is shown in shortened form
+- **THEN** it reads `$1.0M`, not `$1000K`
+
+#### Scenario: Just under a billion
+- **WHEN** an amount of 999,960,000 is shown in shortened form
+- **THEN** it reads `$1.0B`, not `$1000.0M`
 
 ### Requirement: Category charts use distinct colours
 Category breakdown charts SHALL show at most seven named categories, with the remainder grouped as "Other". No two segments in one chart SHALL share a colour.
@@ -85,3 +93,28 @@ The Dashboard's recent release trend SHALL cover a continuous span of the 10 mos
 #### Scenario: Gap year
 - **WHEN** the catalogue has no movies released in 2019
 - **THEN** the trend still shows 2019 with a value of 0, and the chart title's year range matches the axis
+
+### Requirement: Line-chart points are easy to target
+On line charts, hovering anywhere over a point's position on the x-axis SHALL show that point's tooltip. Where the point is a drill-down target, clicking there SHALL drill down, and the pointer cursor SHALL show exactly where a click would drill down.
+
+#### Scenario: Near-miss click on the release trend
+- **WHEN** the user clicks the Dashboard release trend 20 px above a year's point
+- **THEN** the app opens the Movies page filtered to that year
+
+### Requirement: Chart values are shown at their real precision
+Chart tooltips SHALL show whole-number values without decimals, and other values with at most two decimals. A point with no value SHALL NOT break the tooltip. Scatter tooltips SHALL name the axes they show, using the chart's axis labels.
+
+#### Scenario: Count tooltip
+- **WHEN** the user hovers an actor with 23 appearances in "Top 15 Actors & Actresses"
+- **THEN** the tooltip shows 23, not 23.00
+
+#### Scenario: Scatter tooltip
+- **WHEN** the user hovers a point in "Vote Count vs Vote Average"
+- **THEN** the tooltip shows the movie name with the vote count and vote average, each named by its axis label
+
+### Requirement: Single-series charts have no hiding legend
+Bar and line charts with a single dataset SHALL NOT show a legend, so the user can't hide the only dataset by clicking it. Charts with more than one dataset SHALL keep their legend.
+
+#### Scenario: Rating distribution
+- **WHEN** the Dashboard rating distribution chart is shown
+- **THEN** it has no legend, and its bars can't be hidden

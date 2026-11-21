@@ -1,5 +1,5 @@
 import React, { Suspense, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, useNavigationType } from 'react-router';
 import { Layout, Result, Button, Spin, ConfigProvider, Grid, theme as antdTheme } from 'antd';
 import { MoviesProvider, useMoviesContext } from './contexts/MoviesContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
@@ -41,18 +41,37 @@ const NotFound: React.FC = () => {
 
 const AppContent: React.FC = () => {
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const navigationType = useNavigationType();
   const { isDark } = useTheme();
   const { refetch } = useMoviesContext();
   const screens = Grid.useBreakpoint();
-  // useBreakpoint() is {} on the very first render; treat "unknown" as neither layout so the
-  // mobile BottomNav doesn't flash on desktop before the Sidebar takes over.
+  // antd 6.7's useBreakpoint() reads matchMedia in its first snapshot, so `screens` is real on the
+  // first render. `=== false` is still defensive: an unknown value is treated as neither layout, so
+  // the mobile BottomNav never shows on desktop and a tablet-width load starts collapsed.
   const isMobile = screens.sm === false;
+  const [collapsed, setCollapsed] = useState(() => screens.md === false);
   const [prevMd, setPrevMd] = useState(screens.md);
 
+  // Later resizes across md: render-phase prev-value pattern (no effect).
   if (screens.md !== prevMd) {
     setPrevMd(screens.md);
     setCollapsed(!screens.md);
+  }
+
+  // The boundary is keyed on pathname (fresh per section). Within a section, a navigation (e.g.
+  // clicking Stats while a crashed /stats?tab=people is shown) also resets it via resetKey. The one
+  // exception is a REPLACE that only rewrites the query string (Stats' ?tab= sync), so switching
+  // tabs never clears/remounts the page. A Link to the URL already shown is also a REPLACE (React
+  // Router does that for same-URL links) but keeps the search, so clicking a crashed page's own nav
+  // link still resets it.
+  const [prevLocation, setPrevLocation] = useState(location);
+  const [resetKey, setResetKey] = useState(location.key);
+  if (location.key !== prevLocation.key) {
+    setPrevLocation(location);
+    const searchOnlyReplace = navigationType === 'REPLACE'
+      && location.pathname === prevLocation.pathname
+      && location.search !== prevLocation.search;
+    if (!searchOnlyReplace) setResetKey(location.key);
   }
 
   return (
@@ -100,7 +119,7 @@ const AppContent: React.FC = () => {
         <Layout style={{ background: 'transparent' }}>
           <TopBar />
           <Content style={isMobile ? { paddingBottom: 64 } : undefined}>
-            <ErrorBoundary key={location.pathname} onReset={refetch}>
+            <ErrorBoundary key={location.pathname} resetKey={resetKey} onReset={refetch}>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   <Route path="/" element={<Dashboard />} />

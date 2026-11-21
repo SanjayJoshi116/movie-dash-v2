@@ -18,9 +18,18 @@ export const CHART_PRIMARY = CHART_PALETTE[0];
 export const CHART_POSITIVE = CHART_PALETTE[7];
 export const CHART_NEGATIVE = CHART_PALETTE[2];
 
-/** `#RRGGBB` → `rgba(r, g, b, alpha)`, for fills/heatmaps derived from a palette colour. */
+const HEX_COLOR = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/**
+ * `#RGB` / `#RRGGBB` → `rgba(r, g, b, alpha)`, for fills/heatmaps derived from a palette colour.
+ * Throws a TypeError for any other format, so a bad colour fails on first render instead of
+ * silently rendering the wrong one.
+ */
 export const withAlpha = (hex: string, alpha: number): string => {
-  const n = parseInt(hex.slice(1), 16);
+  const match = HEX_COLOR.exec(hex);
+  if (!match) throw new TypeError('withAlpha expects #RGB or #RRGGBB');
+  const digits = match[1].length === 3 ? match[1].replace(/./g, (c) => c + c) : match[1];
+  const n = parseInt(digits, 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 };
 

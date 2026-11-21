@@ -48,7 +48,7 @@ Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`,
 - Filter state persisted for the tab/session (`sessionStorage`) — survives navigating away and back, resets on a new tab or browser restart
 - Sortable columns, pagination (5 / 10 / 20 / 50 per page) in table view
 - Click any row/card to open a detail drawer with full movie info, vote count, and popularity score — rows/cards are keyboard-accessible (`Enter`/`Space`) with `aria-label`s
-- Export filtered results to CSV
+- Export filtered results to CSV (UTF-8 with BOM, so Excel shows accented titles correctly; formula-like cells and column names guarded)
 - **Add Movie** button opens a modal to search TMDB (by movie name and/or actor, optionally narrowed by release year) and import a result straight into the running catalogue — no restart, no leaving the browser. Requires `TMDB_API_KEY` in `.env` (see [Where to get the data](#where-to-get-the-data--tmdb-api)); `movie-search.py` remains available for bulk/offline imports.
 - Detail drawer has a **Delete** button (confirm required) to remove a movie from the catalogue
 - Sidebar auto-collapses to icon rail below 768px (Ant Design `md` breakpoint); manual toggle still works within a breakpoint
@@ -68,12 +68,12 @@ A global Release Year Range slider at the top of the page scopes every tab to a 
 
 ### Theme
 - Light / dark toggle (sun/moon button in the top bar)
-- Preference persisted to `localStorage`
+- Follows the OS light/dark setting (including live changes) until you use the toggle; only a toggled choice is saved, to `localStorage` under `movieDash_theme`
 - Refined glassmorphism design system — shared surface, spacing, and typography tokens (CSS custom properties + `src/utils/chartTheme.ts`) applied consistently across the sidebar/top bar and every page, with a calmer border/shadow and a muted 8-color chart palette used by every chart (single-series charts use one palette color, profit/loss a positive/negative pair); doughnut legends switch to a compact layout on phones so no legend row is dropped
 
 ### Accessibility
-- Keyboard-operable movie lists: each table row's movie name is a real button (rows keep their table semantics for screen readers), grid cards and the Dashboard's Recent Releases are focusable with `aria-label`s — `Tab` to focus, `Enter`/`Space` to open
-- Icon-only buttons (theme toggle, template download, chart PNG download) have accessible names; the Filters button announces when filters are active; decorative heading/tab emoji are hidden from screen readers
+- Keyboard-operable movie lists: each table row's movie name is a real button (rows keep their table semantics for screen readers), grid cards (which also expose their visible details as an accessible description) and the Dashboard's Recent Releases are focusable with `aria-label`s — `Tab` to focus, `Enter`/`Space` to open
+- Icon-only buttons (theme toggle, template download, chart PNG download) and the collapsed sidebar logo link have accessible names; the Filters button announces when filters are active; decorative heading/tab emoji and nav-link icons are hidden from screen readers; the background catalogue refresh is announced as a status
 - Readable in both themes (Top-10 ranks, chart PNG exports on an opaque background); release dates consistently DD-MM-YYYY
 - `BottomNav`'s active link sets `aria-current="page"` for assistive tech
 - Semantic headings (`<Title>`) per page instead of relying on the top bar for page identity
@@ -91,7 +91,7 @@ A global Release Year Range slider at the top of the page scopes every tab to a 
 | HTTP | Axios |
 | Backend | Express 5 (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
-| Testing | Playwright (65 E2E tests), Node `node:test` via tsx (112 server API tests), Python `unittest` (38 tool tests) |
+| Testing | Playwright (94 E2E tests), Node `node:test` via tsx (112 server API tests, 26 frontend unit tests), Python `unittest` (38 tool tests) |
 | Linting | ESLint (typescript-eslint, react-hooks, unused-imports) |
 
 ---
@@ -234,6 +234,7 @@ To open the app from a phone or another device on the same network (e.g. to chec
 |---|---|
 | `npm run lint` | Run ESLint across the project; any warning fails (`--max-warnings 0`) |
 | `npm run test:server` | Run server API tests (temp CSVs + stubbed TMDB — never touches `src/movies.csv`) |
+| `npm run test:unit` | Run frontend unit tests for the shared `src/utils` helpers (no browser or server) |
 | `npm run test:e2e` | Run Playwright E2E tests (headless) |
 | `npm run test:e2e:ui` | Run Playwright E2E tests with interactive UI |
 | `npm run test:e2e:report` | Open the last Playwright HTML report |
@@ -261,8 +262,9 @@ movie-dash-v2/
 │   ├── tmdb.ts                 # TMDB client (axios + retries)
 │   └── __tests__/              # Server API tests (node:test, 112 tests)
 ├── tests/
-│   ├── app.spec.ts             # Playwright E2E tests (65 tests)
+│   ├── app.spec.ts             # Playwright E2E tests (94 tests)
 │   ├── helpers.ts              # Shared e2e helpers + mutation-guard fixture
+│   ├── unit/                   # Frontend unit tests (node:test, 26 tests)
 │   └── python/                 # Python tool tests (unittest, 38 tests)
 ├── movie-search.py             # Tkinter TMDB search → appends to src/movies.csv
 ├── backfill_posters.py         # One-off Poster URL backfill
@@ -271,16 +273,16 @@ movie-dash-v2/
 │   ├── screenshots/            # README screenshots
 │   └── audit-findings-2026-10-08.md  # Codebase audit; findings tracked as OpenSpec changes
 ├── openspec/
-│   ├── specs/                  # Current behaviour specs (catalog-persistence, catalog-data-format,
-│   │                           # analytics-drilldown, movie-browsing, accessible-ui)
-│   └── changes/                # In-flight changes; archive/ holds completed ones
+│   ├── specs/                  # Current behaviour specs (12 capabilities, e.g. catalog-persistence,
+│   │                           # analytics-drilldown, movie-browsing, accessible-ui, dev-quality-gates)
+│   └── changes/                # In-flight changes (incl. the fix-*-review set); archive/ holds completed ones
 ├── playwright.config.ts        # Playwright configuration
 ├── scripts/
 │   └── check-bundle.mjs        # Bundle-size budget check (npm run check:bundle)
 ├── src/
 │   ├── contexts/
 │   │   ├── MoviesContext.tsx    # Global movie data provider (first-load vs background refresh)
-│   │   ├── ThemeContext.tsx     # Light/dark theme provider (follows OS preference on first visit)
+│   │   ├── ThemeContext.tsx     # Light/dark theme provider (follows the OS until the user toggles)
 │   │   └── DrilldownContext.tsx # useDrillDown(): chart click → /movies pre-filtered (+ Stats year scope)
 │   ├── components/
 │   │   ├── Charts/             # BarChart, LineChart, HorizontalBar, Radar,
@@ -312,7 +314,7 @@ movie-dash-v2/
 │   │   ├── statsHelpers.ts     # groupByField, topNWithOther, chart bucket helpers, parseRevenue, formatRevenue
 │   │   ├── filterChips.ts      # buildFilterChips, isFiltersActive — shared by the Filters button and chips row
 │   │   ├── formatDate.ts       # formatDateDDMMYYYY — release dates rendered as DD-MM-YYYY
-│   │   ├── exportCsv.ts        # Export in on-screen order, all catalogue columns, formula-safe
+│   │   ├── exportCsv.ts        # Export in on-screen order, all catalogue columns, formula-safe, UTF-8 BOM
 │   │   ├── filterSpans.ts      # Data min/max for range sliders + clamping restored ranges
 │   │   ├── path.ts             # normalizePath — trailing-slash-safe nav highlighting
 │   │   ├── search.ts           # SEARCHABLE_FIELDS + matchesSearch() — Movies search (shared with e2e)
@@ -330,21 +332,21 @@ movie-dash-v2/
 
 ## E2E Testing
 
-Playwright tests cover the full user journey across 13 suites (65 tests):
+Playwright tests cover the full user journey across 13 suites (94 tests):
 
-- **Dashboard** — layout, highlight cards (click-to-drawer), CTA navigation to Movies/Stats, Total Box Office stat click-to-tab, empty-catalogue state
+- **Dashboard** — layout, highlight cards (click-to-drawer), CTA navigation to Movies/Stats, Total Box Office stat click-to-tab, empty-catalogue state, a click well above a release-trend point still drilling down to that year, no legend on the single-series rating chart
 - **Movies** — layout, table/grid toggle, drawer from row and card, search, filters drawer (open/close, language/genre filters), empty state, clear/reset, active-filter dot indicator, sorting, pagination, page size, CSV export
 - **Movies Grid View** — poster image renders (real or fallback), card keyboard-activatable (Enter), grid pagination page-size changer
 - **Movies Grid Sort** — every grid sort option orders the cards as expected (mocked catalogue)
 - **Movies Advanced Filters** — director filter chip, runtime range slider, revenue range slider
-- **Movies Add & Delete** — Add Movie search → import → "Added" → refetch, and Delete via Popconfirm → refetch → drawer closes (TMDB and every write are `page.route`-mocked)
-- **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title updates
-- **Mobile** — phone viewport shows the bottom nav instead of the sidebar, and its links work
-- **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence, Release Year Range slider + Reset, chart PNG download
-- **Theme** — default dark, toggle to light, reload persistence
-- **Filter Persistence** — search filter survives route changes via `sessionStorage`
-- **Edge Cases** — combined filters, pagination, sort + filter combo
-- **Drill-down consistency** — clicking a Dashboard rating bar opens exactly the movies it counted (and opening the filters drawer doesn't rewrite the range); a Stats drill-down carries the Release Year Range scope; `?tab=bogus` falls back to Overview. Bars are located on the canvas via the pointer cursor the chart wrappers set over clickable elements; expected counts come from `/api/movies`, so the tests work on any dataset
+- **Movies Add & Delete** — Add Movie search → import → "Added" → refetch, and Delete via Popconfirm → refetch → drawer closes, the background refresh announced as a status, a new search replacing a running one, a `409` shown as "Added", Import offered again after a delete, an earlier import error kept visible, a delete finishing after switching movies leaving the new drawer alone, and unknown runtime/rating/date shown as unknown (TMDB and every write are `page.route`-mocked)
+- **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title updates, sidebar collapsed on a tablet-width load, the collapsed logo link's name, Back keeping the scroll position while a nav link opens the new section at the top
+- **Mobile** — phone viewport shows the bottom nav instead of the sidebar, and its links work (named by their visible label only); a sort on a column hidden by narrowing the window is cleared, also for the export
+- **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence, Release Year Range slider + Reset, chart PNG download, tab switches that don't remount the page, whole-number count tooltips
+- **Theme** — default dark, toggle to light, reload persistence, OS changes followed live until a toggle (and ignored after), nothing saved on a first visit, another app's bare `theme` key ignored
+- **Filter Persistence** — search filter survives route changes via `sessionStorage`; filters still restore when `localStorage` is blocked
+- **Edge Cases** — Language sorted by its shown name, a row missing Genres/Release Date rendering in every view (table, grid, drawer, Stats tabs), grid-card accessible descriptions, CSV export BOM + guarded header names, combined filters, pagination, sort + filter combo, a failed first load showing the server's reason with no catalogue count, a first-load 503 retried once, a non-list `/api/movies` response showing the load error (not the crash screen), Clear all dropping the search without waiting for the debounce (Playwright clock)
+- **Drill-down consistency** — clicking a Dashboard rating bar opens exactly the movies it counted (and opening the filters drawer doesn't rewrite the range); a Stats drill-down carries the Release Year Range scope; `?tab=bogus` falls back to Overview; a drill-down never renders the filters saved earlier in the session; a decade drill-down past the data is clamped like a restored range. Bars are located on the canvas via the pointer cursor the chart wrappers set over clickable elements; expected counts come from `/api/movies`, so the tests work on any dataset
 
 Tests run automatically on every push and pull request to `main` via GitHub Actions (see `.github/workflows/ci.yml`).
 
@@ -373,6 +375,14 @@ npm run test:server
 ```
 
 112 tests (Node's built-in `node:test`, run via `tsx --test`, ~3s) exercise the Express API through `createApp()` (`server/app.ts`). Each test gets its own CSV in an OS temp directory — **they never read or write `src/movies.csv`** — and TMDB is stubbed, so no network or API key is needed. Coverage includes every route, helmet headers, rate limiting, TMDB retry/backoff, and the catalogue-safety guarantees: serialized writes (concurrent deletes, import during delete), duplicate-import rejection, external edits surviving in-app writes, BOM / CRLF / missing-trailing-newline files (kept as they are on rewrite), blank trailing header cells, formula-escaping round-trips, failed-write rollback, and accurate error codes. Also covered: the TMDB key never reaching the logs, a 15 s TMDB deadline (`Retry-After` honoured), unusable TMDB bodies rejected with `502`, unexpected handler errors returning `500` without crashing the server, duplicate-header files never being rewritten, the `ETag` changing across restarts, deletes surviving a concurrent external write, and retries on transient Windows file locks. The startup helpers (`server/bootstrap.ts`) are covered too: strict `PORT` parsing, `.env` read errors, port-in-use errors, graceful shutdown waiting for catalogue writes, and a failed startup load reported as an error instead of an empty list. Production hosting is covered as well: hashed assets cached as immutable and `index.html` as `no-cache`, the client-route fallback, JSON `404` for unknown `/api` paths, the Content-Security-Policy, and `TRUST_PROXY` (off by default; per-client rate limiting behind a proxy). Runs in CI before e2e.
+
+### Frontend unit tests
+
+```bash
+npm run test:unit
+```
+
+26 tests (Node's built-in `node:test`, run via `tsx --test`, no browser or server) for the shared display helpers in `src/utils` and the chart wrappers' `formatNumber`: revenue labels at unit boundaries (`$1.0M`, not `$1000K`), `withAlpha` colour parsing (`#RGB`/`#RRGGBB`, anything else throws), `DD-MM-YYYY` date formatting (input trimmed, other shapes passed through, missing or blank values give an empty string), language-name lookup (including inherited keys like `constructor`), multi-valued grouping, top-7-plus-Other, and the half-open chart buckets used by drill-downs. Playwright ignores `tests/unit/`. Runs in CI after the server tests.
 
 ### Python tool tests
 
@@ -411,7 +421,7 @@ Responses are gzip-compressed; `/api/movies` is sent with `Cache-Control: no-cac
 - **Input validation** — `Movie ID` route params are length-checked before use.
 - **Error handling** — a catch-all Express error-handling middleware returns a generic `500 { error: "Internal server error" }` instead of leaking stack traces; errors are still logged server-side. Every async route forwards its errors there, so one bad request can't crash the process. Client errors from body parsing pass through as their real status (`400` malformed JSON, `413` body over 10 KB).
 - **TMDB key stays server-side** — `TMDB_API_KEY` (same `.env` var `movie-search.py` uses) is only ever read in `server/server.ts`; the browser never sees it, and it never appears in server logs (TMDB failures are logged as a status/code/path summary, never the raw HTTP-client error, which would contain the key). CSV rows appended via the in-app Add Movie import are sanitized against formula injection (`=`, `+`, `-`, `@` prefixes get a leading `'`), same guard as `movie-search.py`; the server strips that `'` when reading, so the UI shows the original title and rewrites never double-escape.
-- CI runs `npm audit --audit-level=high` (no high/critical advisories; `shell-quote` is pinned via `overrides`) before lint, Python lint (`ruff`, pinned in `requirements-dev.txt`) and Python unit tests (`tests/python/`, stdlib `unittest`), server type-check, build, bundle budget (`npm run check:bundle`), server tests and e2e.
+- CI runs `npm audit --audit-level=high` (no high/critical advisories; `shell-quote` is pinned via `overrides`) before lint, Python lint (`ruff`, pinned in `requirements-dev.txt`) and Python unit tests (`tests/python/`, stdlib `unittest`), server type-check, build, bundle budget (`npm run check:bundle`), server tests, frontend unit tests and e2e.
 - `movie-search.py` sends the TMDB API key via `requests`' `params=` (never string-interpolated into a URL) and never echoes raw request exceptions — which could include the URL/key — back to the user in an error dialog.
 
 ---
@@ -476,7 +486,7 @@ Ideas under consideration, not commitments:
 
 1. Fork the repo and create a branch off `main`.
 2. Make your changes, keeping with the existing code style (`npm run lint`).
-3. Run `npm run lint`, `npm run test:server` and `npm run test:e2e` before opening a PR.
+3. Run `npm run lint`, `npm run test:server`, `npm run test:unit` and `npm run test:e2e` before opening a PR.
 4. Open a PR describing the change and why.
 
 ---
@@ -489,4 +499,4 @@ MIT — see [LICENSE](./LICENSE).
 
 ## Changelog
 
-`package.json` version follows [Semantic Versioning](https://semver.org/). See [CHANGELOG.md](./CHANGELOG.md) for release notes. See [features.txt](./features.txt) for a plain-text feature list, and [CLAUDE.md](./CLAUDE.md) for repo/architecture notes aimed at AI coding agents.
+`package.json` version follows [Semantic Versioning](https://semver.org/). See [CHANGELOG.md](./CHANGELOG.md) for release notes. See [features.txt](./features.txt) for a plain-text feature list, [BUG_BACKLOG.md](./BUG_BACKLOG.md) for open bugs and the per-module review tracker, and [CLAUDE.md](./CLAUDE.md) for repo/architecture notes aimed at AI coding agents.
