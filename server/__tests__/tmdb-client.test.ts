@@ -86,15 +86,21 @@ describe('TMDB failures are reported within a bounded time', () => {
   const timeoutError = () => Object.assign(new Error('timeout of 10000ms exceeded'), { isAxiosError: true, code: 'ECONNABORTED' });
   const rateLimited = (retryAfter: string) => Object.assign(axiosError(429), { response: { status: 429, headers: { 'retry-after': retryAfter } } });
 
-  it('every attempt carries a wall-clock abort signal bounded by the deadline', async () => {
+  // AbortSignal.timeout runs on real time, which the fake clock can't drive; the per-attempt
+  // timeout values are checked by the deadline test below.
+  it('each attempt gets its own abort signal', async () => {
     const signals: unknown[] = [];
+    let attempt = 0;
     const httpGet = (async (_url: string, config?: { signal?: unknown }) => {
       signals.push(config?.signal);
+      if (++attempt === 1) throw Object.assign(new Error('socket hang up'), { isAxiosError: true, code: 'ECONNRESET' });
       return { data: { ok: true } };
     }) as unknown as typeof axios.get;
     const client = createTmdbClient({ apiKey: 'k', httpGet, sleep: async () => undefined });
-    await client.get('/x');
-    assert.ok(signals[0] instanceof AbortSignal);
+    assert.deepEqual(await client.get('/x'), { ok: true });
+    assert.equal(signals.length, 2, 'the network error was retried once');
+    assert.ok(signals.every((sig) => sig instanceof AbortSignal));
+    assert.notEqual(signals[0], signals[1], 'a retry must not reuse the first attempt’s signal');
   });
 
   it('a non-network error is not retried', async () => {
@@ -108,6 +114,7 @@ describe('TMDB failures are reported within a bounded time', () => {
     const c = clockedClient(() => ({ error: timeoutError(), takesMs: 10000 }));
     await assert.rejects(c.client.get('/x'));
     assert.ok(c.elapsed() <= TMDB_DEADLINE_MS, `took ${c.elapsed()}ms`);
+    assert.ok(c.attempts() >= 2, `expected a retry, saw ${c.attempts()} attempt(s)`);
     assert.equal(c.timeouts[0], 10000);
     assert.ok(c.timeouts.slice(1).every((ms) => ms < 10000), `timeouts ${c.timeouts}`);
   });

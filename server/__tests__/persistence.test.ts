@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   serverPool, request, postJson, readCsvRows, deferred, stubTmdb, tmdbError, tmdbDetails,
-  csvRow, sleep, HEADER, BOM, type TestServer,
+  csvRow, errnoError, reached, HEADER, BOM, type TestServer,
 } from './helpers';
 import { CATALOGUE_COLUMNS } from '../../src/types/movie';
 
@@ -66,25 +66,19 @@ describe('Mutations are serialized and atomic', () => {
   });
 
   it('a failed write leaves the file and the served catalogue unchanged', async () => {
-    const s = await start(importOpts());
+    // Faults injected through fsHooks (not chmod, which root ignores): the delete's rename and the
+    // import's append both fail with EACCES, on every platform and as any user.
+    const fail = async () => { throw errnoError('EACCES'); };
+    const s = await start({ ...importOpts(), fsHooks: { rename: fail, appendFile: fail, sleep: async () => undefined } });
     const before = fs.readFileSync(s.csvPath, 'utf8');
     const listBefore = (await request<MovieJson[]>(s.baseUrl, '/api/movies')).body;
-    // Read-only file blocks append everywhere and blocks the rename on Windows; a read-only
-    // directory blocks creating the temp file on POSIX. Together: every write fails.
-    fs.chmodSync(s.csvPath, 0o444);
-    if (process.platform !== 'win32') fs.chmodSync(s.dir, 0o555);
-    try {
-      const del = await request<{ error: string }>(s.baseUrl, '/api/movies/1', { method: 'DELETE' });
-      assert.equal(del.status, 500);
-      const imp = await postJson<{ error: string }>(s.baseUrl, '/api/tmdb/import', { movieId: 603 });
-      assert.equal(imp.status, 500);
-      assert.equal(imp.body.error, 'Failed to save movie');
-      assert.equal(fs.readFileSync(s.csvPath, 'utf8'), before);
-      assert.deepEqual((await request<MovieJson[]>(s.baseUrl, '/api/movies')).body, listBefore);
-    } finally {
-      if (process.platform !== 'win32') fs.chmodSync(s.dir, 0o755);
-      fs.chmodSync(s.csvPath, 0o644);
-    }
+    const del = await request<{ error: string }>(s.baseUrl, '/api/movies/1', { method: 'DELETE' });
+    assert.equal(del.status, 500);
+    const imp = await postJson<{ error: string }>(s.baseUrl, '/api/tmdb/import', { movieId: 603 });
+    assert.equal(imp.status, 500);
+    assert.equal(imp.body.error, 'Failed to save movie');
+    assert.equal(fs.readFileSync(s.csvPath, 'utf8'), before);
+    assert.deepEqual((await request<MovieJson[]>(s.baseUrl, '/api/movies')).body, listBefore);
   });
 });
 
@@ -108,13 +102,15 @@ describe('Duplicate imports are rejected', () => {
 
   it('a duplicate written externally while TMDB is being fetched is caught inside the queue', async () => {
     const gate = deferred();
-    const tmdb = stubTmdb({ '/movie/777': async () => { await gate.promise; return tmdbDetails(777); } });
+    const atFetch = reached();
+    const tmdb = stubTmdb({ '/movie/777': async () => { atFetch.hit(); await gate.promise; return tmdbDetails(777); } });
     const s = await start(importOpts(tmdb));
     const pending = postJson(s.baseUrl, '/api/tmdb/import', { movieId: 777 });
-    await sleep(30);
+    await atFetch.promise; // past the route's pre-check: TMDB is being fetched
     fs.appendFileSync(s.csvPath, csvRow('777', 'Added Externally') + '\n');
     gate.resolve();
     assert.equal((await pending).status, 409);
+    assert.ok(tmdb.calls.length > 0, 'the 409 came from the in-queue check, not the pre-check');
     assert.equal((await ids(s)).filter((id) => id === '777').length, 1);
   });
 });
@@ -240,11 +236,24 @@ describe('Stored values round-trip faithfully and safely', () => {
     const s = await start(importOpts(stubTmdb({ '/movie/42': tmdbDetails(42, { title: "'-ism" }) })));
     assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 42 })).status, 201);
     assert.equal((await readCsvRows(s.csvPath)).find((r) => r['Movie ID'] === '42')?.Name, "''-ism");
-    // Survives a reload (an external touch) and a rewrite (deleting another movie).
-    fs.appendFileSync(s.csvPath, '');
-    assert.equal((await request(s.baseUrl, '/api/movies/1', { method: 'DELETE' })).status, 200);
-    assert.equal((await request<MovieJson>(s.baseUrl, '/api/movies/42')).body.Name, "'-ism");
+    // Survives a real load (a second server on the same file) and a rewrite (deleting another movie).
+    const again = await start({ dir: s.dir });
+    assert.equal((await request<MovieJson>(again.baseUrl, '/api/movies/42')).body.Name, "'-ism");
+    assert.equal((await request(again.baseUrl, '/api/movies/1', { method: 'DELETE' })).status, 200);
+    assert.equal((await request<MovieJson>(again.baseUrl, '/api/movies/42')).body.Name, "'-ism");
     assert.equal((await readCsvRows(s.csvPath)).find((r) => r['Movie ID'] === '42')?.Name, "''-ism");
+  });
+
+  it('a title that starts with a tab before a formula is stored escaped once and served as entered (B181)', async () => {
+    const title = '\t=HYPERLINK("x")';
+    const s = await start(importOpts(stubTmdb({ '/movie/42': tmdbDetails(42, { title }) })));
+    assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 42 })).status, 201);
+    assert.equal((await readCsvRows(s.csvPath)).find((r) => r['Movie ID'] === '42')?.Name, `'${title}`);
+    // A real load and a rewrite (deleting another movie) neither drop nor double the guard.
+    const again = await start({ dir: s.dir });
+    assert.equal((await request(again.baseUrl, '/api/movies/1', { method: 'DELETE' })).status, 200);
+    assert.equal((await request<MovieJson>(again.baseUrl, '/api/movies/42')).body.Name, title);
+    assert.equal((await readCsvRows(s.csvPath)).find((r) => r['Movie ID'] === '42')?.Name, `'${title}`);
   });
 });
 

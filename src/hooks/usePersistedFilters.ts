@@ -2,7 +2,8 @@ import { useState, useCallback } from 'react';
 import type { FilterState } from '../types/movie';
 
 const OLD_STORAGE_KEY = 'movieDash_filters_v1';
-const STORAGE_KEY = 'movieDash_filters_v2';
+/** The sessionStorage key of the saved Movies filters (exported for the e2e tests). */
+export const STORAGE_KEY = 'movieDash_filters_v2';
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((v) => typeof v === 'string');

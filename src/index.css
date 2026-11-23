@@ -157,3 +157,21 @@ code {
   white-space: nowrap;
   border: 0;
 }
+
+/* Dashboard Recent Releases: a full-width button inside each list item (same reset as .movie-name-button). */
+.recent-release-button {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  border-radius: 4px;
+}
+
+.recent-release-button:focus-visible {
+  outline: 2px solid #818cf8;
+  outline-offset: 2px;
+}

@@ -1,9 +1,11 @@
 // CSV writing helpers shared by the server (src/movies.csv writes) and the browser (Export CSV).
 // Pure string functions with no DOM or Node imports, so both builds can include this file.
 
-const FORMULA_PREFIXES = ['=', '+', '-', '@'];
+// Tab and CR too (OWASP): some importers trim leading whitespace before deciding a cell is a formula (B181).
+// catalogue_io.py FORMULA_PREFIX_CHARS must list the same characters; a Python test compares them.
+const FORMULA_PREFIXES = ['=', '+', '-', '@', '\t', '\r'];
 
-// Prevent CSV/formula injection: Excel/Sheets can execute a cell starting with =, +, -, or @
+// Prevent CSV/formula injection: Excel/Sheets can execute a cell starting with =, +, -, @ (or a tab/CR)
 // when the file is opened later, so such a value gets a leading `'`. Mirrors sanitize_csv_value()
 // in catalogue_io.py. Leading apostrophes before the formula character count too ('-ism is stored
 // as ''-ism), which makes unsanitizeCsvValue() an exact inverse: a real apostrophe is never lost.

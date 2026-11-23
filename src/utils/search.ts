@@ -16,12 +16,13 @@ export const SEARCHABLE_FIELDS = [
 type Searchable = Partial<Pick<Movie, (typeof SEARCHABLE_FIELDS)[number]>>;
 
 /**
- * Whether `movie` matches the Movies page search `term` (case-insensitive substring). Also matches
+ * Whether `movie` matches the Movies page search `term` (case-insensitive substring, surrounding
+ * whitespace ignored; a blank term matches everything). Also matches
  * the language's display name, since `Language` is stored as an ISO code. Shared with the e2e
  * helpers so their expected counts can't drift from the page.
  */
 export function matchesSearch(movie: Searchable, term: string): boolean {
-  const lower = term.toLowerCase();
+  const lower = term.trim().toLowerCase();
   return SEARCHABLE_FIELDS.some((key) => movie[key]?.toLowerCase().includes(lower))
     || getLanguageName(movie.Language ?? '').toLowerCase().includes(lower);
 }

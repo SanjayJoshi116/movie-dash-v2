@@ -147,11 +147,22 @@ class AppendTests(TempCsv):
             add_row_if_new(self.path, {"Movie ID": "3", "Name": "Up"})
         self.assertEqual(self.read(), original)
 
-    def test_sanitize_round_trips_leading_apostrophes(self):
+    def test_sanitize_escapes_formula_prefixes(self):
         self.assertEqual(catalogue_io.sanitize_csv_value("+1"), "'+1")
         self.assertEqual(catalogue_io.sanitize_csv_value("'-ism"), "''-ism")
+        self.assertEqual(catalogue_io.sanitize_csv_value("\t=1"), "'\t=1")
+        self.assertEqual(catalogue_io.sanitize_csv_value("\r=1"), "'\r=1")
         self.assertEqual(catalogue_io.sanitize_csv_value("it's"), "it's")
         self.assertEqual(catalogue_io.sanitize_csv_value("'plain"), "'plain")
+
+    def test_appended_formula_values_read_back_escaped_once(self):
+        self.write(b"Movie ID,Name\n1,Alien\n")
+        add_row_if_new(self.path, {"Movie ID": "2", "Name": "\t=Tab"})
+        add_row_if_new(self.path, {"Movie ID": "3", "Name": "'-ism"})
+        self.assertEqual(self.read(), b"Movie ID,Name\n1,Alien\n2,'\t=Tab\n3,''-ism\n")
+        names = [row["Name"] for row in read_catalogue(self.path).rows]
+        # Stored forms; the server's unsanitizeCsvValue drops exactly one apostrophe from each.
+        self.assertEqual(names, ["Alien", "'\t=Tab", "''-ism"])
 
     def test_new_column_migrates_header(self):
         self.write(BOM + b"Movie ID,Name\r\n1,Alien\r\n")
@@ -238,10 +249,12 @@ class BackfillTests(TempCsv):
 
     def test_nothing_found_leaves_file_untouched(self):
         self.write(b"Movie ID,Name\n1,Alien\n")
-        before = os.stat(self.path).st_mtime_ns
-        self.run_backfill(lambda movie_id: (None, "no_poster_on_tmdb (200, poster_path null)"))
+        # Assert on the rewrite itself: identical bytes and a same-tick mtime can't show a no-op rewrite.
+        with mock.patch.object(backfill_posters, "rewrite_catalogue",
+                               wraps=backfill_posters.rewrite_catalogue) as rewrite:
+            self.run_backfill(lambda movie_id: (None, "no_poster_on_tmdb (200, poster_path null)"))
+        rewrite.assert_not_called()
         self.assertEqual(self.read(), b"Movie ID,Name\n1,Alien\n")
-        self.assertEqual(os.stat(self.path).st_mtime_ns, before)
 
     def test_interrupt_saves_found_posters(self):
         self.write(b"Movie ID,Name,Poster URL\n1,Alien,\n2,Heat,\n3,Up,\n")
@@ -362,6 +375,14 @@ class SharedRulesTests(TempCsv):
             ts = f.read()
         body = re.search(r"CATALOGUE_COLUMNS[^=]*=\s*\[(.*?)\]", ts, re.DOTALL).group(1)
         self.assertEqual(tuple(re.findall(r"'([^']+)'", body)), catalogue_io.CATALOGUE_COLUMNS)
+
+    def test_formula_prefixes_match_typescript(self):
+        with open(os.path.join(ROOT, "src", "utils", "csvEscape.ts"), encoding="utf-8") as f:
+            ts = f.read()
+        body = re.search(r"FORMULA_PREFIXES\s*=\s*\[(.*?)\]", ts, re.DOTALL).group(1)
+        escapes = {"\\t": "\t", "\\r": "\r"}
+        prefixes = {escapes.get(p, p) for p in re.findall(r"'([^']+)'", body)}
+        self.assertEqual(prefixes, set(catalogue_io.FORMULA_PREFIX_CHARS))
 
     def test_append_escapes_formulas_once(self):
         self.write(b"Movie ID,Name\n1,'=Old\n")

@@ -136,6 +136,22 @@ export function deferred(): { promise: Promise<void>; resolve: () => void } {
   return { promise, resolve };
 }
 
+/**
+ * A point the server reaches: a stub or fs hook calls `hit()` there, and the test awaits
+ * `promise` before acting — instead of sleeping and hoping the server got that far.
+ */
+export function reached(): { promise: Promise<void>; hit: () => void } {
+  const { promise, resolve } = deferred();
+  return { promise, hit: resolve };
+}
+
+/** True if `p` is still pending after the current macrotask (a no-sleep "hasn't settled yet" check). */
+export async function isPending(p: Promise<unknown>): Promise<boolean> {
+  const marker = Symbol('pending');
+  const winner = await Promise.race([p.then(() => undefined, () => undefined), new Promise((r) => setImmediate(() => r(marker)))]);
+  return winner === marker;
+}
+
 // ── TMDB stub ──────────────────────────────────────────────────────────────
 
 /** Shaped like an axios error, for faking the HTTP layer underneath createTmdbClient(). */

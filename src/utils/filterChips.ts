@@ -16,7 +16,7 @@ export interface FilterChip {
 
 export function isFiltersActive(filters: FilterState): boolean {
   return (
-    filters.search !== '' ||
+    filters.search.trim() !== '' ||
     filters.languages.length > 0 ||
     filters.genres.length > 0 ||
     filters.directors.length > 0 ||
@@ -30,8 +30,9 @@ export function isFiltersActive(filters: FilterState): boolean {
 export function buildFilterChips(filters: FilterState, onChange: (filters: FilterState) => void): FilterChip[] {
   const chips: FilterChip[] = [];
 
-  if (filters.search) {
-    chips.push({ key: 'search', label: `Search: ${filters.search}`, onClose: () => onChange({ ...filters, search: '' }) });
+  const term = filters.search.trim();
+  if (term) {
+    chips.push({ key: 'search', label: `Search: ${term}`, onClose: () => onChange({ ...filters, search: '' }) });
   }
   filters.languages.forEach((lang) => {
     chips.push({

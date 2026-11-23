@@ -40,7 +40,7 @@ Chart elements that stand for missing values ("Unknown") or for a group of many 
 - **THEN** the page does not navigate
 
 ### Requirement: Unknown numeric values are excluded by range filters
-When a revenue range filter is active, the system SHALL exclude movies whose box office revenue is missing or zero. When a vote range filter is active, it SHALL exclude movies whose vote average is missing or zero. With no range filter active, these movies SHALL still be listed.
+When a revenue range filter is active, the system SHALL exclude movies whose box office revenue is missing or zero. When a vote range filter is active, it SHALL exclude movies whose vote average is missing or zero. When a runtime range filter is active, it SHALL exclude movies whose runtime is missing or zero. With no range filter active, these movies SHALL still be listed. Range filter bounds and the charts that drill down into them SHALL ignore these unknown values too.
 
 #### Scenario: Revenue range starting at zero
 - **WHEN** the revenue filter is set to $0–$10M
@@ -49,6 +49,14 @@ When a revenue range filter is active, the system SHALL exclude movies whose box
 #### Scenario: No revenue filter
 - **WHEN** no revenue filter is active
 - **THEN** movies with no recorded revenue are listed
+
+#### Scenario: Unknown runtime
+- **WHEN** one movie's runtime is 0 and the shortest known runtime is 85 minutes
+- **THEN** the runtime slider starts at 85, and a runtime filter of 85–90 does not list the movie with runtime 0
+
+#### Scenario: Runtime bucket ignores unknown runtimes
+- **WHEN** a movie's runtime is 0 and the user clicks the "< 60 min" runtime bar
+- **THEN** that movie is neither counted in the bar nor listed
 
 ### Requirement: Stats tab URL is valid and shareable
 The Stats page SHALL show the Overview tab when the requested tab is not one of the defined tabs. Whenever a tab is shown, including on arrival from a drill-down link, the page URL SHALL identify that tab.
@@ -118,3 +126,72 @@ Bar and line charts with a single dataset SHALL NOT show a legend, so the user c
 #### Scenario: Rating distribution
 - **WHEN** the Dashboard rating distribution chart is shown
 - **THEN** it has no legend, and its bars can't be hidden
+
+### Requirement: Stats per-year chart is ordered and continuous
+The Stats Overview "Movies Released per Year" chart SHALL show years in ascending order. It SHALL cover every year from the earliest to the latest dated release in scope, and years with no releases SHALL appear with a count of zero. Movies without a release year SHALL NOT appear as a point on the chart. A year with a count of zero SHALL NOT be a drill-down target.
+
+#### Scenario: Undated movies
+- **WHEN** some movies in scope have no release year
+- **THEN** the chart has no "Unknown" point, and its years are in ascending order
+
+#### Scenario: Gap years
+- **WHEN** the movies in scope were released only in 1950, 1960 and 2000
+- **THEN** the chart shows every year from 1950 to 2000, with 0 for the years in between, and clicking a zero year does nothing
+
+### Requirement: Stats summary does not show unknown years as zero
+When no movie in scope has a release year, the Stats Overview's Earliest Release and Latest Release SHALL show a placeholder dash instead of 0.
+
+#### Scenario: Year range inside a gap
+- **WHEN** the catalogue has movies only in 1950 and 1960 and the Release Year Range is 1952–1958
+- **THEN** Earliest Release and Latest Release do not show 0
+
+### Requirement: Stats Release Year Range stays within the data
+After the catalogue changes, the Stats Release Year Range SHALL be limited to the new span of release years. If the narrowed range no longer overlaps the data, or now covers the full span, it SHALL reset to the full span, and the Reset button SHALL be hidden.
+
+#### Scenario: Latest year removed
+- **WHEN** the range is narrowed to 2015–2024 and a refresh changes the latest release year to 2020
+- **THEN** the range label reads 2015 – 2020
+
+#### Scenario: Range now covers everything
+- **WHEN** the range is narrowed and a refresh makes the data span fit inside it
+- **THEN** the label shows the full span and the Reset button is hidden
+
+### Requirement: Stats has empty states
+When the catalogue is empty, the Stats page SHALL show an empty-state message with a button that opens the Movies page, instead of the year slider and tabs. When the catalogue has movies but none fall in the selected Release Year Range, the page SHALL show an empty-state message with a way to reset the range, instead of the tabs.
+
+#### Scenario: Empty catalogue
+- **WHEN** the Stats page loads and the catalogue has no movies
+- **THEN** it shows an empty-state message and a button that navigates to the Movies page, with no year slider or tabs
+
+#### Scenario: Range with no releases
+- **WHEN** the Release Year Range covers years with no releases
+- **THEN** the tabs are replaced by an empty-state message, and resetting the range shows the previously active tab again
+
+### Requirement: Top 10 date rankings use known release dates
+The Top 10 explorer's "Oldest" ranking SHALL include only movies with a known release date or year. It SHALL order them by release date, using the year when the date is missing.
+
+#### Scenario: Undated movie
+- **WHEN** a movie has neither a release date nor a release year
+- **THEN** it does not appear in the "Oldest" ranking
+
+#### Scenario: Same-year movies
+- **WHEN** two movies were released in the same year on different dates
+- **THEN** the one released earlier ranks higher in "Oldest"
+
+### Requirement: Stats rating averages leave out unrated movies
+Every average-rating figure on the Stats tabs (by director, actor, genre, language, release year and runtime length) SHALL count only movies with a vote average above 0. Unrated movies SHALL NOT lower an average or count toward a minimum-films threshold. A category with no rated movies SHALL NOT be plotted as an average of 0.
+
+#### Scenario: Director with an unrated film
+- **WHEN** a director has one film rated 8.0 and one unrated film (vote average 0)
+- **THEN** the director does not appear in "Highest Rated Directors (2+ films)", and no rating chart shows them with an average of 4.0
+
+#### Scenario: Language radar
+- **WHEN** some movies have no language, or a language has only unrated movies
+- **THEN** the "Average Vote by Language" radar has no "Unknown" axis and no axis with an average of 0
+
+### Requirement: Stats average-vote-by-year line covers a continuous span
+The Ratings tab's "Average Vote by Year" line SHALL show every year from the earliest to the latest year with a rated release in scope, in ascending order. Years with no rated movie SHALL appear as a gap in the line, not as a point, and SHALL NOT be drill-down targets.
+
+#### Scenario: Gap years
+- **WHEN** rated movies in scope were released only in 1962 and 1971
+- **THEN** the axis shows every year from 1962 to 1971, the line is broken between them, and clicking an empty year does nothing

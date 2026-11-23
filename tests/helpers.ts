@@ -1,27 +1,50 @@
-import { test as base, expect, type Page, type Locator } from '@playwright/test';
+import { test as base, expect, type Page, type Locator, type APIRequestContext, type Route } from '@playwright/test';
 import { matchesSearch } from '../src/utils/search';
+import { getLanguageName } from '../src/utils/languages';
+export { STORAGE_KEY as FILTERS_STORAGE_KEY } from '../src/hooks/usePersistedFilters';
 
 /** A movie row as `/api/movies` returns it (every CSV column is a string). */
 export type ApiMovie = Record<string, string>;
 
+/** Aborts anything that could mutate data or reach TMDB: any non-GET request and every `/api/tmdb/*` call. */
+function writeGuard(route: Route) {
+  const req = route.request();
+  if (req.method() !== 'GET' || new URL(req.url()).pathname.startsWith('/api/tmdb/')) {
+    return route.abort('blockedbyclient');
+  }
+  return route.fallback();
+}
+
+const NO_WRITES = 'e2e must not write the catalogue: mock the request with page.route instead';
+
+/** The `request` fixture with every write method refused; `get`/`head` pass through. */
+function getOnly(request: APIRequestContext): APIRequestContext {
+  const blocked = new Set(['post', 'put', 'patch', 'delete', 'fetch']);
+  return new Proxy(request, {
+    get(target, prop, receiver) {
+      if (typeof prop === 'string' && blocked.has(prop)) return () => { throw new Error(NO_WRITES); };
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
 /**
- * Every spec imports `test` from here, not from '@playwright/test': it routes all `/api` traffic
- * through a guard that aborts anything that could mutate data or reach TMDB (any non-GET request,
- * and every `/api/tmdb/*` call) unless the test registered its own `page.route` mock for it.
- * Playwright runs the most recently registered matching handler first, so a test's mocks take
- * precedence and this guard only ever sees unmocked requests. A local run reads the developer's
- * real `src/movies.csv`, which must never be modified by e2e.
+ * Every spec imports `test` from here, not from '@playwright/test'. The guard is on the browser
+ * *context*, so it covers `page` and any other page the test opens; a test's own `page.route`
+ * mocks run first (page routes take precedence over context routes, and `route.fallback()` hands
+ * unhandled requests on to it), so the guard only ever sees unmocked requests. The `request`
+ * fixture is GET-only. `page.request` shares the context's API client but isn't routed, so lint
+ * bans write calls on any `.request` and new browser contexts in tests/. A local run reads the
+ * developer's real `src/movies.csv`, which must never be modified by e2e.
  */
 export const test = base.extend({
-  page: async ({ page }, use) => {
-    await page.route('**/api/**', (route) => {
-      const req = route.request();
-      if (req.method() !== 'GET' || new URL(req.url()).pathname.startsWith('/api/tmdb/')) {
-        return route.abort('blockedbyclient');
-      }
-      return route.fallback();
-    });
-    await use(page);
+  context: async ({ context }, use) => {
+    await context.route('**/api/**', writeGuard);
+    await use(context);
+  },
+  request: async ({ request }, use) => {
+    await use(getOnly(request));
   },
 });
 
@@ -73,9 +96,14 @@ export async function selectInDrawer(page: Page, label: string, option?: string)
   const combobox = page.getByRole('combobox', { name: label });
   await combobox.click();
   const dropdown = openDropdown(page);
+  // Exact title match: a substring filter would let "Drama" pick "Docudrama".
   const item = option
-    ? dropdown.locator('.ant-select-item-option').filter({ hasText: option }).first()
+    ? dropdown.getByTitle(option, { exact: true })
     : dropdown.locator('.ant-select-item-option').first();
+  // The option list is virtual (only rows in view exist), so arrow down until the option renders.
+  // (Typing would also work now that Language searches its labels, B177; arrowing keeps every Select alike.)
+  await expect(dropdown).toBeVisible();
+  for (let i = 0; option && i < 300 && !(await item.isVisible()); i++) await page.keyboard.press('ArrowDown');
   await item.click();
   await page.keyboard.press('Escape');
   // Report what the Select actually selected (its tag), not the option read before the click: the
@@ -83,7 +111,7 @@ export async function selectInDrawer(page: Page, label: string, option?: string)
   const tag = page.locator('.ant-select').filter({ has: combobox }).locator('.ant-select-selection-item[title]').first();
   await expect(tag).toBeVisible();
   const picked = (await tag.getAttribute('title'))!;
-  if (option) expect(picked).toContain(option);
+  if (option) expect(picked).toBe(option);
   return picked;
 }
 
@@ -91,8 +119,35 @@ export async function selectInDrawer(page: Page, label: string, option?: string)
 export async function chooseOption(page: Page, label: string, option: string) {
   // A single Select's search input sits under its selection text, so click the Select itself.
   await page.locator('.ant-select').filter({ has: page.getByRole('combobox', { name: label }) }).click();
-  await openDropdown(page).locator(`.ant-select-item-option[title="${option}"]`).click();
+  await openDropdown(page).getByTitle(option, { exact: true }).click();
   await expect(openDropdown(page)).toHaveCount(0);
+}
+
+/** Clicks the open drawer's Delete and confirms it in the Popconfirm. */
+export async function confirmDrawerDelete(page: Page) {
+  await page.locator('.ant-drawer-open').getByRole('button', { name: 'Delete' }).click();
+  await page.locator('.ant-popconfirm').getByRole('button', { name: 'Delete' }).click();
+}
+
+/** The canvas of a Stats chart, by its ChartBlock heading in the active tab. */
+export function chartCanvas(page: Page, title: string): Locator {
+  return activeTabPane(page).getByRole('heading', { name: title, exact: true }).locator('xpath=../..').locator('canvas');
+}
+
+/** The canvas of a Dashboard mini chart, by its card title. */
+export function dashboardChartCanvas(page: Page, title: string): Locator {
+  return page.getByText(title, { exact: true }).locator('xpath=..').locator('canvas');
+}
+
+/** Language codes grouped by the display name the UI shows (several codes can share one name, B146). */
+export function codesByLanguageName(movies: ApiMovie[]): Map<string, Set<string>> {
+  const byName = new Map<string, Set<string>>();
+  for (const m of movies) {
+    if (!m.Language) continue;
+    const name = getLanguageName(m.Language);
+    byName.set(name, (byName.get(name) ?? new Set()).add(m.Language));
+  }
+  return byName;
 }
 
 /** Reads the whole catalogue straight from the API (not routed, so never mocked). */
@@ -102,7 +157,6 @@ export async function fetchMovies(page: Page): Promise<ApiMovie[]> {
   return res.json();
 }
 
-/** The "x–y of N movies" pagination total of the table/grid on screen. */
 /** The pagination "a–b of n movies" text (Movies table and grid). */
 export function paginationTotal(page: Page): Locator {
   return page.locator('.ant-pagination-total-text');
@@ -170,8 +224,22 @@ export function searchMatchCount(movies: ApiMovie[], term: string): number {
   return movies.filter((m) => matchesSearch(m, term)).length;
 }
 
-/** Parsed release years of `movies` (unparseable ones skipped) and their min/max. */
-export function yearSpan(movies: ApiMovie[]): { years: number[]; yearMin: number; yearMax: number } {
-  const years = movies.map((m) => parseInt(m['Release Year'], 10)).filter((y) => !isNaN(y));
-  return { years, yearMin: Math.min(...years), yearMax: Math.max(...years) };
+/**
+ * Parsed release years of `movies` (unparseable ones skipped) and their min/max, or `null` when no
+ * movie has a year. One loop, no spread into Math.min/max (that throws on a very large catalogue).
+ */
+export function yearSpan(movies: ApiMovie[]): { years: number[]; yearMin: number; yearMax: number } | null {
+  const years: number[] = [];
+  let yearMin = Infinity, yearMax = -Infinity;
+  for (const m of movies) {
+    const y = parseInt(m['Release Year'], 10);
+    if (isNaN(y)) continue;
+    years.push(y);
+    if (y < yearMin) yearMin = y;
+    if (y > yearMax) yearMax = y;
+  }
+  return years.length ? { years, yearMin, yearMax } : null;
 }
+
+/** Why a year-range test can't run on this dataset (the Stats slider is disabled below two years). */
+export const SINGLE_YEAR_SKIP = 'dataset spans fewer than two years — the range slider is disabled';

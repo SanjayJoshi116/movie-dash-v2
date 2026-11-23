@@ -3,7 +3,7 @@ import { Drawer, Select, Button, Typography, Grid } from 'antd';
 import type { Movie, FilterState } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
 import { formatRevenue } from '../utils/statsHelpers';
-import { computeFilterSpans } from '../utils/filterSpans';
+import { computeFilterSpans, niceStep } from '../utils/filterSpans';
 import RangeSlider from './RangeSlider';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -106,6 +106,8 @@ const FiltersDrawer: React.FC<FiltersDrawerProps> = ({ movies, filters, onChange
         placeholder="Any language"
         aria-label="Language"
         options={languageOptions}
+        // Search the shown names ("Tamil"), not the ISO code values (B177).
+        optionFilterProp="label"
         value={filters.languages}
         onChange={(val) => onChange({ ...filters, languages: val })}
         style={{ width: '100%', marginBottom: 16 }}
@@ -172,6 +174,7 @@ const FiltersDrawer: React.FC<FiltersDrawerProps> = ({ movies, filters, onChange
       <RangeSlider
         min={revenueMin}
         max={revenueMax}
+        step={niceStep((revenueMax - revenueMin) / 100)}
         value={filters.revenueRange ?? [revenueMin, revenueMax]}
         disabled={revenueMin === revenueMax}
         onCommit={([lo, hi]) => onChange({ ...filters, revenueRange: lo <= revenueMin && hi >= revenueMax ? null : [lo, hi] })}

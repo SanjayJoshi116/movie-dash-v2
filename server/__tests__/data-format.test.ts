@@ -15,7 +15,6 @@ describe('Legacy placeholder values read as missing', () => {
       '2,Normal,en,100,2020,Drama,Dir,"A, B",Co,India,0,0,1,7,10,,,2020-01-01',
     ].join('\n') + '\n');
 
-    // The list route reloads on file change (get-by-id doesn't), so hit it first.
     const list = (await request<Record<string, string>[]>(s.baseUrl, '/api/movies')).body;
     assert.equal(list.length, 2);
     const movie = (await request<Record<string, string>>(s.baseUrl, '/api/movies/1')).body;

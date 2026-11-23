@@ -33,14 +33,24 @@ export function clickHandlers(latest: { readonly current: ClickProps }) {
 }
 
 /**
+ * What a chart with no click handler gets: an `onHover` that clears the cursor, so a pointer left
+ * by an earlier clickable state doesn't stay on a chart that no longer drills down (B183).
+ */
+export const NOT_CLICKABLE = {
+  onHover: (evt: ChartEvent) => {
+    (evt.native?.target as HTMLElement | undefined)?.style.setProperty('cursor', '');
+  },
+};
+
+/**
  * The options fragment a clickable wrapper spreads: `clickHandlers` when `onElementClick` is set,
- * else `{}`. Callbacks are read at event time (useLatest), so the result changes only when a
- * handler appears or disappears — put it in the options memo deps, never the callback props (B13).
+ * else `NOT_CLICKABLE`. Callbacks are read at event time (useLatest), so the result changes only when
+ * a handler appears or disappears — put it in the options memo deps, never the callback props (B13).
  */
 export function useClickHandlers({ onElementClick, isClickable }: ClickProps) {
   const latest = useLatest({ onElementClick, isClickable });
   const clickable = onElementClick !== undefined;
-  return useMemo(() => (clickable ? clickHandlers(latest) : {}), [clickable, latest]);
+  return useMemo(() => (clickable ? clickHandlers(latest) : NOT_CLICKABLE), [clickable, latest]);
 }
 
 /** Tooltip number: integers as-is, others with at most 2 decimals, "—" for a missing value (B26). */

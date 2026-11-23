@@ -42,6 +42,17 @@ export function isDrillableLabel(label: string | undefined | null): label is str
   return !!label && label !== 'Other' && label !== 'Unknown';
 }
 
+/** The chart label at `index` when it's a drill-down target, else null — for a chart's click handler and `isClickable`. */
+export function drillableLabelAt(labels: readonly unknown[] | undefined, index: number): string | null {
+  const label = labels?.[index];
+  return typeof label === 'string' && isDrillableLabel(label) ? label : null;
+}
+
+/** Every year from `first` to `last` inclusive (empty when either is null), for continuous year axes with gaps kept. */
+export function continuousYears(first: number | null, last: number | null): number[] {
+  return first === null || last === null ? [] : Array.from({ length: last - first + 1 }, (_, i) => first + i);
+}
+
 // ── Buckets ────────────────────────────────────────────────────────────────
 // A chart's buckets are declared once and used both to count and to build the drill-down
 // filter, so the list a click opens always matches the bar. Buckets are half-open
@@ -78,9 +89,31 @@ export function bucketToRange(bucket: Bucket, step: number, domainMax: number): 
   return [bucket.min, hi];
 }
 
+/**
+ * A movie's vote average, or `null` when it's unrated (missing, NaN, or ≤ 0 — TMDB stores "no votes"
+ * as 0). The one rule every Stats rating chart uses, so an unrated movie never lowers an average.
+ */
+export function parseVote(raw: string | undefined): number | null {
+  const v = parseFloat(raw ?? '');
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
 /** Vote averages are stored with up to 3 decimals. */
 export const VOTE_STEP = 0.001;
 export const VOTE_MAX = 10;
+
+// A 10/10 from a single vote shouldn't top a rating ranking. Tiny datasets (e.g. the template CSV)
+// may have too few qualifying movies — then the cutoff is dropped so the ranking isn't empty.
+export const MIN_VOTES_FOR_RATING = 50;
+export const MIN_QUALIFYING_FOR_CUTOFF = 10;
+
+/** The movies a "highest rated" ranking picks from (Stats explorer + Dashboard Top Rated share this rule). */
+export function ratingPool(movies: Movie[]): { pool: Movie[]; cutoffApplied: boolean } {
+  const qualifying = movies.filter(m => (parseInt(m['Vote Count'], 10) || 0) >= MIN_VOTES_FOR_RATING);
+  return qualifying.length >= MIN_QUALIFYING_FOR_CUTOFF
+    ? { pool: qualifying, cutoffApplied: true }
+    : { pool: movies, cutoffApplied: false };
+}
 
 export function makeDoughnut(data: Record<string, number>, label: string): ChartData<'doughnut'> {
   return {

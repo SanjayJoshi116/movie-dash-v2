@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Button, Segmented, Input, Badge, Typography, Grid, Tooltip } from 'antd';
 import { useLocation, useNavigate } from 'react-router';
-import { DownloadOutlined, SearchOutlined, FilterOutlined, InfoCircleOutlined, PlusOutlined } from '@ant-design/icons';
+import { DownloadOutlined, SearchOutlined, FilterOutlined, PlusOutlined } from '@ant-design/icons';
 import { useMovies } from '../hooks/useMovies';
 import { useDebounce } from '../hooks/useDebounce';
 import { usePersistedFilters } from '../hooks/usePersistedFilters';
@@ -32,7 +32,9 @@ const DEFAULT_FILTERS: FilterState = {
   revenueRange: null,
 };
 
-const isEmptySearch = (v: string) => v === '';
+// Blank (or whitespace-only) search = no search, applied at once.
+const isEmptySearch = (v: string) => v.trim() === '';
+const EXPORT_HINT = 'Downloads the movies currently shown (after search/filters/sort) as a CSV file — not the full dataset.';
 
 const Movies: React.FC = () => {
   const { movies, loading, error, refetch } = useMovies();
@@ -75,14 +77,16 @@ const Movies: React.FC = () => {
 
   // Typing is debounced; clearing applies at once, so the old search never filters an empty box.
   const debouncedSearch = useDebounce(filters.search, 300, isEmptySearch);
+  // Surrounding whitespace never affects matching; the input keeps what the user typed.
+  const searchTerm = debouncedSearch.trim();
   // Changes whenever the effective filters do (debounced search) — the views reset to page 1 on it.
-  const filtersKey = useMemo(() => JSON.stringify({ ...filters, search: debouncedSearch }), [filters, debouncedSearch]);
+  const filtersKey = useMemo(() => JSON.stringify({ ...filters, search: searchTerm }), [filters, searchTerm]);
   const filtersActive = isFiltersActive(filters);
 
   const filteredMovies = useMemo<Movie[]>(() => {
     return movies.filter((movie) => {
       // Text search
-      if (debouncedSearch && !matchesSearch(movie, debouncedSearch)) return false;
+      if (searchTerm && !matchesSearch(movie, searchTerm)) return false;
 
       // Language filter
       if (filters.languages.length > 0 && !filters.languages.includes(movie.Language)) {
@@ -117,10 +121,11 @@ const Movies: React.FC = () => {
         }
       }
 
-      // Runtime range filter
+      // Runtime range filter — 0/blank means unknown (TMDB stores a missing runtime as 0), so like
+      // an unrated vote it never matches a range
       if (filters.runtimeRange !== null) {
         const runtime = parseInt(movie.Runtime, 10);
-        if (isNaN(runtime) || runtime < filters.runtimeRange[0] || runtime > filters.runtimeRange[1]) {
+        if (isNaN(runtime) || runtime <= 0 || runtime < filters.runtimeRange[0] || runtime > filters.runtimeRange[1]) {
           return false;
         }
       }
@@ -137,7 +142,7 @@ const Movies: React.FC = () => {
       return true;
     });
   }, [
-    debouncedSearch,
+    searchTerm,
     filters.languages,
     filters.genres,
     filters.directors,
@@ -195,16 +200,25 @@ const Movies: React.FC = () => {
               { label: 'Grid', value: 'grid' },
             ]}
           />
-          <Button
-            icon={<DownloadOutlined />}
-            disabled={filteredMovies.length === 0}
-            onClick={() => exportMoviesToCsv(displayedRef.current, `movies-filtered-${displayedRef.current.length}.csv`)}
-          >
-            Export CSV
-          </Button>
-          <Tooltip title="Downloads the movies currently shown (after search/filters/sort) as a CSV file — not the full dataset.">
-            <InfoCircleOutlined style={{ color: 'var(--text-muted)', cursor: 'help' }} />
+          {/* The hint is on the button itself (tooltip on hover/focus) and in its accessible
+              description, so keyboard and screen-reader users get it too. */}
+          <Tooltip title={EXPORT_HINT}>
+            <Button
+              icon={<DownloadOutlined />}
+              disabled={filteredMovies.length === 0}
+              aria-describedby="export-csv-hint"
+              onClick={() => {
+                const rows = displayedRef.current;
+                // Sorting alone isn't filtering: without a search/filter the rows are the full set.
+                // Use the debounced search, like the rows, so the name can't run ahead of them.
+                const filtered = isFiltersActive({ ...filters, search: searchTerm });
+                exportMoviesToCsv(rows, `${filtered ? 'movies-filtered' : 'movies'}-${rows.length}.csv`);
+              }}
+            >
+              Export CSV
+            </Button>
           </Tooltip>
+          <span id="export-csv-hint" className="visually-hidden">{EXPORT_HINT}</span>
           <Button icon={<PlusOutlined />} onClick={() => setAddMovieOpen(true)}>
             Add Movie
           </Button>

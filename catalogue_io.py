@@ -28,7 +28,8 @@ CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "movi
 TMDB_API_BASE = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 UTF8_BOM = b"\xef\xbb\xbf"
-FORMULA_PREFIX_CHARS = ("=", "+", "-", "@")
+# Same characters as FORMULA_PREFIXES in src/utils/csvEscape.ts, tab and CR included (a test compares them).
+FORMULA_PREFIX_CHARS = ("=", "+", "-", "@", "\t", "\r")
 # Same order as CATALOGUE_COLUMNS in src/types/movie.ts (a test keeps the two in sync).
 CATALOGUE_COLUMNS = (
     "Movie ID", "Name", "Language", "Runtime", "Release Year", "Genres", "Director",
@@ -114,7 +115,7 @@ def get_tmdb_object(session, api_key, path, params=None):
 
 def sanitize_csv_value(value):
     """Prevent CSV/formula injection: Excel/Sheets can execute a cell starting
-    with =, +, -, or @ as a formula when the file is opened later. Same rule as
+    with =, +, -, @ (or a tab/CR) as a formula when the file is opened later. Same rule as
     src/utils/csvEscape.ts: leading apostrophes before the formula character count too
     ('-ism is stored as ''-ism), so the server's un-escape never drops a real apostrophe."""
     if isinstance(value, str) and value.lstrip("'").startswith(FORMULA_PREFIX_CHARS):

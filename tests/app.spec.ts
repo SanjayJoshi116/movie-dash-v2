@@ -10,6 +10,12 @@ import {
   waitForStats,
   openFiltersDrawer,
   closeFiltersDrawer,
+  openDropdown,
+  confirmDrawerDelete,
+  chartCanvas,
+  dashboardChartCanvas,
+  codesByLanguageName,
+  FILTERS_STORAGE_KEY,
   selectInDrawer,
   chooseOption,
   fetchMovies,
@@ -19,11 +25,16 @@ import {
   mockMovies,
   searchMatchCount,
   yearSpan,
+  SINGLE_YEAR_SKIP,
   paginationTotal,
   setPageSize,
 } from './helpers';
 import { getLanguageName } from '../src/utils/languages';
+import { matchesSearch } from '../src/utils/search';
+import { voteColor } from '../src/utils/vote';
 import { slugify } from '../src/utils/slugify';
+import { formatRevenue, countIntoBuckets, parseVote, type Bucket } from '../src/utils/statsHelpers';
+import { RATING_BUCKETS, VOTE_BUCKETS } from '../src/utils/chartBuckets';
 
 /** Asserts the first two `names` are in localeCompare order (dir 1 = A–Z, -1 = Z–A), compared in the browser. */
 async function expectFirstTwoOrdered(page: Page, names: Locator, dir: 1 | -1) {
@@ -128,7 +139,7 @@ test.describe('Dashboard', () => {
   test('the single-series rating distribution draws no legend', async ({ page }) => {
     await recordCanvasText(page);
     await page.goto('/');
-    const canvas = page.getByText('Rating Distribution', { exact: true }).locator('xpath=..').locator('canvas');
+    const canvas = dashboardChartCanvas(page, 'Rating Distribution');
     await expect(canvas).toBeVisible();
     // Bars (and so axis labels) are drawn; the dataset label "Movies" would only appear in a legend.
     await expect.poll(() => canvasTexts(canvas)).toContain('0–2');
@@ -143,6 +154,125 @@ test.describe('Dashboard', () => {
     await expect(page.getByRole('heading', { name: 'Highlights' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Go to Movies' }).click();
     await expect(page).toHaveURL('/movies');
+  });
+
+  test('Top Rated needs enough votes and matches Stats › Explore Highest Rated #1', async ({ page }) => {
+    // 10 movies with ≥ 50 votes (so the cutoff applies) plus a 10.0 from a single vote.
+    const rows = [
+      ...Array.from({ length: 9 }, (_, i) => makeMovie(i + 1)),
+      makeMovie(10, { Name: 'Best Voted', 'Vote Average': '9.1', 'Vote Count': '5000' }),
+      makeMovie(11, { Name: 'Lucky Single', 'Vote Average': '10.0', 'Vote Count': '1' }),
+    ];
+    await mockMovies(page, rows);
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: /^Top Rated: Best Voted, / })).toBeVisible();
+
+    await page.goto('/stats?tab=explore');
+    await waitForStats(page);
+    const pane = activeTabPane(page);
+    await expect(pane.getByText('min. 50 votes')).toBeVisible();
+    await expect(pane.getByText('Lucky Single')).toHaveCount(0);
+    const text = (await pane.textContent()) ?? '';
+    const best = text.indexOf('Best Voted');
+    expect(best).toBeGreaterThan(-1);
+    for (const r of rows.slice(0, 9)) {
+      const at = text.indexOf(r.Name);
+      if (at !== -1) expect(at, r.Name).toBeGreaterThan(best);
+    }
+  });
+
+  /** Makes the next download of the MovieDrawer chunk fail; later ones go through. Returns whether it fired. */
+  async function failDrawerChunkOnce(page: Page): Promise<() => boolean> {
+    let aborted = false;
+    await page.route(/MovieDrawer/, (route) => {
+      if (aborted) return route.fallback();
+      aborted = true;
+      return route.abort('internetdisconnected');
+    });
+    return () => aborted;
+  }
+
+  test('a failed details chunk keeps the Dashboard up and the next click retries', async ({ page }) => {
+    const aborted = await failDrawerChunkOnce(page);
+    await page.goto('/');
+    const topRated = page.getByRole('button', { name: /^Top Rated: / });
+    await topRated.click();
+    const alert = page.getByRole('alert').filter({ hasText: "Couldn't open movie details. Check your connection and try again." });
+    await expect(alert).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(aborted()).toBe(true);
+
+    await topRated.click();
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByText('Movie ID')).toBeVisible();
+    await expect(alert).toHaveCount(0);
+  });
+
+  test('the details failure alert offers a page reload', async ({ page }) => {
+    await failDrawerChunkOnce(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: /^Top Rated: / }).click();
+    const reload = page.getByRole('button', { name: 'Reload page' });
+    await expect(reload).toBeVisible();
+    await Promise.all([page.waitForEvent('load'), reload.click()]);
+    await expect(reload).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
+  });
+
+  test('a drawer that crashes after loading shows the error view, not the load-failure alert', async ({ page }) => {
+    // The chunk downloads fine; the component it exports throws on render.
+    await page.route(/MovieDrawer/, (route) => route.fulfill({
+      contentType: 'application/javascript',
+      body: "export default function MovieDrawer() { throw new Error('drawer render crash'); }",
+    }));
+    await page.goto('/');
+    await page.getByRole('button', { name: /^Top Rated: / }).click();
+    await expect(page.getByText('Something went wrong')).toBeVisible();
+    await expect(page.getByText("Couldn't open movie details")).toHaveCount(0);
+  });
+
+  test('unknown revenue and ratings are not shown as real values', async ({ page }) => {
+    const rows = [
+      makeMovie(1, { 'Box Office Revenue': '-1000000' }),
+      makeMovie(2, { 'Box Office Revenue': '250000000' }),
+      makeMovie(3, { Name: 'Newest Unrated', 'Vote Average': '0', 'Release Date': '2030-06-01', 'Release Year': '2030' }),
+    ];
+    await mockMovies(page, rows);
+    await page.goto('/');
+    const positive = rows.reduce((sum, m) => sum + Math.max(0, Number(m['Box Office Revenue'])), 0);
+    await expect(page.getByRole('button', { name: `Total Box Office: ${formatRevenue(positive)}, view details` })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Newest Unrated, released 01-06-2030, not rated$/ })).toContainText('Not rated');
+
+    const unrated = rows.map((m) => ({ ...m, 'Vote Average': '0' }));
+    await mockMovies(page, unrated);
+    await page.reload();
+    const avg = page.locator('.ant-card').filter({ hasText: 'Average Rating' });
+    await expect(avg).toContainText('—');
+    await expect(avg).not.toContainText('/ 10');
+  });
+
+  test('cards, Recent Releases and headings expose their content to assistive tech', async ({ page }) => {
+    const rows = Array.from({ length: 6 }, (_, i) => makeMovie(i + 1));
+    await mockMovies(page, rows);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 4, name: 'Highlights' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 4, name: 'Overview' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Total Box Office: \$.+, view details$/ })).toBeVisible();
+
+    const list = page.getByText('Recent Releases', { exact: true }).locator('xpath=..').getByRole('list');
+    const items = list.getByRole('listitem');
+    await expect(items).toHaveCount(5);
+    for (const item of await items.all()) await expect(item.getByRole('button')).toHaveCount(1);
+
+    const newest = rows[rows.length - 1];
+    const button = list.getByRole('button', { name: new RegExp(`^${newest.Name}, released 15-01-${newest['Release Year']}, rated `) });
+    await button.focus();
+    await page.keyboard.press('Enter');
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByText(newest.Name).first()).toBeVisible();
   });
 });
 
@@ -244,7 +374,12 @@ test.describe('Movies', () => {
     const language = await selectInDrawer(page, 'Language');
     await closeFiltersDrawer(page);
 
-    const expected = movies.filter((m) => m.Language && getLanguageName(m.Language) === language).length;
+    // The filter matches the code; the option shows the name. Count by code, and skip when the
+    // name stands for several codes (B146), since the test can't tell which one was picked.
+    const codes = codesByLanguageName(movies).get(language) ?? new Set<string>();
+    test.skip(codes.size !== 1, `several language codes share the name "${language}" (B146)`);
+    const [code] = codes;
+    const expected = movies.filter((m) => m.Language === code).length;
     expect(expected, `precondition: "${language}" must not cover every movie`).toBeLessThan(movies.length);
     expect(expected).toBeGreaterThan(0);
     await expectTotal(page, expected);
@@ -293,7 +428,7 @@ test.describe('Movies', () => {
     const downloadPromise = page.waitForEvent('download');
     await page.getByRole('button', { name: /Export CSV/i }).click();
     const dl = await downloadPromise;
-    expect(dl.suggestedFilename()).toMatch(/movies-filtered.*\.csv/);
+    expect(dl.suggestedFilename()).toMatch(/^movies-\d+\.csv$/); // no search/filter active
   });
 
   test('Export CSV button disabled when no results', async ({ page }) => {
@@ -316,12 +451,6 @@ test.describe('Movies', () => {
     await expect(nameHeader).toHaveAttribute('aria-sort', 'descending');
     await expectFirstTwoOrdered(page, names, -1);
     await expect(names.first()).not.toHaveText(firstAsc ?? '');
-  });
-
-  test('pagination controls visible and functional', async ({ page }) => {
-    await expect(page.locator('.ant-pagination')).toBeVisible();
-    // Total count text visible
-    await expect(paginationTotal(page)).toBeVisible();
   });
 
   test('page size changer works', async ({ page }) => {
@@ -417,41 +546,106 @@ test.describe('Movies Grid Sort', () => {
 // ── Movies — Director & Range Filters ───────────────────────────────────────
 
 test.describe('Movies Advanced Filters', () => {
+  test('the language picker finds a language by its name (B177)', async ({ page }) => {
+    await mockMovies(page, [makeMovie(1, { Language: 'ta' }), makeMovie(2, { Language: 'en' }), makeMovie(3, { Language: 'en' })]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    await openFiltersDrawer(page);
+    await page.getByRole('combobox', { name: 'Language' }).fill('Tamil');
+    await openDropdown(page).getByTitle('Tamil', { exact: true }).click();
+    await page.keyboard.press('Escape');
+    await closeFiltersDrawer(page);
+    await expectTotal(page, 1);
+  });
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/movies');
     await waitForTable(page);
   });
 
-  test('director filter applies and shows a chip', async ({ page }) => {
-    await openFiltersDrawer(page);
-    const director = await selectInDrawer(page, 'Director');
-    await closeFiltersDrawer(page);
-
-    await expect(page.locator('.ant-table')).toBeVisible();
-    await expect(page.locator('.ant-tag').filter({ hasText: `Director: ${director}` }).first()).toBeVisible();
+  /**
+   * 12 rows with known values: directors A×5, B×4, C×3; runtimes 80–130 by 5 with row 12 unknown
+   * (0); revenue (i−1)·$1M, so row 1 is unknown (0). Unknowns drop out while that filter is active.
+   */
+  const rangeRows = () => Array.from({ length: 12 }, (_, k) => {
+    const i = k + 1;
+    return makeMovie(i, {
+      Director: i <= 5 ? 'Director A' : i <= 9 ? 'Director B' : 'Director C',
+      Runtime: i === 12 ? '0' : String(75 + 5 * i),
+      'Box Office Revenue': String((i - 1) * 1_000_000),
+    });
   });
 
-  test('runtime range slider narrows results and shows a chip', async ({ page }) => {
+  test('director filter narrows to that director\'s movies and shows a chip', async ({ page }) => {
+    await mockMovies(page, rangeRows());
+    await page.goto('/movies');
+    await waitForTable(page);
     await openFiltersDrawer(page);
-    const runtimeSlider = page.locator('.ant-drawer-body .ant-slider').nth(2);
-    const handle = runtimeSlider.locator('.ant-slider-handle').first();
+    await selectInDrawer(page, 'Director', 'Director B');
+    await closeFiltersDrawer(page);
+
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Director: Director B' })).toBeVisible();
+    await expectTotal(page, 4);
+  });
+
+  test('runtime range slider narrows to the movies inside its bounds', async ({ page }) => {
+    const rows = rangeRows();
+    await mockMovies(page, rows);
+    await page.goto('/movies');
+    await waitForTable(page);
+    await openFiltersDrawer(page);
+    const handle = page.locator('.ant-drawer-body .ant-slider').nth(2).locator('.ant-slider-handle').first();
     await handle.focus();
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
     await closeFiltersDrawer(page);
 
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Runtime:' }).first()).toBeVisible();
+    // Expected count from the chip's committed bounds, so slider step sizes don't matter.
+    const chip = page.locator('.ant-tag').filter({ hasText: 'Runtime:' });
+    await expect(chip).toHaveText(/Runtime: \d+–\d+m/);
+    const [lo, hi] = (await chip.innerText()).match(/(\d+)–(\d+)m/)!.slice(1).map(Number);
+    const expected = rows.filter((m) => { const r = Number(m.Runtime); return r > 0 && r >= lo && r <= hi; }).length;
+    expect(expected).toBeLessThan(rows.length);
+    await expectTotal(page, expected);
   });
 
-  test('revenue range slider narrows results and shows a chip', async ({ page }) => {
+  test('revenue range slider narrows to the movies inside its bounds', async ({ page }) => {
+    const rows = rangeRows();
+    await mockMovies(page, rows);
+    await page.goto('/movies');
+    await waitForTable(page);
     await openFiltersDrawer(page);
-    const revenueSlider = page.locator('.ant-drawer-body .ant-slider').nth(3);
-    const handle = revenueSlider.locator('.ant-slider-handle').first();
+    const handles = page.locator('.ant-drawer-body .ant-slider').nth(3).getByRole('slider');
+    await expect(handles).toHaveCount(2);
+    await handles.first().focus();
+    await page.keyboard.press('ArrowRight');
+    // The chip rounds to $x.xM, so take the exact committed bounds from the handles.
+    const [lo, hi] = await handles.evaluateAll((els) => els.map((el) => Number(el.getAttribute('aria-valuenow'))));
+    expect(hi).toBeGreaterThan(lo);
+    await closeFiltersDrawer(page);
+
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Revenue:' })).toHaveText(`Revenue: ${formatRevenue(lo)}–${formatRevenue(hi)}`);
+    const expected = rows.filter((m) => { const r = Number(m['Box Office Revenue']); return r > 0 && r >= lo && r <= hi; }).length;
+    expect(expected).toBeLessThan(rows.length);
+    await expectTotal(page, expected);
+  });
+
+  test('revenue slider steps by a readable amount from the keyboard', async ({ page }) => {
+    await mockMovies(page, [
+      makeMovie(1, { 'Box Office Revenue': '1000000' }),
+      makeMovie(2, { 'Box Office Revenue': '500000000' }),
+      makeMovie(3, { 'Box Office Revenue': '2800000000' }),
+    ]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    await openFiltersDrawer(page);
+    const handle = page.locator('.ant-drawer-body .ant-slider').nth(3).locator('.ant-slider-handle').first();
     await handle.focus();
     await page.keyboard.press('ArrowRight');
     await closeFiltersDrawer(page);
-
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Revenue:' }).first()).toBeVisible();
+    // Span $1M–$2.8B → step $20M (1/100 of the span, rounded), not $1.
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Revenue:' })).toContainText('Revenue: $21.0M–$2.8B');
+    await expectTotal(page, 2);
   });
 });
 
@@ -679,9 +873,7 @@ test.describe('Movies Add & Delete', () => {
     await expect(modal).not.toBeVisible();
 
     await page.locator('.ant-table-row', { hasText: 'Short Lived' }).click();
-    const drawer = page.locator('.ant-drawer-open');
-    await drawer.getByRole('button', { name: 'Delete' }).click();
-    await page.locator('.ant-popconfirm').getByRole('button', { name: 'Delete' }).click();
+    await confirmDrawerDelete(page);
     await expect(page.getByTitle('2 movies in catalogue')).toBeVisible();
 
     await page.getByRole('button', { name: 'Add Movie' }).click();
@@ -738,8 +930,7 @@ test.describe('Movies Add & Delete', () => {
     await page.locator('.ant-table-row', { hasText: a.Name }).click();
     const drawer = page.locator('.ant-drawer-open');
     await expect(drawer.getByRole('heading', { name: a.Name })).toBeVisible();
-    await drawer.getByRole('button', { name: 'Delete' }).click();
-    await page.locator('.ant-popconfirm').getByRole('button', { name: 'Delete' }).click();
+    await confirmDrawerDelete(page);
     await expect(drawer.getByRole('button', { name: 'Delete' })).toHaveClass(/ant-btn-loading/);
 
     await drawer.locator('.ant-drawer-close').click();
@@ -752,6 +943,30 @@ test.describe('Movies Add & Delete', () => {
     await expectTotal(page, 2);
     await expect(drawer.getByRole('heading', { name: b.Name })).toBeVisible();
     await expect(drawer.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('a blank server error still shows a message (search and delete)', async ({ page }) => {
+    const rows = [makeMovie(1), makeMovie(2)];
+    await mockMovies(page, rows);
+    await page.route(/\/api\/tmdb\/search(\?|$)/, (route) => route.fulfill({ status: 500, json: { error: '' } }));
+    await page.route('**/api/movies/*', (route) => {
+      if (route.request().method() !== 'DELETE') return route.fallback();
+      return route.fulfill({ status: 500, json: { error: '  ' } });
+    });
+
+    await page.goto('/movies');
+    await waitForTable(page);
+    const modal = await openAddMovie(page);
+    await modal.getByPlaceholder('Movie name').fill('Mock');
+    await modal.getByRole('button', { name: 'Search' }).click();
+    await expect(modal.getByRole('alert')).toContainText('Request failed');
+    await page.keyboard.press('Escape');
+    await expect(modal).toBeHidden();
+
+    await page.locator('.ant-table-row', { hasText: rows[0].Name }).click();
+    const drawer = page.locator('.ant-drawer-open');
+    await confirmDrawerDelete(page);
+    await expect(drawer.getByRole('alert')).toContainText('Delete failed');
   });
 
   test('drawer shows unknown runtime, rating and date as unknown', async ({ page }) => {
@@ -1012,8 +1227,7 @@ test.describe('Stats Page', () => {
     await recordCanvasText(page);
     await page.goto('/stats?tab=people');
     await waitForStats(page);
-    const canvas = activeTabPane(page).getByRole('heading', { name: 'Top 15 Actors & Actresses' })
-      .locator('xpath=../..').locator('canvas');
+    const canvas = chartCanvas(page, 'Top 15 Actors & Actresses');
     await expect(canvas).toBeVisible();
     await canvas.scrollIntoViewIfNeeded();
     const box = await canvas.boundingBox();
@@ -1056,8 +1270,9 @@ test.describe('Stats Page', () => {
 
   test('year range slider narrows the scope and Reset restores the full span', async ({ page }) => {
     const movies = await fetchMovies(page);
-    const { years, yearMin, yearMax } = yearSpan(movies);
-    expect(yearMax, 'precondition: dataset must span more than one year').toBeGreaterThan(yearMin);
+    const span = yearSpan(movies);
+    test.skip(!span || span.yearMin === span.yearMax, SINGLE_YEAR_SKIP);
+    const { years, yearMin, yearMax } = span!;
     const fmt = (n: number) => page.evaluate((v) => v.toLocaleString(), n);
     const scoped = years.filter((y) => y >= yearMin + 1 && y <= yearMax).length;
 
@@ -1085,6 +1300,246 @@ test.describe('Stats Page', () => {
     await button.click();
     const dl = await downloadPromise;
     expect(dl.suggestedFilename()).toBe(`${slug}.png`);
+  });
+
+  test('per-year chart has no Unknown point and fills gap years', async ({ page }) => {
+    const rows = [
+      makeMovie(1, { 'Release Year': '1950', 'Release Date': '1950-03-01' }),
+      makeMovie(2, { 'Release Year': '1960', 'Release Date': '1960-03-01' }),
+      makeMovie(3, { 'Release Year': '2000', 'Release Date': '2000-03-01' }),
+      makeMovie(4, { 'Release Year': '', 'Release Date': '' }),
+    ];
+    await mockMovies(page, rows);
+    await recordCanvasText(page);
+    await page.goto('/stats?tab=overview');
+    await waitForStats(page);
+    const canvas = chartCanvas(page, 'Movies Released per Year');
+    await expect(canvas).toBeVisible();
+    await expect.poll(() => canvasTexts(canvas)).toContain('1950');
+    const texts = await canvasTexts(canvas);
+    expect(texts).not.toContain('Unknown');
+    const years = texts.filter((t) => /^\d{4}$/.test(t)).map(Number);
+    // Ascending, and the axis shows years with no data (gap-filled), not only 1950/1960/2000.
+    expect(years.slice(0, 10)).toEqual([...years.slice(0, 10)].sort((a, b) => a - b));
+    expect(years.some((y) => ![1950, 1960, 2000].includes(y))).toBe(true);
+    await expect(activeTabPane(page).getByText('1950', { exact: true })).toBeVisible(); // Earliest Release card
+
+    // No dated movie at all → Earliest/Latest Release show "—", not 0.
+    await mockMovies(page, rows.map((m) => ({ ...m, 'Release Year': '', 'Release Date': '' })));
+    await page.reload();
+    await waitForStats(page);
+    const card = activeTabPane(page).getByText('Earliest Release', { exact: true }).locator('xpath=..');
+    await expect(card).toContainText('—');
+    await expect(card).not.toContainText(/\b0\b/);
+  });
+
+  test('a year range with no releases shows an empty state; Reset brings the tab back', async ({ page }) => {
+    await mockMovies(page, [
+      makeMovie(1, { 'Release Year': '1950', 'Release Date': '1950-03-01' }),
+      makeMovie(2, { 'Release Year': '1960', 'Release Date': '1960-03-01' }),
+    ]);
+    await page.goto('/stats?tab=explore');
+    await waitForStats(page);
+    const [lower, upper] = [page.getByRole('slider').first(), page.getByRole('slider').last()];
+    await lower.focus();
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+    await upper.focus();
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft');
+    await expect(page.getByText('1953 – 1957 · 0 movies')).toBeVisible();
+    await expect(page.getByText('No movies released in this range')).toBeVisible();
+    await expect(page.getByRole('tab')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Reset range' }).click();
+    await expect(page.getByRole('tab', { name: /Explore/, selected: true })).toBeVisible();
+    await expect(page).toHaveURL('/stats?tab=explore');
+  });
+
+  test('empty catalogue shows an empty state with a Go to Movies CTA', async ({ page }) => {
+    await mockMovies(page, []);
+    await page.reload();
+    await expect(page.getByText('No movies yet — add one to see analytics here.')).toBeVisible();
+    await expect(page.getByRole('slider')).toHaveCount(0);
+    await expect(page.getByRole('tab')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Go to Movies' }).click();
+    await expect(page).toHaveURL('/movies');
+  });
+
+  /**
+   * Stats has no refresh control of its own; the TopBar retry after a failed refresh is the one way
+   * the catalogue changes while Stats stays mounted. Deletes `victim` on Movies with the follow-up
+   * refetch failing, then opens Stats through the sidebar (an in-app navigation).
+   */
+  async function openStatsWithFailedRefresh(page: Page, rows: ApiMovie[], victim: ApiMovie) {
+    const setMovies = await mockMovies(page, rows);
+    let failGet = false;
+    await page.route('**/api/movies', (route) => (route.request().method() === 'GET' && failGet
+      ? route.fulfill({ status: 500, json: { error: 'boom' } })
+      : route.fallback()));
+    await page.route('**/api/movies/*', (route) => {
+      if (route.request().method() !== 'DELETE') return route.fallback();
+      failGet = true;
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.goto('/movies');
+    await waitForTable(page);
+    await page.locator('.ant-table-row', { hasText: victim.Name }).click();
+    await confirmDrawerDelete(page);
+    const retry = page.getByRole('button', { name: 'Catalogue refresh failed — retry' });
+    await expect(retry).toBeVisible();
+    await page.getByRole('link', { name: 'Stats', exact: true }).click();
+    await waitForStats(page);
+    return {
+      refresh: async (next: ApiMovie[]) => { setMovies(next); failGet = false; await retry.click(); },
+    };
+  }
+
+  const yearRows = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) =>
+    makeMovie(i + 1, { 'Release Year': String(from + i), 'Release Date': `${from + i}-03-01` }));
+
+  test('the year range is clamped when a refresh shrinks the data span', async ({ page }) => {
+    const rows = yearRows(2010, 2024);
+    const { refresh } = await openStatsWithFailedRefresh(page, rows, rows[0]);
+    await page.getByRole('slider').first().focus();
+    for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/^2015 – 2024 · /)).toBeVisible();
+
+    await refresh(yearRows(2010, 2020));
+    await expect(page.getByText(/^2015 – 2020 · /)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reset', exact: true })).toBeVisible();
+  });
+
+  test('a refresh that fits inside the narrowed range resets it and hides Reset', async ({ page }) => {
+    const rows = yearRows(2010, 2024);
+    const { refresh } = await openStatsWithFailedRefresh(page, rows, rows[0]);
+    await page.getByRole('slider').first().focus();
+    for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/^2015 – 2024 · /)).toBeVisible();
+
+    await refresh(yearRows(2016, 2020));
+    await expect(page.getByText('2016 – 2020 · 5 movies')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reset', exact: true })).toHaveCount(0);
+  });
+
+  test('Oldest ranks by release date and leaves out undated movies', async ({ page }) => {
+    await mockMovies(page, [
+      makeMovie(1, { Name: 'No Date At All', 'Release Year': '', 'Release Date': '' }),
+      makeMovie(2, { Name: 'August Ninety', 'Release Year': '1990', 'Release Date': '1990-08-01' }),
+      makeMovie(3, { Name: 'February Ninety', 'Release Year': '1990', 'Release Date': '1990-02-01' }),
+      makeMovie(4, { Name: 'Later One', 'Release Year': '2005', 'Release Date': '2005-01-01' }),
+    ]);
+    await page.goto('/stats?tab=explore');
+    await waitForStats(page);
+    await chooseOption(page, 'Top 10 metric', 'Oldest');
+    const pane = activeTabPane(page);
+    await expect(pane.getByText('01-02-1990')).toBeVisible();
+    await expect(pane.getByText('No Date At All')).toHaveCount(0);
+    const text = (await pane.textContent()) ?? '';
+    expect(text.indexOf('February Ninety')).toBeGreaterThan(-1);
+    expect(text.indexOf('February Ninety')).toBeLessThan(text.indexOf('August Ninety'));
+    expect(text.indexOf('August Ninety')).toBeLessThan(text.indexOf('Later One'));
+  });
+
+  /** The canvas inside the active tab's ChartBlock titled `title`. */
+
+  /** Moves the mouse along a line across `canvas` until Chart.js shows the pointer cursor; returns that point. */
+  async function findPointer(page: Page, canvas: Locator, along: 'x' | 'y', at: number): Promise<{ x: number; y: number }> {
+    await canvas.scrollIntoViewIfNeeded();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('canvas not visible');
+    const len = along === 'x' ? box.width : box.height;
+    for (let d = 4; d < len - 4; d += 4) {
+      const pt = along === 'x' ? { x: box.x + d, y: box.y + box.height * at } : { x: box.x + box.width * at, y: box.y + d };
+      if (await isPointerAt(page, canvas, pt.x, pt.y)) return pt;
+    }
+    throw new Error('no clickable element found');
+  }
+
+  test('rating averages leave out unrated films; the director drill-down still lists them', async ({ page }) => {
+    const rows = [
+      makeMovie(1, { Director: 'Mixed Bag', 'Vote Average': '8.0' }),
+      makeMovie(2, { Director: 'Mixed Bag', 'Vote Average': '0' }),
+      makeMovie(3, { Director: 'Steady A', 'Vote Average': '7.0' }),
+      makeMovie(4, { Director: 'Steady A', 'Vote Average': '7.2' }),
+      makeMovie(5, { Director: 'Steady B', 'Vote Average': '6.0' }),
+      makeMovie(6, { Director: 'Steady B', 'Vote Average': '6.4' }),
+    ];
+    await mockMovies(page, rows);
+    await recordCanvasText(page);
+    await page.goto('/stats?tab=people');
+    await waitForStats(page);
+    const rated = chartCanvas(page, 'Highest Rated Directors (2+ films)');
+    await expect(rated).toBeVisible();
+    await rated.scrollIntoViewIfNeeded();
+    await expect.poll(() => canvasTexts(rated)).toContain('Steady A');
+    expect(await canvasTexts(rated)).not.toContain('Mixed Bag');
+
+    // "Top 15 Directors" counts films, rated or not: Mixed Bag (first in the data) is the top bar.
+    const byCount = chartCanvas(page, 'Top 15 Directors');
+    await expect(byCount).toBeVisible();
+    const pt = await findPointer(page, byCount, 'y', 0.4);
+    await page.mouse.click(pt.x, pt.y);
+    await expect(page).toHaveURL('/movies');
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Mixed Bag' })).toBeVisible();
+    await expectTotal(page, 2);
+  });
+
+  test('language radar has no Unknown or unrated-only spoke', async ({ page }) => {
+    await mockMovies(page, [
+      makeMovie(1, { Language: 'en', 'Vote Average': '7.0' }),
+      makeMovie(2, { Language: 'en', 'Vote Average': '6.0' }),
+      makeMovie(3, { Language: 'ja', 'Vote Average': '8.0' }),
+      makeMovie(4, { Language: '', 'Vote Average': '5.0' }),
+      makeMovie(5, { Language: '', 'Vote Average': '5.5' }),
+      makeMovie(6, { Language: 'fr', 'Vote Average': '0' }),
+    ]);
+    await recordCanvasText(page);
+    await page.goto('/stats?tab=ratings');
+    await waitForStats(page);
+    const radar = chartCanvas(page, 'Average Vote by Language (Top 8)');
+    await expect(radar).toBeVisible();
+    await expect.poll(() => canvasTexts(radar)).toContain('Japanese');
+    const texts = await canvasTexts(radar);
+    expect(texts).toContain('English');
+    expect(texts).not.toContain('Unknown');
+    expect(texts).not.toContain('French');
+  });
+
+  test('average vote by year covers gap years, and a point drills down to its year', async ({ page }) => {
+    await mockMovies(page, [
+      makeMovie(1, { 'Release Year': '1962', 'Release Date': '1962-05-01', 'Vote Average': '7.0' }),
+      makeMovie(2, { 'Release Year': '1971', 'Release Date': '1971-05-01', 'Vote Average': '8.0' }),
+      makeMovie(3, { 'Release Year': '1966', 'Release Date': '1966-05-01', 'Vote Average': '0' }),
+    ]);
+    await recordCanvasText(page);
+    await page.goto('/stats?tab=ratings');
+    await waitForStats(page);
+    const line = chartCanvas(page, 'Average Vote by Year');
+    await expect(line).toBeVisible();
+    await line.scrollIntoViewIfNeeded();
+    await expect.poll(() => canvasTexts(line)).toContain('1962');
+    const texts = await canvasTexts(line);
+    for (let y = 1962; y <= 1971; y++) expect(texts, String(y)).toContain(String(y));
+
+    // Sweeping from the left, the first clickable column is 1962 (empty years aren't targets).
+    const pt = await findPointer(page, line, 'x', 0.5);
+    await page.mouse.click(pt.x, pt.y);
+    await expect(page).toHaveURL('/movies');
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Year: 1962–1962' })).toBeVisible();
+    await expectTotal(page, 1);
+  });
+
+  test('Top 10 toolbar wraps at 320 px instead of squeezing the metric select', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await mockMovies(page, Array.from({ length: 12 }, (_, i) => makeMovie(i + 1)));
+    await page.goto('/stats?tab=explore');
+    await waitForStats(page);
+    const pane = activeTabPane(page);
+    await expect(pane.getByText('min. 50 votes')).toBeVisible();
+    const select = pane.locator('.ant-select').filter({ has: page.getByLabel('Top 10 metric') });
+    await select.scrollIntoViewIfNeeded();
+    const box = await select.boundingBox();
+    expect(Math.round(box?.width ?? 0)).toBe(200);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   });
 });
 
@@ -1197,6 +1652,67 @@ test.describe('Filter Persistence', () => {
 // ── Edge Cases ─────────────────────────────────────────────────────────────
 
 test.describe('Edge Cases', () => {
+  test('search ignores surrounding whitespace', async ({ page }) => {
+    await mockMovies(page, [makeMovie(1), makeMovie(2), makeMovie(3)]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    await searchBox(page).fill('Mock Movie 01 ');
+    await expectTotal(page, 1);
+    await searchBox(page).fill(' ');
+    await expectTotal(page, 3);
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Search:' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Filters', exact: true })).toBeVisible();
+  });
+
+  test('a saved genre filter on a catalogue without Genres loads with an empty result', async ({ page }) => {
+    const rows = [makeMovie(1), makeMovie(2)];
+    rows.forEach((r) => delete r.Genres);
+    await mockMovies(page, rows);
+    await page.addInitScript(([key, value]) => sessionStorage.setItem(key, value), [FILTERS_STORAGE_KEY, JSON.stringify({ genres: ['Drama'] })]);
+    await page.goto('/movies');
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Genre: Drama' })).toBeVisible();
+    await expect(page.locator('.ant-table')).toBeVisible();
+    await expect(page.locator('.ant-table-row')).toHaveCount(0);
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  });
+
+  test('runtime 0 is unknown: not in the slider span, not matched by a runtime filter', async ({ page }) => {
+    await mockMovies(page, [
+      makeMovie(1, { Name: 'Zero Runtime', Runtime: '0' }),
+      makeMovie(2, { Runtime: '85' }),
+      makeMovie(3, { Runtime: '88' }),
+      makeMovie(4, { Runtime: '120' }),
+    ]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    await expectTotal(page, 4); // no runtime filter: still listed
+    await openFiltersDrawer(page);
+    const runtimeHandle = page.locator('.ant-drawer-body .ant-slider').nth(2).getByRole('slider').first();
+    await expect(runtimeHandle).toHaveAttribute('aria-valuemin', '85');
+    await closeFiltersDrawer(page);
+
+    await page.evaluate(([key, value]) => sessionStorage.setItem(key, value), [FILTERS_STORAGE_KEY, JSON.stringify({ runtimeRange: [85, 90] })]);
+    await page.reload();
+    await waitForTable(page);
+    await expectTotal(page, 2);
+    await expect(page.locator('.ant-table-row', { hasText: 'Zero Runtime' })).toHaveCount(0);
+  });
+
+  test('Export CSV explains itself to screen readers and names filtered exports', async ({ page }) => {
+    await mockMovies(page, [makeMovie(1), makeMovie(2), makeMovie(3)]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    const exportButton = page.getByRole('button', { name: /Export CSV/i });
+    await expect(exportButton).toHaveAccessibleDescription(/currently shown/);
+
+    await page.evaluate(([key, value]) => sessionStorage.setItem(key, value), [FILTERS_STORAGE_KEY, JSON.stringify({ genres: ['Drama'] })]);
+    await page.reload();
+    await waitForTable(page);
+    const downloadPromise = page.waitForEvent('download');
+    await exportButton.click();
+    expect((await downloadPromise).suggestedFilename()).toMatch(/^movies-filtered-\d+\.csv$/);
+  });
+
   test('table sorts Language by the name it shows', async ({ page }) => {
     await mockMovies(page, [
       makeMovie(1, { Language: 'en' }),
@@ -1330,13 +1846,24 @@ test.describe('Edge Cases', () => {
     await searchBox(page).fill('a');
     await expectTotal(page, searchMatchCount(movies, 'a'));
 
+    // A language among the search's matches whose name stands for one code only (B146).
+    const matches = movies.filter((m) => matchesSearch(m, 'a') && m.Language);
+    const codesByName = codesByLanguageName(movies);
+    const code = matches.map((m) => m.Language).find((c) => codesByName.get(getLanguageName(c))!.size === 1);
+    test.skip(!code, 'no search match has an unambiguous language');
+    const language = getLanguageName(code!);
+    const expected = matches.filter((m) => m.Language === code).length;
+    expect(expected).toBeGreaterThan(0);
+
     await openFiltersDrawer(page);
-    const language = await selectInDrawer(page, 'Language');
+    await selectInDrawer(page, 'Language', language);
     await closeFiltersDrawer(page);
 
+    await expectTotal(page, expected);
     await expect(page.locator('.ant-tag').filter({ hasText: 'Search: a' })).toBeVisible();
     await expect(page.locator('.ant-tag').filter({ hasText: language })).toBeVisible();
     const cells = await page.locator('.ant-table-row td:nth-child(3)').allInnerTexts();
+    expect(cells.length).toBe(Math.min(expected, 10));
     for (const cell of cells) expect(cell).toBe(language);
   });
 
@@ -1345,7 +1872,9 @@ test.describe('Edge Cases', () => {
     await mockMovies(page, Array.from({ length: 25 }, (_, i) => makeMovie(i + 1)));
     await page.goto('/movies');
     await waitForTable(page);
+    await expect(page.locator('.ant-pagination')).toBeVisible();
     await expect(paginationTotal(page)).toHaveText('1–10 of 25 movies');
+    await expect(page.locator('.ant-table-row').first()).toContainText('Mock Movie 01');
 
     await page.locator('.ant-pagination-next').click();
     await expect(paginationTotal(page)).toHaveText('11–20 of 25 movies');
@@ -1374,11 +1903,14 @@ test.describe('Edge Cases', () => {
   });
 
   test('drawer shows Vote Average rating colour', async ({ page }) => {
+    await mockMovies(page, [makeMovie(1, { Name: 'Well Rated', 'Vote Average': '8.5' })]);
     await page.goto('/movies');
     await waitForTable(page);
     await page.locator('.ant-table-row').first().click();
     const drawer = page.getByRole('dialog');
-    await expect(drawer.locator('.ant-tag').first()).toBeVisible();
+    const tag = drawer.locator('.ant-tag').filter({ hasText: '8.5' });
+    await expect(tag).toBeVisible();
+    await expect(tag).toHaveClass(new RegExp(`\\bant-tag-${voteColor(8.5)}\\b`)); // green for ≥ 7
   });
 });
 
@@ -1388,19 +1920,27 @@ test.describe('Edge Cases', () => {
 // confirm with the cursor before clicking. Expected counts come from the API, so these
 // tests hold for any dataset (the CI template or a real CSV).
 
-// Same half-open bucketing as the charts: [i*width, (i+1)*width), last bucket open-ended, 0 = unrated.
-function voteBucketCounts(movies: ApiMovie[], bucketCount: number, width: number): number[] {
-  const counts = Array(bucketCount).fill(0);
-  movies.forEach((m) => {
-    const v = parseFloat(m['Vote Average']);
-    if (isNaN(v) || v <= 0) return;
-    counts[Math.min(Math.floor(v / width), bucketCount - 1)] += 1;
-  });
-  return counts;
+/**
+ * Per-bucket counts with the app's own bucket definitions and unrated rule, and the tallest bar
+ * (easiest to hit). Skips the test when nothing is rated, since then there's no bar to click.
+ */
+function tallestBucket(movies: ApiMovie[], buckets: readonly Bucket[]): { counts: number[]; index: number } {
+  const votes = movies.map((m) => parseVote(m['Vote Average'])).filter((v): v is number => v !== null);
+  const counts = countIntoBuckets(votes, buckets);
+  const index = counts.indexOf(Math.max(...counts));
+  test.skip(!(counts[index] > 0), 'no rated movies');
+  return { counts, index };
 }
 
 async function nextFrames(page: Page) {
   await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+}
+
+/** Hovers (x, y) and reports whether Chart.js shows the pointer cursor there (a clickable element). */
+async function isPointerAt(page: Page, canvas: Locator, x: number, y: number): Promise<boolean> {
+  await page.mouse.move(x, y);
+  await nextFrames(page);
+  return (await canvas.evaluate((el) => (el as HTMLElement).style.cursor)) === 'pointer';
 }
 
 /** Clicks the index-th of `slots` vertical bars on a Chart.js bar chart (aiming within its slot). */
@@ -1416,9 +1956,7 @@ async function clickVerticalBar(page: Page, canvas: Locator, index: number, slot
     for (const dx of [0, -0.15, 0.15, -0.3, 0.3]) {
       const x = cx + dx * slot;
       const y = box.y + box.height * fy;
-      await page.mouse.move(x, y);
-      await nextFrames(page);
-      if ((await canvas.evaluate((el) => (el as HTMLElement).style.cursor)) === 'pointer') {
+      if (await isPointerAt(page, canvas, x, y)) {
         await page.mouse.click(x, y);
         return;
       }
@@ -1430,12 +1968,11 @@ async function clickVerticalBar(page: Page, canvas: Locator, index: number, slot
 test.describe('Drill-down consistency', () => {
   test('Dashboard rating bar opens exactly the movies it counted', async ({ page }) => {
     const movies = await fetchMovies(page);
-    const counts = voteBucketCounts(movies, 5, 2);
-    const index = counts.indexOf(Math.max(...counts)); // tallest bar = easiest to hit
+    const { counts, index } = tallestBucket(movies, RATING_BUCKETS);
     await page.goto('/');
-    const canvas = page.getByText('Rating Distribution', { exact: true }).locator('xpath=..').locator('canvas');
+    const canvas = dashboardChartCanvas(page, 'Rating Distribution');
     await expect(canvas).toBeVisible();
-    await clickVerticalBar(page, canvas, index, 5);
+    await clickVerticalBar(page, canvas, index, RATING_BUCKETS.length);
     await expect(page).toHaveURL('/movies');
     await waitForTable(page);
     await expectTotal(page, counts[index]);
@@ -1450,10 +1987,38 @@ test.describe('Drill-down consistency', () => {
     await expectTotal(page, counts[index]);
   });
 
+  test('moving one vote handle after a drill-down keeps the other bound exact', async ({ page }) => {
+    await mockMovies(page, [
+      makeMovie(1, { 'Vote Average': '2.5' }),
+      makeMovie(2, { 'Vote Average': '3.0' }),
+      makeMovie(3, { 'Vote Average': '3.5' }),
+      makeMovie(4, { Name: 'Rated Four', 'Vote Average': '4.0' }),
+      makeMovie(5, { 'Vote Average': '7.0' }),
+    ]);
+    await page.goto('/');
+    const canvas = dashboardChartCanvas(page, 'Rating Distribution');
+    await expect(canvas).toBeVisible();
+    await clickVerticalBar(page, canvas, 1, 5); // "2–4"
+    await expect(page).toHaveURL('/movies');
+    await waitForTable(page);
+    await expectTotal(page, 3);
+
+    await openFiltersDrawer(page);
+    const lowerVote = page.locator('.ant-drawer-body .ant-slider').nth(1).locator('.ant-slider-handle').first();
+    await lowerVote.focus();
+    await page.keyboard.press('ArrowRight');
+    await closeFiltersDrawer(page);
+    // The untouched upper bound stays 3.999 (not the slider's 0.1-step 4.0), so 4.0 stays out.
+    await expect(page.locator('.ant-tag').filter({ hasText: 'Vote:' })).toContainText('Vote: 2.1–3.999');
+    await expectTotal(page, 3);
+    await expect(page.locator('.ant-table-row', { hasText: 'Rated Four' })).toHaveCount(0);
+  });
+
   test('Stats drill-down carries the Release Year Range scope', async ({ page }) => {
     const movies = await fetchMovies(page);
-    const { yearMin, yearMax } = yearSpan(movies);
-    test.skip(yearMin === yearMax, 'dataset spans a single year — the range slider is disabled');
+    const span = yearSpan(movies);
+    test.skip(!span || span.yearMin === span.yearMax, SINGLE_YEAR_SKIP);
+    const { yearMin, yearMax } = span!;
 
     await page.goto('/stats?tab=ratings');
     await waitForStats(page);
@@ -1467,12 +2032,9 @@ test.describe('Drill-down consistency', () => {
       const y = parseInt(m['Release Year'], 10);
       return !isNaN(y) && y >= yearMin + 1 && y <= yearMax;
     });
-    const counts = voteBucketCounts(scoped, 10, 1);
-    const index = counts.indexOf(Math.max(...counts));
-    const canvas = activeTabPane(page)
-      .getByRole('heading', { name: 'Vote Average Distribution' })
-      .locator('xpath=../..').locator('canvas');
-    await clickVerticalBar(page, canvas, index, 10);
+    const { counts, index } = tallestBucket(scoped, VOTE_BUCKETS);
+    const canvas = chartCanvas(page, 'Vote Average Distribution');
+    await clickVerticalBar(page, canvas, index, VOTE_BUCKETS.length);
 
     await expect(page).toHaveURL('/movies');
     await waitForTable(page);
@@ -1483,8 +2045,8 @@ test.describe('Drill-down consistency', () => {
 
   test('a drill-down never renders the filters saved earlier in the session', async ({ page }) => {
     const saved = 'zz-saved-search-no-match';
-    await page.addInitScript((text) => {
-      sessionStorage.setItem('movieDash_filters_v2', JSON.stringify({ search: text }));
+    await page.addInitScript(([key, text]) => {
+      sessionStorage.setItem(key, JSON.stringify({ search: text }));
       const w = window as unknown as { __sawSaved: boolean };
       w.__sawSaved = false;
       // Read the mutation records, not the live DOM: the saved filters may be replaced within the
@@ -1501,15 +2063,14 @@ test.describe('Drill-down consistency', () => {
         subtree: true, childList: true, characterData: true, characterDataOldValue: true,
         attributes: true, attributeFilter: ['value'], attributeOldValue: true,
       });
-    }, saved);
+    }, [FILTERS_STORAGE_KEY, saved]);
 
     const movies = await fetchMovies(page);
-    const counts = voteBucketCounts(movies, 5, 2);
-    const index = counts.indexOf(Math.max(...counts));
+    const { counts, index } = tallestBucket(movies, RATING_BUCKETS);
     await page.goto('/');
-    const canvas = page.getByText('Rating Distribution', { exact: true }).locator('xpath=..').locator('canvas');
+    const canvas = dashboardChartCanvas(page, 'Rating Distribution');
     await expect(canvas).toBeVisible();
-    await clickVerticalBar(page, canvas, index, 5);
+    await clickVerticalBar(page, canvas, index, RATING_BUCKETS.length);
     await expect(page).toHaveURL('/movies');
     await waitForTable(page);
     await expectTotal(page, counts[index]);
@@ -1523,9 +2084,7 @@ test.describe('Drill-down consistency', () => {
     await mockMovies(page, rows);
     await page.goto('/stats?tab=runtime');
     await waitForStats(page);
-    const canvas = activeTabPane(page)
-      .getByRole('heading', { name: 'Avg Runtime by Decade' })
-      .locator('xpath=../..').locator('canvas');
+    const canvas = chartCanvas(page, 'Avg Runtime by Decade');
     await clickVerticalBar(page, canvas, 1, 2); // bars: 2010s, 2020s
     await expect(page).toHaveURL('/movies');
     await waitForTable(page);

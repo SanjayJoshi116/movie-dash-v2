@@ -1,11 +1,15 @@
 import axios from 'axios';
 
-/** The server's `{ error }` text from a failed axios request, or `undefined` when it sent none. */
+/**
+ * The server's `{ error }` text from a failed axios request, or `undefined` when it sent none.
+ * Blank text counts as none, so callers' `??` fallback still shows a message (B180).
+ */
 export function serverErrorMessage(err: unknown): string | undefined {
   if (!axios.isAxiosError(err)) return undefined;
   const body: unknown = err.response?.data;
-  if (typeof body === 'object' && body !== null && typeof (body as { error?: unknown }).error === 'string') {
-    return (body as { error: string }).error;
+  if (typeof body === 'object' && body !== null) {
+    const { error } = body as { error?: unknown };
+    if (typeof error === 'string' && error.trim()) return error;
   }
   return undefined;
 }

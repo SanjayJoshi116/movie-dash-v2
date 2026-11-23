@@ -3,6 +3,141 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.11.12] - 2026-11-23
+
+Fixes from a `/code-review` (high) of the staged 0.11.8–0.11.11 diff (BUG_BACKLOG §3u). Of its 7 findings, 5 are fixed, B191 is accepted (no fix planned) and B192 stays open pending a design choice.
+
+### Fixed
+- **Dashboard trend and rating charts let you click empty years/bars** (B187). A zero-filled trend year or an empty rating bucket showed the pointer and drilled down to an empty Movies list; both charts now pass `isClickable` (count > 0), like the Stats charts.
+- **Crossed slider handles could round an untouched bound** (B193). rc-slider lets range handles cross (`allowCross` defaults to `true`) and reports sorted values, so an untouched bound such as a drill-down's `3.999` could arrive at the other index and be saved as `4.0`. `RangeSlider`'s `keepUntouched` now matches by index first, then the other bound, using each committed bound once.
+- **Export filename could disagree with the exported rows** (B188). The name used the live search while the rows used the debounced one; it now uses the debounced search too.
+- **Recent Releases read "released , rated …" for an undated movie** (B189). The accessible name leaves out the release part when the date is blank.
+
+### Changed
+- e2e write-guard lint (B190): `browser.newPage()` (a new, unguarded context) is banned in `tests/`, and computed access such as `request['post']` is caught alongside `request.post`.
+- CLAUDE.md, README and features.txt updated; `BUG_BACKLOG.md` §3u: B187–B190 and B193 fixed, B191 accepted, B192 open.
+
+## [0.11.11] - 2026-11-23
+
+Batch N fixes (modules added after the per-module sweep): OpenSpec `fix-batch-n-review` is applied and archived, and its requirements are synced into the `dashboard-layout`, `catalog-persistence`, `movie-browsing`, `accessible-ui` and `dev-quality-gates` main specs. With it, all 85 tracked modules are reviewed (CR + SR) and fixed. The `/security-review` found nothing at ≥ 8 confidence.
+
+### Fixed
+- **A drawer crash was reported as a failed download** (B178). `ChunkErrorBoundary` caught every error, so a render crash in the movie drawer showed "Couldn't open movie details" and crashed again on each reopen. `loadDrawer` now wraps an `import()` rejection in `ChunkLoadError`; the boundary handles only that and rethrows anything else, so the route error view shows real crashes.
+- **The drawer retry could keep failing in some browsers** (B179). Chromium downloads a failed module again, but other browsers may cache the failure, so the alert now also offers **Reload page**.
+- **Typing a language name in the Filters drawer found nothing** (B177). The Language picker searched ISO codes; it now searches the names it shows ("Tamil").
+- **A blank server error showed no message** (B180). `serverErrorMessage` treats blank text as none, so Add Movie and the drawer's delete fall back to "Request failed" / "Delete failed".
+
+### Security hardening
+- **The formula guard now also escapes a leading tab or carriage return** (B181), as OWASP lists. The server, Export CSV and the Python tools are changed together; stored values still read back unchanged. The real catalogue had no value this affects.
+
+### Changed
+- `statsHelpers.test.ts` imports `RATING_BUCKETS` instead of keeping a copy (B182); a chart that stops being clickable resets the pointer cursor (B183, latent); `ChunkErrorBoundary`'s doc comment now matches how it's keyed (B184).
+- The Python backfill "file untouched" test checks that the rewrite was never called, instead of comparing mtime (B186).
+- `/simplify` pass over the staged 0.11.8–0.11.11 diff (reuse, simplification, efficiency, altitude reviews), with no behaviour change:
+  - The ~20 `useCallback` wrappers on Dashboard/Stats chart click handlers are gone (with the `yearLabels` memo and the misleading `formatRoi` comment): the chart wrappers read callbacks through `useLatest` at event time, so identity never mattered. The year-click handlers no longer repeat the `isClickable` check that `clickHandlers` already enforces.
+  - New `drillableLabelAt()` and `continuousYears()` in `statsHelpers.ts` replace 8 copies of the label cast-and-check and 3 hand-built year axes; OverviewTab counts years and finds the span in one pass, with a `for` loop instead of a cast.
+  - Stats uses `computeFilterSpans` for its year bounds and the now-exported `clampRange(..., true)` for its range clamp; RuntimeTab's open bucket ends at `computeFilterSpans().runtimeMax`, the Movies slider's own max.
+  - Dashboard uses `parseVote` for every vote read, and one `Tag` instead of two branches for rated/not rated.
+  - New `src/components/EmptyState.tsx` replaces three copies of the empty-state card.
+  - `TopNExplorer` computes each movie's metric once instead of on every sort comparison (~46k calls → 2k).
+  - `ChunkLoadError` drops its unused `original` field and `onError` its unused argument; `filterChips` trims the search once.
+  - e2e: `chartCanvas`, `dashboardChartCanvas`, `confirmDrawerDelete`, `codesByLanguageName` and `FILTERS_STORAGE_KEY` in `tests/helpers.ts`, a local `failDrawerChunkOnce`, and one `isPointerAt` probe shared by the canvas sweeps.
+  - Skipped (deeper than this diff, or changing test mechanics): shared `parseRuntime`/known-revenue helpers, a shared vote tag for `MovieDrawer`, `TopNExplorer` NaN-for-unknown, typing in `selectInDrawer`, chart-geometry clicks.
+- CLAUDE.md documents `ChunkLoadError` and the Reload action, the tab/CR prefixes and their parity test, the blank-message rule and the Language picker's label search; README and features.txt updated.
+- `BUG_BACKLOG.md`: new §3t with B178–B186, B177 fixed; §6 Batch N rows 76–81, 83–85 set to ☑ (reviewed and fixed); Progress 85 of 85.
+
+### Added
+- 4 e2e tests (113 → 117): the Reload page action, a drawer crash reaching the error view, the language picker found by name, and a blank server error on search and delete.
+- 1 server test (114 → 115): a tab-led formula title stored escaped once and served unchanged after a rewrite.
+- `tests/unit/csvEscape.test.ts` and 2 cursor tests in `chartHelpers.test.ts` (30 → 36), then 3 for the `/simplify` helpers (36 → 39).
+- 2 Python tests (38 → 40): the Python and TypeScript formula prefixes must match (B185), and an append → read round trip.
+
+## [0.11.10] - 2026-11-23
+
+Batch L and M fixes (server tests, e2e spec + helpers): OpenSpec `fix-server-tests-review` (archived 2026-11-22) and `fix-e2e-review` (archived 2026-11-23) are applied, and their requirements are synced into the `dev-quality-gates` main spec. All eleven review-fix changes from the 2026-11-20 per-module review are now archived. These are test fixes; the only production changes are a test seam and moved constants, with no behaviour change.
+
+### Fixed — server tests
+- **Tests that waited by sleeping** (B153, B157): the duplicate-in-queue and `drain()` tests now wait for a `reached()` promise that a stub or fs hook resolves, instead of `sleep(30)`/`sleep(50)`, so they still reach the state they describe on a loaded runner.
+- **Injected faults never checked to have fired** (B154): `armedStat` exposes `fired`, and both tests assert it, so a server change that moves the fault point fails the test instead of passing untested.
+- **Write-failure test relied on `chmod`, which root ignores** (B158): failures are injected through `fsHooks` (`rename`, plus a new `appendFile` hook for the import's append), so the suite passes in a root container.
+- **Tests that passed with nothing tested** (B152, B155, B156): the apostrophe round-trip now really reloads, the deadline test requires at least two attempts, and shutdown is also tested with drain finishing first.
+- Test names, a stale comment and a 502 stub that the real client can't throw (B159–B161).
+
+### Fixed — e2e
+- **Director, runtime and revenue filter tests checked only the chip** (B162), and **"multiple filters combined" never checked the count** (B163). They run on mocked rows and assert the exact total; the combined test requires a non-empty AND result first. Each was confirmed to fail with its filter removed.
+- **The e2e write guard covered only `page`** (B164). It's now on the browser context (any page the test opens), the `request` fixture is GET-only, and lint bans `.request.post/put/patch/delete/fetch` and `newContext` in `tests/`. Nothing misused the gap.
+- **Bucket bounds copied into the test** (B166): `RATING_BUCKETS` and `VOTE_BUCKETS` moved to `src/utils/chartBuckets.ts`, shared by the Dashboard, Ratings tab and the e2e drill-down tests.
+- Fragile helpers (B165, B167–B169, B171): `yearSpan()` returns `null` with no years and both callers skip the same way; the language test counts by code; `selectInDrawer` matches the option title exactly; `chooseOption` uses `getByTitle(…, { exact: true })` instead of an unescaped CSS selector; duplicate JSDoc removed.
+- Two tests named for more than they checked (B170): the pagination visibility test is merged into "second page of pagination loads", and the rating-colour test checks the tag colour of a mocked 8.5-rated movie.
+
+### Added
+- `src/utils/chartBuckets.ts`; `fsHooks.appendFile` in `createApp()`; `reached()` and `isPending()` in `server/__tests__/helpers.ts`.
+- 2 server tests (112 → 114): drain finishing first at shutdown, and a network-error 502.
+
+### Changed
+- e2e tests 114 → 113 (pagination tests merged); still 13 suites.
+- `dev-quality-gates` spec: the write guard also covers pages the test opens and API requests that skip page routing.
+- CLAUDE.md documents the context-level guard, the GET-only `request` fixture and its lint bans, `chartBuckets.ts`, `reached()`/`isPending()` and the fault-fired rule; README and features.txt test counts updated.
+- `BUG_BACKLOG.md`: B152–B171 fixed; §6 rows 62–68, 70, 71, 73 and Batches L, M set to Fix ☑. New open B177 (§3s): typing a language name in the Filters drawer finds nothing. §6 now tracks 85 modules: rows 82–85 add `catalogue_io.py` (reviewed with Batch B), `csvEscape.ts`, `test_catalogue_io.py` and `chartBuckets.ts`, and the last three join Batch N, which still needs a CR + SR pass.
+
+## [0.11.9] - 2026-11-22
+
+Batch F, I1 and I2 fixes (Dashboard, Stats page, Stats tabs): OpenSpec `fix-dashboard-review`, `fix-stats-review` and `fix-stats-tabs-review` are applied and archived, and their requirements are synced into the `accessible-ui`, `dashboard-layout` and `analytics-drilldown` main specs. Nine of the eleven review-fix changes are now archived; `fix-server-tests-review` and `fix-e2e-review` (tests only) are still open.
+
+### Fixed — Dashboard
+- **"Top Rated" ignored vote count** (B108, same as B7): a 1-vote 10.0 beat The Godfather. Dashboard and Stats › Explore "Highest Rated" now share `ratingPool()` (at least 50 votes, dropped when fewer than 10 movies qualify), so they pick the same movie.
+- **A failed movie-details download broke the Dashboard until reload** (B109). A local `ChunkErrorBoundary` keeps the page up, shows an inline error, and the next click downloads the details again. It's an `Alert`, not antd `message`, which would have added ~9 kB gzip to the landing page.
+- **Negative revenue lowered Total Box Office** (B110); **unrated movies showed "⭐ 0" and empty averages showed 0** (B114): revenue ≤ 0 is skipped, unrated movies get a "Not rated" tag, and Average Rating/Runtime show "—" when nothing is known.
+- **Screen readers didn't hear card values** (B111) and **Recent Releases lost its list role** (B112). Stat, highlight and recent-release names now include what's shown; each list item holds a real `<button>` (`.recent-release-button`). Section headings are h4 under the page's h3 (B116), at the same visual size.
+- Memoized chart click handlers (B113), hero tint built with `withAlpha` (B115).
+
+### Fixed — Stats page
+- **"Movies Released per Year" had an "Unknown" point and skipped gap years** (B4). It now runs from the first to the last year, ascending, with 0 for empty years (not clickable).
+- **Earliest/Latest Release showed 0 with no dated movies** (B24, Stats part; B135): shown as "—", computed in one loop.
+- **No empty states** (B25): an empty catalogue shows "Go to Movies"; a year range with no releases shows "Reset range" in place of the tabs and keeps the tab.
+- **The Release Year Range wasn't re-checked when the data changed** (B131): it's clamped to the new span, or reset when it no longer overlaps or covers everything.
+- **Top 10 Explorer**: the metric select no longer shrinks to 87 px at 320 px (B132); "Oldest" ranks by release date and leaves out undated movies (B133); text uses the theme colours, readable in light theme (B34).
+- Language bars get hover feedback again (B134); Overview/Explore chart callbacks memoized (B13).
+
+### Fixed — Stats tabs
+- **Unrated movies dragged rating averages down** (B6). New `parseVote()` (`null` for missing/NaN/≤ 0) is the one rule for every Stats rating chart; `MIN_FILMS` counts rated films only, and an empty runtime bucket has no bar instead of 0.
+- **The language radar could plot an "Unknown" 0.0 spoke** (B18): the top 8 come from languages with rated films.
+- **"Average Vote by Year" skipped gap years** (B136): continuous axis, the line breaks at years without rated films, which aren't clickable.
+- Radar point borders and the scatter hover colour are no longer hardcoded (B137, B138); People/Ratings/Runtime/BoxOffice chart callbacks memoized (B13).
+
+### Added
+- `src/components/ChunkErrorBoundary.tsx`; `ratingPool()`, `MIN_VOTES_FOR_RATING`/`MIN_QUALIFYING_FOR_CUTOFF` and `parseVote()` in `statsHelpers.ts`.
+- 14 e2e tests (100 → 114): Dashboard Top Rated vs Explore, the drawer chunk retry, unknown values, accessible names/list/headings; Stats per-year gaps, empty range, empty catalogue, range clamp after a refresh (two cases), Oldest ordering, the 320 px toolbar; director averages without unrated films, radar spokes, the average-by-year gaps and drill-down.
+- 1 unit test (29 → 30): `parseVote`.
+
+### Changed
+- CLAUDE.md documents the drawer boundary, `ratingPool`, `.recent-release-button`, Dashboard/Stats unknown values, Stats empty states and range clamp, the continuous per-year charts, the Top 10 changes and `parseVote`; README and features.txt updated.
+- `BUG_BACKLOG.md`: B108–B116, B131–B138 fixed; B4, B6, B7, B18, B24, B25, B30, B34 closed; the last caller parts of B13 done; B10 stays open (route chunks). §6 rows 23, 25, 33–43 and Batches F, I1, I2 set to Fix ☑; new row 81 for `ChunkErrorBoundary.tsx`.
+
+## [0.11.8] - 2026-11-21
+
+Batch G fixes (Movies page and filtering): OpenSpec `fix-movies-filtering-review` is applied and archived, and its requirements are synced into the `accessible-ui`, `analytics-drilldown` and `movie-browsing` main specs. Six of the eleven review-fix changes are now archived; five are still open.
+
+### Fixed — filters
+- **Moving one vote handle after a rating drill-down rounded the other bound** (B117). The vote slider steps by 0.1, so it showed and committed the "2–4" drill-down's `3.999` as `4.0`, and 4.0 films (counted in "4–6") appeared in the "2–4" list. `RangeSlider` now keeps the exact committed value of any end the user didn't move (`alignToStep()` mirrors rc-slider's step alignment). The new e2e test fails without the fix.
+- **The revenue slider moved $1 per key press** (B118). Its step is now about 1/100 of the span, rounded to 1/2/5 × 10^k (`niceStep()`), e.g. $20M for $1M–$2.8B.
+- **Runtime 0 counted as a real runtime** (B119, same as B5). TMDB stores an unknown runtime as `0`. It is now unknown, like an unrated vote or unknown revenue: left out of the slider span, excluded while a runtime filter is active, and skipped by the Runtime tab's runtime-bucket chart, so "< 60 min" counts what its drill-down lists.
+- **Surrounding spaces broke the search** (B120, the trim part of B20). "The Matrix " matched nothing, and a lone space showed a blank "Search:" chip and the active-filters dot. Search is trimmed at match time; the box still shows exactly what was typed.
+- **A saved genre filter on a catalogue without a Genres column** (B121) no longer crashes. It was already fixed by 0.11.6's row normalisation, so no per-site guard was added; a new e2e test covers it.
+
+### Fixed — export
+- **The Export CSV explanation was mouse-only** (B122). The info icon is gone: the tooltip is on the button (hover and focus), and the button's accessible description carries the same text.
+- **The export was always named `movies-filtered-N.csv`** (B123). It is `movies-N.csv` unless a search or filter is active (sorting alone isn't filtering).
+
+### Added
+- 6 e2e tests (94 → 100): a drill-down bound kept when the other vote handle moves, the revenue keyboard step, search ignoring surrounding spaces, a saved genre filter without a Genres column, runtime 0 as unknown, and the Export button's hint and filtered filename.
+- `tests/unit/filterSpans.test.ts`, 3 unit tests (26 → 29): `alignToStep`, `niceStep`, and runtime 0 left out of the slider span.
+
+### Changed
+- "CSV export triggers download" now expects `movies-N.csv`, since it runs with no filters.
+- CLAUDE.md documents the slider, unknown-runtime, search-trim and export-filename rules; README test counts and descriptions updated.
+- `BUG_BACKLOG.md`: B117–B120, B122, B123 and B5 marked fixed, B121 resolved, B20's trim part fixed (accent folding still open); §3j marked fixed; §6 rows 24, 30–32, 54, 55, 74 and Batch G set to Fix ☑; §0 checks re-run.
+
 ## [0.11.7] - 2026-11-21
 
 `/simplify` and `/code-review` (high) pass over the staged Batch D/E/H/J/K fixes (0.11.3–0.11.6). The review logged B172–B176, all fixed here. The simplify pass changes no behaviour except trimming in `formatDateDDMMYYYY`.

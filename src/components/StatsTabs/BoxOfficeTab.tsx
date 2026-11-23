@@ -11,6 +11,9 @@ import type { Movie } from '../../types/movie';
 
 interface BoxOfficeTabProps { movies: Movie[] }
 
+const MIN_BUDGET_FOR_ROI = 100_000;
+const formatRoi = (n: number): string => `${n.toFixed(1)}x`;
+
 const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
   const drillDown = useDrillDown();
@@ -90,8 +93,6 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
   }, [movies]);
 
 
-  const MIN_BUDGET_FOR_ROI = 100_000;
-
   const topRoiData = useMemo<ChartData<'bar'>>(() => {
     const top = movies
       .map(m => ({ name: m.Name, revenue: parseRevenue(m['Box Office Revenue']), budget: parseRevenue(m['Budget']) }))
@@ -109,12 +110,9 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
     };
   }, [movies]);
 
-  const formatRoi = (n: number): string => `${n.toFixed(1)}x`;
-
   const handleGenreClick = (index: number) => {
     const genre = avgRevenueByGenreData.labels?.[index] as string | undefined;
-    if (!genre) return;
-    drillDown({ genres: [genre] });
+    if (genre) drillDown({ genres: [genre] });
   };
 
   return (

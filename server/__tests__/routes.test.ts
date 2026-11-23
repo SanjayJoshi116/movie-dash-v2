@@ -1,7 +1,8 @@
 // Existing route behaviour: health, list/get, delete validation, TMDB search params, security.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { serverPool, request, readCsvRows, deferred, stubTmdb } from './helpers';
+import { serverPool, request, readCsvRows, deferred, stubTmdb, tmdbError } from './helpers';
+import { TmdbRequestError } from '../tmdb';
 
 const start = serverPool();
 
@@ -113,8 +114,14 @@ describe('TMDB search', () => {
     assert.deepEqual(res.body.results.map((r) => r.title), ['New']);
   });
 
-  it('502s when TMDB fails', async () => {
-    const s = await start({ tmdbApiKey: 'k', tmdb: stubTmdb({ '/search/movie': new Error('boom') }) });
+  // The real client only ever throws TmdbRequestError, so the stubs throw that too.
+  it('502s when TMDB answers with a server error', async () => {
+    const s = await start({ tmdbApiKey: 'k', tmdb: stubTmdb({ '/search/movie': tmdbError(500, '/search/movie') }) });
+    assert.equal((await request(s.baseUrl, '/api/tmdb/search?query=x')).status, 502);
+  });
+
+  it('502s when TMDB is unreachable (network error, no status)', async () => {
+    const s = await start({ tmdbApiKey: 'k', tmdb: stubTmdb({ '/search/movie': new TmdbRequestError('/search/movie', undefined, 'ECONNRESET') }) });
     assert.equal((await request(s.baseUrl, '/api/tmdb/search?query=x')).status, 502);
   });
 });

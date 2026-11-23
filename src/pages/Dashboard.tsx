@@ -1,5 +1,5 @@
-import React, { Suspense, useMemo, useState } from 'react';
-import { Row, Col, Typography, Button, Tag, List, Grid, Empty } from 'antd';
+import React, { Suspense, useCallback, useMemo, useState } from 'react';
+import { Row, Col, Typography, Button, Tag, List, Grid, Alert } from 'antd';
 import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import {
@@ -22,26 +22,32 @@ import LineChart from '../components/Charts/LineChart';
 import BarChart from '../components/Charts/BarChart';
 import DoughnutChart from '../components/Charts/DoughnutChart';
 import PosterThumb from '../components/PosterThumb';
+import ChunkErrorBoundary, { ChunkLoadError } from '../components/ChunkErrorBoundary';
+import EmptyState from '../components/EmptyState';
 import { getCardStyle, SPACING, FONT_SIZE, CHART_PALETTE, CHART_PRIMARY, withAlpha } from '../utils/chartTheme';
-import { groupByField, topNWithOther, makeDoughnut, parseRevenue, formatRevenue, isDrillableLabel, countIntoBuckets, bucketToRange, VOTE_STEP, VOTE_MAX, MAX_NAMED_CATEGORIES, type Bucket } from '../utils/statsHelpers';
+import { groupByField, topNWithOther, makeDoughnut, parseRevenue, formatRevenue, drillableLabelAt, parseVote, ratingPool, countIntoBuckets, bucketToRange, VOTE_STEP, VOTE_MAX, MAX_NAMED_CATEGORIES } from '../utils/statsHelpers';
+import { RATING_BUCKETS } from '../utils/chartBuckets';
 import { useDrillDown } from '../contexts/DrilldownContext';
 import { formatDateDDMMYYYY } from '../utils/formatDate';
 import type { Movie } from '../types/movie';
 
 // Lazy: the drawer (Drawer, Descriptions, Image, Popconfirm) isn't needed for the landing page's
 // first paint, so it stays out of the initial bundle (frontend-performance spec) and loads on first open.
-const MovieDrawer = React.lazy(() => import('../components/MovieDrawer'));
+// The loader stays module-level (so Vite still splits the chunk); the lazy component itself lives in
+// state, so a failed load can be retried with a fresh React.lazy (React caches a rejected one forever).
+// A failed download is marked as a ChunkLoadError, so the boundary passes real drawer crashes up (B178).
+const loadDrawer = () => import('../components/MovieDrawer').catch((err: unknown) => {
+  throw new ChunkLoadError(err);
+});
 
-// Half-open; the last bucket also takes 10.0. Shared by the chart count and the click filter.
-const RATING_BUCKETS: Bucket[] = [
-  { label: '0–2', min: 0, maxExclusive: 2 },
-  { label: '2–4', min: 2, maxExclusive: 4 },
-  { label: '4–6', min: 4, maxExclusive: 6 },
-  { label: '6–8', min: 6, maxExclusive: 8 },
-  { label: '8–10', min: 8, maxExclusive: Infinity },
-];
+const DRAWER_LOAD_ERROR = "Couldn't open movie details. Check your connection and try again.";
+
+/** The vote badge text, or null when the movie is unrated (parseVote's rule). */
+const formatVoteBadge = (raw: string): string | null => (parseVote(raw) === null ? null : `⭐ ${raw}`);
 
 const TREND_YEARS = 10;
+
+const NOT_RATED = 'Not rated';
 
 const { Title, Text } = Typography;
 
@@ -59,7 +65,7 @@ const HighlightCard: React.FC<HighlightCardProps> = ({ icon, label, movie, detai
     style={{ ...getCardStyle(isDark), padding: SPACING.xl, height: '100%', cursor: movie ? 'pointer' : undefined }}
     role={movie ? 'button' : undefined}
     tabIndex={movie ? 0 : undefined}
-    aria-label={movie ? `View details for ${movie.Name}` : undefined}
+    aria-label={movie ? `${label}: ${movie.Name}, ${detail}` : undefined}
     onClick={movie ? () => onSelect(movie) : undefined}
     onKeyDown={movie ? (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(movie); }
@@ -76,7 +82,7 @@ const HighlightCard: React.FC<HighlightCardProps> = ({ icon, label, movie, detai
           <div style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 17, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {movie.Name}
           </div>
-          <Tag color="blue">{detail}</Tag>
+          <Tag color={detail === NOT_RATED ? undefined : 'blue'}>{detail}</Tag>
         </div>
       </div>
     ) : (
@@ -122,20 +128,38 @@ const Dashboard: React.FC = () => {
   // Mount the lazy drawer on first open and keep it mounted, so its close animation still plays.
   const [drawerMounted, setDrawerMounted] = useState(false);
   if (selectedMovie && !drawerMounted) setDrawerMounted(true);
+  const [drawer, setDrawer] = useState(() => ({ attempt: 0, MovieDrawer: React.lazy(loadDrawer) }));
+  const { MovieDrawer } = drawer;
+  // An inline Alert, not antd `message`: message isn't on the landing route and would add ~9 kB gzip to it.
+  const [drawerLoadFailed, setDrawerLoadFailed] = useState(false);
+  const handleDrawerLoadError = useCallback(() => {
+    setDrawerLoadFailed(true);
+    setSelectedMovie(null);
+    setDrawerMounted(false);
+    // A fresh lazy calls import() again on the next open. Chromium fetches a failed module again; a
+    // browser that caches the failure keeps failing, which is why the alert also offers a reload (B179).
+    setDrawer((d) => ({ attempt: d.attempt + 1, MovieDrawer: React.lazy(loadDrawer) }));
+  }, []);
+  // A new open is a retry, so the previous failure's alert goes away.
+  const openMovie = useCallback((movie: Movie) => {
+    setDrawerLoadFailed(false);
+    setSelectedMovie(movie);
+  }, []);
   const screens = Grid.useBreakpoint();
   const miniChartHeight = screens.md ? 240 : 180;
   // The doughnut's bottom legend wraps to several rows on phones; give it room so no row is dropped.
   const genreChartHeight = screens.md ? miniChartHeight : 280;
 
   const stats = useMemo(() => {
-    const votes = movies.map(m => parseFloat(m['Vote Average'])).filter(v => !isNaN(v) && v > 0);
+    const votes = movies.map((m) => parseVote(m['Vote Average'])).filter((v): v is number => v !== null);
     const runtimes = movies.map(m => parseFloat(m.Runtime)).filter(r => !isNaN(r) && r > 0);
-    const totalRevenue = movies.reduce((sum, m) => sum + parseRevenue(m['Box Office Revenue']), 0);
+    // Revenue ≤ 0 is unknown (as on the Box Office tab), so it never lowers the total.
+    const totalRevenue = movies.reduce((sum, m) => sum + Math.max(0, parseRevenue(m['Box Office Revenue'])), 0);
 
     return {
       totalMovies: movies.length,
-      avgRating: votes.length ? votes.reduce((a, b) => a + b, 0) / votes.length : 0,
-      avgRuntime: runtimes.length ? Math.round(runtimes.reduce((a, b) => a + b, 0) / runtimes.length) : 0,
+      avgRating: votes.length ? votes.reduce((a, b) => a + b, 0) / votes.length : null,
+      avgRuntime: runtimes.length ? Math.round(runtimes.reduce((a, b) => a + b, 0) / runtimes.length) : null,
       totalRevenue,
     };
   }, [movies]);
@@ -146,10 +170,14 @@ const Dashboard: React.FC = () => {
     let newest: Movie | null = null;
     let newestTime = -Infinity;
 
-    movies.forEach((m) => {
-      const vote = parseFloat(m['Vote Average']);
-      if (!isNaN(vote) && (!topRated || vote > parseFloat(topRated['Vote Average']))) topRated = m;
+    // Same vote-count rule as Stats › Explore "Highest Rated"; unrated movies are never picked.
+    let topVote = 0;
+    ratingPool(movies).pool.forEach((m) => {
+      const vote = parseVote(m['Vote Average']) ?? 0;
+      if (vote > topVote) { topVote = vote; topRated = m; }
+    });
 
+    movies.forEach((m) => {
       const popularity = parseFloat(m['Popularity Score']);
       if (!isNaN(popularity) && (!mostPopular || popularity > parseFloat(mostPopular['Popularity Score']))) mostPopular = m;
 
@@ -190,7 +218,7 @@ const Dashboard: React.FC = () => {
 
   const ratingBucketData = useMemo<ChartData<'bar'>>(() => {
     // 0 = unrated: skipped here and excluded by the Movies vote filter, so counts match drill-downs.
-    const votes = movies.map((m) => parseFloat(m['Vote Average'])).filter((v) => !isNaN(v) && v > 0);
+    const votes = movies.map((m) => parseVote(m['Vote Average'])).filter((v): v is number => v !== null);
     const counts = countIntoBuckets(votes, RATING_BUCKETS);
     return { labels: RATING_BUCKETS.map((b) => b.label), datasets: [{ label: 'Movies', data: counts, backgroundColor: CHART_PALETTE[1] }] };
   }, [movies]);
@@ -207,23 +235,25 @@ const Dashboard: React.FC = () => {
     ? `Movies Released — ${yearLabels[0]}–${yearLabels[yearLabels.length - 1]}`
     : 'Movies Released';
 
+  // Plain functions: the chart wrappers read callbacks at event time (useLatest), so identity doesn't matter.
   const handleGenreClick = (index: number) => {
-    const label = (genreDoughnutData.labels?.[index] ?? null) as string | null;
-    if (!isDrillableLabel(label)) return;
-    drillDown({ genres: [label] });
+    const genre = drillableLabelAt(genreDoughnutData.labels, index);
+    if (genre) drillDown({ genres: [genre] });
   };
+  const isGenreClickable = (index: number) => drillableLabelAt(genreDoughnutData.labels, index) !== null;
 
   const handleRatingBucketClick = (index: number) => {
     const bucket = RATING_BUCKETS[index];
-    if (!bucket) return;
-    drillDown({ voteRange: bucketToRange(bucket, VOTE_STEP, VOTE_MAX) });
+    if (bucket) drillDown({ voteRange: bucketToRange(bucket, VOTE_STEP, VOTE_MAX) });
   };
 
+  // A zero-filled year or an empty bucket would drill down to an empty list, so it isn't clickable.
+  const isYearClickable = (index: number) => Number(yearTrendData.datasets[0]?.data[index] ?? 0) > 0;
+  const isRatingBucketClickable = (index: number) => Number(ratingBucketData.datasets[0]?.data[index] ?? 0) > 0;
+
   const handleYearClick = (index: number) => {
-    const year = yearLabels[index];
-    if (!year) return;
-    const y = parseInt(year, 10);
-    drillDown({ yearRange: [y, y] });
+    const year = parseInt(yearLabels[index], 10);
+    if (!isNaN(year)) drillDown({ yearRange: [year, year] });
   };
 
   return (
@@ -233,15 +263,23 @@ const Dashboard: React.FC = () => {
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: SPACING.xxl }}>
         Snapshot of your movie collection — key stats, highlights, and trends at a glance.
       </Text>
+      {drawerLoadFailed && (
+        <Alert
+          type="error"
+          showIcon
+          title={DRAWER_LOAD_ERROR}
+          action={<Button size="small" onClick={() => window.location.reload()}>Reload page</Button>}
+          closable={{ onClose: () => setDrawerLoadFailed(false) }}
+          style={{ marginBottom: SPACING.lg }}
+        />
+      )}
       {movies.length === 0 ? (
-        <div style={{ ...getCardStyle(isDark), padding: `48px ${SPACING.xxl}px` }}>
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="No movies yet — add one to see stats and trends here."
-          >
-            <Button type="primary" onClick={() => navigate('/movies')}>Go to Movies</Button>
-          </Empty>
-        </div>
+        <EmptyState
+          description="No movies yet — add one to see stats and trends here."
+          actionLabel="Go to Movies"
+          onAction={() => navigate('/movies')}
+          isDark={isDark}
+        />
       ) : (
       <>
       <DashboardSection title="Overview">
@@ -251,8 +289,8 @@ const Dashboard: React.FC = () => {
           </Col>
           <Col xs={24} md={12}>
             <Row gutter={[SPACING.lg, SPACING.lg]} style={{ height: '100%' }}>
-              <Col xs={24} sm={8}><StatCard label="Average Rating" value={stats.avgRating.toFixed(1)} color="#34d399" suffix="/ 10" icon={<StarOutlined />} /></Col>
-              <Col xs={24} sm={8}><StatCard label="Average Runtime" value={stats.avgRuntime} color="#a78bfa" suffix="mins" icon={<ClockCircleOutlined />} /></Col>
+              <Col xs={24} sm={8}><StatCard label="Average Rating" value={stats.avgRating === null ? '—' : stats.avgRating.toFixed(1)} color="#34d399" suffix={stats.avgRating === null ? undefined : '/ 10'} icon={<StarOutlined />} /></Col>
+              <Col xs={24} sm={8}><StatCard label="Average Runtime" value={stats.avgRuntime ?? '—'} color="#a78bfa" suffix={stats.avgRuntime === null ? undefined : 'mins'} icon={<ClockCircleOutlined />} /></Col>
               <Col xs={24} sm={8}>
                 <StatCard
                   label="Total Box Office"
@@ -274,9 +312,9 @@ const Dashboard: React.FC = () => {
               icon={<TrophyOutlined />}
               label="Top Rated"
               movie={highlights.topRated}
-              detail={highlights.topRated ? `⭐ ${highlights.topRated['Vote Average']}` : ''}
+              detail={highlights.topRated ? (formatVoteBadge(highlights.topRated['Vote Average']) ?? NOT_RATED) : ''}
               isDark={isDark}
-              onSelect={setSelectedMovie}
+              onSelect={openMovie}
             />
           </Col>
           <Col xs={24} sm={12} lg={8}>
@@ -286,7 +324,7 @@ const Dashboard: React.FC = () => {
               movie={highlights.mostPopular}
               detail={highlights.mostPopular ? `${parseFloat(highlights.mostPopular['Popularity Score']).toFixed(1)} popularity` : ''}
               isDark={isDark}
-              onSelect={setSelectedMovie}
+              onSelect={openMovie}
             />
           </Col>
           <Col xs={24} sm={12} lg={8}>
@@ -296,7 +334,7 @@ const Dashboard: React.FC = () => {
               movie={highlights.newest}
               detail={highlights.newest ? formatDateDDMMYYYY(highlights.newest['Release Date']) : ''}
               isDark={isDark}
-              onSelect={setSelectedMovie}
+              onSelect={openMovie}
             />
           </Col>
         </Row>
@@ -309,17 +347,17 @@ const Dashboard: React.FC = () => {
         <Row gutter={[SPACING.lg, SPACING.lg]}>
           <Col xs={24} lg={12}>
             <MiniChartCard title={yearRangeTitle} isDark={isDark} height={miniChartHeight}>
-              <LineChart data={yearTrendData} isDark={isDark} onElementClick={handleYearClick} />
+              <LineChart data={yearTrendData} isDark={isDark} onElementClick={handleYearClick} isClickable={isYearClickable} />
             </MiniChartCard>
           </Col>
           <Col xs={24} lg={12}>
             <MiniChartCard title={`Genre Breakdown (Top ${MAX_NAMED_CATEGORIES})`} isDark={isDark} height={genreChartHeight}>
-              <DoughnutChart data={genreDoughnutData} isDark={isDark} onElementClick={handleGenreClick} isClickable={(i) => isDrillableLabel(genreDoughnutData.labels?.[i] as string | undefined)} />
+              <DoughnutChart data={genreDoughnutData} isDark={isDark} onElementClick={handleGenreClick} isClickable={isGenreClickable} />
             </MiniChartCard>
           </Col>
           <Col xs={24} lg={12}>
             <MiniChartCard title="Rating Distribution" isDark={isDark} height={miniChartHeight}>
-              <BarChart data={ratingBucketData} isDark={isDark} onElementClick={handleRatingBucketClick} />
+              <BarChart data={ratingBucketData} isDark={isDark} onElementClick={handleRatingBucketClick} isClickable={isRatingBucketClickable} />
             </MiniChartCard>
           </Col>
           <Col xs={24} lg={12}>
@@ -330,36 +368,35 @@ const Dashboard: React.FC = () => {
               <List
                 dataSource={recentMovies}
                 locale={{ emptyText: 'No data' }}
-                renderItem={(movie) => (
-                  <List.Item
-                    onClick={() => setSelectedMovie(movie)}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`View details for ${movie.Name}`}
-                    onKeyDown={(e: React.KeyboardEvent) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setSelectedMovie(movie);
-                      }
-                    }}
-                    style={{ cursor: 'pointer', padding: '10px 4px', borderBlockEnd: '1px solid var(--glass-border)' }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: SPACING.md }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                        <PosterThumb movie={movie} width={32} height={48} radius={4} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ color: 'var(--text-primary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {movie.Name}
-                          </div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: SPACING.xs }}>
-                            <ClockCircleOutlined /> {formatDateDDMMYYYY(movie['Release Date'])}
-                          </div>
-                        </div>
-                      </div>
-                      <Tag color="blue" style={{ flexShrink: 0 }}>⭐ {movie['Vote Average']}</Tag>
-                    </div>
-                  </List.Item>
-                )}
+                renderItem={(movie) => {
+                  const date = formatDateDDMMYYYY(movie['Release Date']);
+                  const badge = formatVoteBadge(movie['Vote Average']);
+                  return (
+                    // The <li> keeps its list-item role; the clickable control is a real button inside it.
+                    <List.Item style={{ padding: '10px 4px', borderBlockEnd: '1px solid var(--glass-border)' }}>
+                      <button
+                        type="button"
+                        className="recent-release-button"
+                        onClick={() => openMovie(movie)}
+                        aria-label={`${movie.Name}${date ? `, released ${date}` : ''}, ${badge ? `rated ${movie['Vote Average']}` : 'not rated'}`}
+                        style={{ justifyContent: 'space-between', alignItems: 'center', gap: SPACING.md }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                          <PosterThumb movie={movie} width={32} height={48} radius={4} />
+                          <span style={{ display: 'block', minWidth: 0 }}>
+                            <span style={{ display: 'block', color: 'var(--text-primary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {movie.Name}
+                            </span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: SPACING.xs }}>
+                              <ClockCircleOutlined /> {date}
+                            </span>
+                          </span>
+                        </span>
+                        <Tag color={badge ? 'blue' : undefined} style={{ flexShrink: 0 }}>{badge ?? NOT_RATED}</Tag>
+                      </button>
+                    </List.Item>
+                  );
+                }}
               />
             </div>
           </Col>
@@ -395,9 +432,11 @@ const Dashboard: React.FC = () => {
       )}
 
       {drawerMounted && (
-        <Suspense fallback={null}>
-          <MovieDrawer movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
-        </Suspense>
+        <ChunkErrorBoundary key={drawer.attempt} onError={handleDrawerLoadError}>
+          <Suspense fallback={null}>
+            <MovieDrawer movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
+          </Suspense>
+        </ChunkErrorBoundary>
       )}
     </div>
     </LoadingError>

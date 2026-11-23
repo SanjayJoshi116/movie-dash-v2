@@ -87,6 +87,24 @@ export default defineConfig(
       'no-restricted-properties': ['error', {
         property: 'waitForTimeout',
         message: 'No fixed sleeps: use web-first assertions (expect(...).toHaveCount, expect.poll, ...).',
+      }, {
+        property: 'newContext',
+        message: "A new browser context skips tests/helpers.ts's write guard: use the test's own context/page.",
+      }, {
+        object: 'browser',
+        property: 'newPage',
+        message: "browser.newPage() opens a new, unguarded context: use page.context().newPage() instead.",
+      }],
+      'no-restricted-syntax': ['error', {
+        // page.request / request.<write>(): API calls aren't routed, so the guard can't see them.
+        // Matches dot access (request.post) and computed access with a string (request['post']).
+        selector: [
+          "MemberExpression[object.property.name='request'][property.name=/^(post|put|patch|delete|fetch)$/]",
+          "MemberExpression[object.name='request'][property.name=/^(post|put|patch|delete|fetch)$/]",
+          "MemberExpression[object.property.name='request'][computed=true][property.value=/^(post|put|patch|delete|fetch)$/]",
+          "MemberExpression[object.name='request'][computed=true][property.value=/^(post|put|patch|delete|fetch)$/]",
+        ].join(', '),
+        message: 'e2e must not write the catalogue: API write calls skip the route guard. Mock with page.route instead.',
       }],
     },
   },

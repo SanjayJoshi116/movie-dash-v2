@@ -77,8 +77,7 @@ const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
 
   const handleGenreClick = (index: number) => {
     const genre = genreBarData.labels?.[index] as string | undefined;
-    if (!genre) return;
-    drillDown({ genres: [genre] });
+    if (genre) drillDown({ genres: [genre] });
   };
 
   return (

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Select, Typography } from 'antd';
 import type { Movie } from '../types/movie';
 import { formatDateDDMMYYYY } from '../utils/formatDate';
+import { ratingPool, MIN_VOTES_FOR_RATING } from '../utils/statsHelpers';
 
 const { Text } = Typography;
 
@@ -31,8 +32,13 @@ function getMetricValue(movie: Movie, metric: Metric): { raw: number; display: s
       if (isNaN(d.getTime())) return { raw: -Infinity, display: movie['Release Date'] || movie['Release Year'] };
       return { raw: d.getTime(), display: formatDateDDMMYYYY(movie['Release Date']) };
     }
-    case 'oldest':
-      return { raw: -(parseInt(movie['Release Year'], 10) || 9999), display: movie['Release Year'] };
+    case 'oldest': {
+      // By release date, falling back to Jan 1 of the year; neither → NaN, so the movie is left out.
+      const t = Date.parse(movie['Release Date']);
+      if (!isNaN(t)) return { raw: -t, display: formatDateDDMMYYYY(movie['Release Date']) };
+      const y = parseInt(movie['Release Year'], 10);
+      return { raw: isNaN(y) ? NaN : -Date.UTC(y, 0, 1), display: movie['Release Year'] };
+    }
     case 'most_popular': {
       const p = parseFloat(movie['Popularity Score']) || 0;
       return { raw: p, display: p.toFixed(1) };
@@ -40,56 +46,51 @@ function getMetricValue(movie: Movie, metric: Metric): { raw: number; display: s
   }
 }
 
+const DATE_METRICS: ReadonlySet<Metric> = new Set<Metric>(['most_recent', 'oldest']);
+
 const RANK_COLORS = ['#e879f9', '#818cf8', '#38bdf8', '#34d399', '#fbbf24'];
 // Ranks 6–10: a theme token, not a fixed white (which was nearly invisible in light theme).
 // --text-secondary, not --text-muted: muted is ~2.3:1 on the light background, secondary ~4.4:1.
 const RANK_COLOR_REST = 'var(--text-secondary)';
 
-// A 10/10 from a single vote shouldn't top "Highest Rated". Tiny datasets (e.g. the template CSV)
-// may have too few qualifying movies — then the cutoff is dropped so the list isn't empty.
-const MIN_VOTES_FOR_RATING = 50;
-const MIN_QUALIFYING_FOR_CUTOFF = 10;
-
 const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies, isDark = true }) => {
   const [metric, setMetric] = useState<Metric>('highest_rated');
 
   const { topMovies, voteCutoffApplied } = useMemo(() => {
-    let pool = movies;
-    let cutoff = false;
-    if (metric === 'highest_rated') {
-      const qualifying = movies.filter(m => (parseInt(m['Vote Count'], 10) || 0) >= MIN_VOTES_FOR_RATING);
-      if (qualifying.length >= MIN_QUALIFYING_FOR_CUTOFF) { pool = qualifying; cutoff = true; }
-    }
-    const top = [...pool]
-      .filter(m => {
-        const v = getMetricValue(m, metric).raw;
-        return !isNaN(v) && v !== 0 && isFinite(v);
-      })
-      .sort((a, b) => getMetricValue(b, metric).raw - getMetricValue(a, metric).raw)
-      .slice(0, 10);
+    const { pool, cutoffApplied: cutoff } = metric === 'highest_rated'
+      ? ratingPool(movies)
+      : { pool: movies, cutoffApplied: false };
+    // Each movie's value is computed once, not on every sort comparison.
+    const top = pool
+      .map((movie) => ({ movie, raw: getMetricValue(movie, metric).raw }))
+      // 0 means unknown for votes/runtime/popularity, but is a real timestamp (1970-01-01) for dates.
+      .filter(({ raw }) => isFinite(raw) && (DATE_METRICS.has(metric) || raw !== 0))
+      .sort((a, b) => b.raw - a.raw)
+      .slice(0, 10)
+      .map(({ movie }) => movie);
     return { topMovies: top, voteCutoffApplied: cutoff };
   }, [movies, metric]);
 
-  const textPrimary = isDark ? '#fff' : '#1e1e3f';
-  const textSecondary = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.6)';
-  const textMuted = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(30,30,63,0.45)';
+  // Text uses the theme tokens (the old light-theme 0.45 alpha was too faint); surfaces keep isDark.
+  const textPrimary = 'var(--text-primary)';
+  const textSecondary = 'var(--text-secondary)';
   const rowBg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(129,140,248,0.05)';
   const rankBg = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(129,140,248,0.08)';
   const borderDefault = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(129,140,248,0.15)';
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 16, rowGap: 8, marginBottom: 24 }}>
         <Text style={{ color: textSecondary, fontSize: 14 }}>Sort by:</Text>
         <Select
           value={metric}
           onChange={setMetric}
           options={METRIC_OPTIONS}
-          style={{ width: 200 }}
+          style={{ width: 200, maxWidth: '100%' }}
           aria-label="Top 10 metric"
         />
         {voteCutoffApplied && (
-          <Text style={{ color: textMuted, fontSize: 12 }}>min. {MIN_VOTES_FOR_RATING} votes</Text>
+          <Text style={{ color: textSecondary, fontSize: 12 }}>min. {MIN_VOTES_FOR_RATING} votes</Text>
         )}
       </div>
 
@@ -147,7 +148,7 @@ const TopNExplorer: React.FC<TopNExplorerProps> = ({ movies, isDark = true }) =>
                 >
                   {movie.Name}
                 </Text>
-                <Text style={{ color: textMuted, fontSize: 12 }}>
+                <Text style={{ color: textSecondary, fontSize: 12 }}>
                   {movie.Director} · {movie.Genres}
                 </Text>
               </div>

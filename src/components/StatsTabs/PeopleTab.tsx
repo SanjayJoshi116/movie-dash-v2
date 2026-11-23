@@ -4,7 +4,7 @@ import type { ChartData } from 'chart.js';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import DoughnutChart from '../Charts/DoughnutChart';
 import ChartBlock from './ChartBlock';
-import { groupByField, topNWithOther, makeDoughnut, isDrillableLabel } from '../../utils/statsHelpers';
+import { groupByField, topNWithOther, makeDoughnut, drillableLabelAt, parseVote } from '../../utils/statsHelpers';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CHART_PALETTE, CHART_PRIMARY } from '../../utils/chartTheme';
@@ -50,8 +50,9 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
   const avgVoteByDirectorData = useMemo<ChartData<'bar'>>(() => {
     const sums: Record<string, { sum: number; count: number }> = {};
     movies.forEach(m => {
-      const v = parseFloat(m['Vote Average']);
-      if (isNaN(v) || !m.Director) return;
+      // Unrated films neither lower the average nor count toward MIN_FILMS.
+      const v = parseVote(m['Vote Average']);
+      if (v === null || !m.Director) return;
       if (!sums[m.Director]) sums[m.Director] = { sum: 0, count: 0 };
       sums[m.Director].sum += v;
       sums[m.Director].count += 1;
@@ -70,8 +71,8 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
   const avgVoteByActorData = useMemo<ChartData<'bar'>>(() => {
     const sums: Record<string, { sum: number; count: number }> = {};
     movies.forEach(m => {
-      const v = parseFloat(m['Vote Average']);
-      if (isNaN(v)) return;
+      const v = parseVote(m['Vote Average']);
+      if (v === null) return;
       m['Actors/Actresses'].split(',').forEach(a => {
         const name = a.trim();
         if (!name) return;
@@ -91,16 +92,16 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
     };
   }, [movies]);
 
+  // Plain functions: the chart wrappers read callbacks at event time (useLatest), so identity doesn't matter.
   const handleDirectorClick = (index: number) => {
-    const name = topDirectorsData.labels?.[index] as string | undefined;
-    if (!isDrillableLabel(name)) return;
-    drillDown({ directors: [name] });
+    const name = drillableLabelAt(topDirectorsData.labels, index);
+    if (name) drillDown({ directors: [name] });
   };
+  const isDirectorClickable = (index: number) => drillableLabelAt(topDirectorsData.labels, index) !== null;
 
   const handleAvgVoteDirectorClick = (index: number) => {
-    const name = avgVoteByDirectorData.labels?.[index] as string | undefined;
-    if (!isDrillableLabel(name)) return;
-    drillDown({ directors: [name] });
+    const name = drillableLabelAt(avgVoteByDirectorData.labels, index);
+    if (name) drillDown({ directors: [name] });
   };
 
   return (
@@ -109,7 +110,7 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
         <ChartBlock title="Top 15 Actors & Actresses" height={480} isDark={isDark}><HorizontalBarChart data={topActorsData} height={480} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Top 15 Directors" height={480} isDark={isDark}><HorizontalBarChart data={topDirectorsData} height={480} isDark={isDark} onElementClick={handleDirectorClick} isClickable={(i) => isDrillableLabel(topDirectorsData.labels?.[i] as string | undefined)} /></ChartBlock>
+        <ChartBlock title="Top 15 Directors" height={480} isDark={isDark}><HorizontalBarChart data={topDirectorsData} height={480} isDark={isDark} onElementClick={handleDirectorClick} isClickable={isDirectorClickable} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
         <ChartBlock title={`Highest Rated Directors (${MIN_FILMS}+ films)`} height={440} isDark={isDark}>

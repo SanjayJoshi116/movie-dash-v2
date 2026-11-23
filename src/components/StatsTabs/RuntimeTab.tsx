@@ -5,7 +5,8 @@ import BarChart from '../Charts/BarChart';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import PolarAreaChart from '../Charts/PolarAreaChart';
 import ChartBlock from './ChartBlock';
-import { groupByField, topNWithOther, makePolar, isDrillableLabel, bucketIndexOf, bucketToRange, type Bucket } from '../../utils/statsHelpers';
+import { groupByField, topNWithOther, makePolar, drillableLabelAt, bucketIndexOf, bucketToRange, parseVote, type Bucket } from '../../utils/statsHelpers';
+import { computeFilterSpans } from '../../utils/filterSpans';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CHART_PALETTE } from '../../utils/chartTheme';
@@ -39,18 +40,21 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
     };
   }, [movies]);
 
-  const runtimeBucketVoteData = useMemo<ChartData<'bar'>>(() => {
+  const runtimeBucketVoteData = useMemo<ChartData<'bar', (number | null)[]>>(() => {
     const sums: Record<string, { sum: number; count: number }> = {};
     RUNTIME_BUCKETS.forEach(b => { sums[b.label] = { sum: 0, count: 0 }; });
     movies.forEach(m => {
       const r = parseFloat(m.Runtime);
-      const v = parseFloat(m['Vote Average']);
-      if (!isNaN(r) && !isNaN(v)) {
+      const v = parseVote(m['Vote Average']);
+      // Runtime ≤ 0 is unknown: skipped, so "< 60 min" counts what its drill-down lists (B119).
+      // Unrated movies (parseVote → null) don't lower a bucket's average.
+      if (r > 0 && v !== null) {
         const i = bucketIndexOf(r, RUNTIME_BUCKETS);
         if (i >= 0) { sums[RUNTIME_BUCKETS[i].label].sum += v; sums[RUNTIME_BUCKETS[i].label].count += 1; }
       }
     });
-    const avgs = RUNTIME_BUCKETS.map(b => sums[b.label].count ? parseFloat((sums[b.label].sum / sums[b.label].count).toFixed(2)) : 0);
+    // A bucket with no rated movie has no average: null (no bar), not a fake 0.
+    const avgs = RUNTIME_BUCKETS.map(b => sums[b.label].count ? parseFloat((sums[b.label].sum / sums[b.label].count).toFixed(2)) : null);
     return {
       labels: RUNTIME_BUCKETS.map(b => b.label),
       datasets: [{ label: 'Avg Vote', data: avgs, backgroundColor: CHART_PALETTE[3] }],
@@ -89,25 +93,24 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
     [movies]
   );
 
+  // The open "> 180 min" bucket ends at the Movies runtime slider's own max.
+  const maxRuntime = useMemo(() => computeFilterSpans(movies).runtimeMax, [movies]);
+
+  // Plain functions: the chart wrappers read callbacks at event time (useLatest), so identity doesn't matter.
   const handleGenreClick = (index: number) => {
-    const genre = genrePolarData.labels?.[index] as string | undefined;
-    if (!isDrillableLabel(genre)) return;
-    drillDown({ genres: [genre] });
+    const genre = drillableLabelAt(genrePolarData.labels, index);
+    if (genre) drillDown({ genres: [genre] });
   };
+  const isGenreClickable = (index: number) => drillableLabelAt(genrePolarData.labels, index) !== null;
 
   const handleRuntimeBucketClick = (index: number) => {
     const bucket = RUNTIME_BUCKETS[index];
-    if (!bucket) return;
-    const maxRuntime = movies.reduce((max, m) => Math.max(max, parseFloat(m.Runtime) || 0), 0);
-    drillDown({ runtimeRange: bucketToRange(bucket, 1, maxRuntime) });
+    if (bucket) drillDown({ runtimeRange: bucketToRange(bucket, 1, maxRuntime) });
   };
 
   const handleDecadeClick = (index: number) => {
-    const decade = avgRuntimeByDecadeData.labels?.[index] as string | undefined;
-    if (!decade) return;
-    const start = parseInt(decade, 10);
-    if (isNaN(start)) return;
-    drillDown({ yearRange: [start, start + 9] });
+    const start = parseInt(avgRuntimeByDecadeData.labels?.[index] as string, 10);
+    if (!isNaN(start)) drillDown({ yearRange: [start, start + 9] });
   };
 
   return (
@@ -116,7 +119,7 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
         <ChartBlock title="Movies by Country" height={400} isDark={isDark}><PolarAreaChart data={countryPolarData} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
-        <ChartBlock title="Movies by Genre" height={400} isDark={isDark}><PolarAreaChart data={genrePolarData} isDark={isDark} onElementClick={handleGenreClick} isClickable={(i) => isDrillableLabel(genrePolarData.labels?.[i] as string | undefined)} /></ChartBlock>
+        <ChartBlock title="Movies by Genre" height={400} isDark={isDark}><PolarAreaChart data={genrePolarData} isDark={isDark} onElementClick={handleGenreClick} isClickable={isGenreClickable} /></ChartBlock>
       </Col>
       <Col xs={24} lg={12}>
         <ChartBlock title="Avg Vote by Runtime Length" height={320} isDark={isDark}><HorizontalBarChart data={runtimeBucketVoteData} height={320} isDark={isDark} onElementClick={handleRuntimeBucketClick} /></ChartBlock>

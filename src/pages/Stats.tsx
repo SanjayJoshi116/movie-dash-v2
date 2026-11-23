@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Typography, Tabs, Button } from 'antd';
-import { useLocation, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useMovies } from '../hooks/useMovies';
 import { useTheme } from '../contexts/ThemeContext';
 import OverviewTab from '../components/StatsTabs/OverviewTab';
@@ -11,8 +11,10 @@ import ExploreTab from '../components/StatsTabs/ExploreTab';
 import BoxOfficeTab from '../components/StatsTabs/BoxOfficeTab';
 import LoadingError from '../components/LoadingError';
 import RangeSlider from '../components/RangeSlider';
+import EmptyState from '../components/EmptyState';
 import { DrilldownScopeProvider } from '../contexts/DrilldownContext';
 import { getCardStyle } from '../utils/chartTheme';
+import { clampRange, computeFilterSpans } from '../utils/filterSpans';
 import type { Movie } from '../types/movie';
 
 const { Title, Text } = Typography;
@@ -28,6 +30,7 @@ const Stats: React.FC = () => {
   const { movies, loading, error, refetch } = useMovies();
   const { isDark } = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // Drill-down hand-off (location.state) wins, then ?tab=, then Overview — an unknown key from
   // either source falls through instead of rendering a tab bar with nothing selected.
@@ -55,17 +58,18 @@ const Stats: React.FC = () => {
     if (isTabKey(key)) setActiveTab(key);
   };
 
-  const { yearMin, yearMax } = useMemo(() => {
-    let lo = Infinity, hi = -Infinity;
-    movies.forEach((m) => {
-      const y = parseInt(m['Release Year'], 10);
-      if (!isNaN(y)) { if (y < lo) lo = y; if (y > hi) hi = y; }
-    });
-    return {
-      yearMin: isFinite(lo) ? lo : 1900,
-      yearMax: isFinite(hi) ? hi : new Date().getFullYear(),
-    };
-  }, [movies]);
+  // Same year bounds as the Movies year slider.
+  const { yearMin, yearMax } = useMemo(() => computeFilterSpans(movies), [movies]);
+
+  // When the data's year span changes (a refetch after add/delete or an external edit), keep the
+  // chosen range inside it — render-phase, like App.tsx's breakpoint sync. A range that no longer
+  // overlaps, or now covers the whole span, resets: Stats has no chip to show a stale range.
+  const [prevBounds, setPrevBounds] = useState<[number, number]>([yearMin, yearMax]);
+  if (prevBounds[0] !== yearMin || prevBounds[1] !== yearMax) {
+    setPrevBounds([yearMin, yearMax]);
+    const next = clampRange(yearRange, yearMin, yearMax, true);
+    if (next !== yearRange) setYearRange(next);
+  }
 
   const scopedMovies = useMemo<Movie[]>(() => {
     if (!yearRange) return movies;
@@ -92,6 +96,10 @@ const Stats: React.FC = () => {
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
         Deep-dive charts and breakdowns across ratings, people, runtime, box office, and more.
       </Text>
+      {movies.length === 0 ? (
+        <EmptyState description="No movies yet — add one to see analytics here." actionLabel="Go to Movies" onAction={() => navigate('/movies')} isDark={isDark} />
+      ) : (
+      <>
       <div style={{ ...getCardStyle(isDark), padding: '16px 24px', marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <Text style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase' }}>
@@ -116,15 +124,22 @@ const Stats: React.FC = () => {
           tooltip={{ formatter: (v) => v }}
         />
       </div>
-      <DrilldownScopeProvider yearRange={yearRange}>
-      <Tabs
-        activeKey={activeTab}
-        onChange={handleTabChange}
-        items={tabItems}
-        size="large"
-        style={{ color: isDark ? '#fff' : '#1e1e3f' }}
-      />
-      </DrilldownScopeProvider>
+      {scopedMovies.length === 0 ? (
+        // activeTab and ?tab= stay as they are, so Reset brings back the same tab.
+        <EmptyState description="No movies released in this range" actionLabel="Reset range" onAction={() => setYearRange(null)} isDark={isDark} />
+      ) : (
+        <DrilldownScopeProvider yearRange={yearRange}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={handleTabChange}
+          items={tabItems}
+          size="large"
+          style={{ color: isDark ? '#fff' : '#1e1e3f' }}
+        />
+        </DrilldownScopeProvider>
+      )}
+      </>
+      )}
     </div>
     </LoadingError>
   );

@@ -8,7 +8,7 @@ A full-stack movie analytics dashboard: a React frontend backed by an Express AP
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
 
-**Highlights:** Table/grid movie catalogue with poster art · add or delete movies without leaving the browser (TMDB search) · 6 analytics tabs with click-to-filter drill-down, a global year-range slider, and per-chart PNG export · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 65 Playwright E2E + 112 server API + 38 Python tool tests · light/dark theme · filter state persisted per-session
+**Highlights:** Table/grid movie catalogue with poster art · add or delete movies without leaving the browser (TMDB search) · 6 analytics tabs with click-to-filter drill-down, a global year-range slider, and per-chart PNG export · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 117 Playwright E2E + 115 server API + 39 frontend unit + 40 Python tool tests · light/dark theme · filter state persisted per-session
 
 No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
 
@@ -35,20 +35,20 @@ Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`,
 - Highlight cards — top rated, most popular, newest release — with a poster thumbnail; clickable/keyboard-activatable to open that movie's detail drawer
 - Total Box Office stat card is clickable, jumping straight to the Stats page's Box Office tab
 - Recent Releases list with poster thumbnails, keyboard-accessible (`Enter`/`Space`) like the rest of the app
-- Trend/breakdown mini-charts (release year, genre, rating distribution) are clickable — clicking a data point/slice/bar jumps to Movies pre-filtered to that year, genre, or rating range
+- Trend/breakdown mini-charts (release year, genre, rating distribution) are clickable — clicking a data point/slice/bar jumps to Movies pre-filtered to that year, genre, or rating range (years and bars with no movies aren't clickable)
 - Skeleton placeholder layout while data loads, instead of a bare spinner
 - Empty state (0 movies) shows a "Go to Movies" CTA instead of zeroed-out stat cards/charts
 - CTA cards linking through to Movies and Stats
 
 ### Movies (`/movies`)
 - Table or grid view, toggled with a `Segmented` control — grid shows poster cards (up to 6/row on wide screens) with its own sort dropdown (name, year, rating, runtime), table is the dense sortable list
-- Always-visible search box (name, director, actor, genre, production company/country, release year, language) plus a **Filters** button — clicking it opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue), so the page stays uncluttered until you need it
+- Always-visible search box (name, director, actor, genre, production company/country, release year, language) plus a **Filters** button — clicking it opens a right-side drawer with grouped Category filters (language, genre, director) and Range filters (year, vote average, runtime, box-office revenue), so the page stays uncluttered until you need it. Moving one slider handle never changes the other end, the revenue slider steps by a readable amount from the keyboard, and search ignores leading/trailing spaces
 - The Filters button shows a small dot when any filter is active
 - Removable filter chips summarising every active filter, plus a one-click "Clear all", shown directly on the page (no need to open the drawer)
 - Filter state persisted for the tab/session (`sessionStorage`) — survives navigating away and back, resets on a new tab or browser restart
 - Sortable columns, pagination (5 / 10 / 20 / 50 per page) in table view
 - Click any row/card to open a detail drawer with full movie info, vote count, and popularity score — rows/cards are keyboard-accessible (`Enter`/`Space`) with `aria-label`s
-- Export filtered results to CSV (UTF-8 with BOM, so Excel shows accented titles correctly; formula-like cells and column names guarded)
+- Export filtered results to CSV (UTF-8 with BOM, so Excel shows accented titles correctly; formula-like cells and column names guarded). The file is `movies-filtered-N.csv` while a search/filter is active, else `movies-N.csv`; the button explains itself on hover, on keyboard focus and to screen readers
 - **Add Movie** button opens a modal to search TMDB (by movie name and/or actor, optionally narrowed by release year) and import a result straight into the running catalogue — no restart, no leaving the browser. Requires `TMDB_API_KEY` in `.env` (see [Where to get the data](#where-to-get-the-data--tmdb-api)); `movie-search.py` remains available for bulk/offline imports.
 - Detail drawer has a **Delete** button (confirm required) to remove a movie from the catalogue
 - Sidebar auto-collapses to icon rail below 768px (Ant Design `md` breakpoint); manual toggle still works within a breakpoint
@@ -91,7 +91,7 @@ A global Release Year Range slider at the top of the page scopes every tab to a 
 | HTTP | Axios |
 | Backend | Express 5 (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
-| Testing | Playwright (94 E2E tests), Node `node:test` via tsx (112 server API tests, 26 frontend unit tests), Python `unittest` (38 tool tests) |
+| Testing | Playwright (117 E2E tests), Node `node:test` via tsx (115 server API tests, 39 frontend unit tests), Python `unittest` (40 tool tests) |
 | Linting | ESLint (typescript-eslint, react-hooks, unused-imports) |
 
 ---
@@ -260,12 +260,12 @@ movie-dash-v2/
 │   ├── bootstrap.ts            # Startup helpers: PORT/TRUST_PROXY parsing, .env, listen, shutdown
 │   ├── app.ts                  # createApp() — routes + CSV catalogue store
 │   ├── tmdb.ts                 # TMDB client (axios + retries)
-│   └── __tests__/              # Server API tests (node:test, 112 tests)
+│   └── __tests__/              # Server API tests (node:test, 115 tests)
 ├── tests/
-│   ├── app.spec.ts             # Playwright E2E tests (94 tests)
+│   ├── app.spec.ts             # Playwright E2E tests (117 tests)
 │   ├── helpers.ts              # Shared e2e helpers + mutation-guard fixture
-│   ├── unit/                   # Frontend unit tests (node:test, 26 tests)
-│   └── python/                 # Python tool tests (unittest, 38 tests)
+│   ├── unit/                   # Frontend unit tests (node:test, 30 tests)
+│   └── python/                 # Python tool tests (unittest, 40 tests)
 ├── movie-search.py             # Tkinter TMDB search → appends to src/movies.csv
 ├── backfill_posters.py         # One-off Poster URL backfill
 ├── catalogue_io.py             # Shared CSV I/O + TMDB session for both Python tools
@@ -332,21 +332,21 @@ movie-dash-v2/
 
 ## E2E Testing
 
-Playwright tests cover the full user journey across 13 suites (94 tests):
+Playwright tests cover the full user journey across 13 suites (117 tests):
 
-- **Dashboard** — layout, highlight cards (click-to-drawer), CTA navigation to Movies/Stats, Total Box Office stat click-to-tab, empty-catalogue state, a click well above a release-trend point still drilling down to that year, no legend on the single-series rating chart
+- **Dashboard** — layout, highlight cards (click-to-drawer), CTA navigation to Movies/Stats, Total Box Office stat click-to-tab, empty-catalogue state, a click well above a release-trend point still drilling down to that year, no legend on the single-series rating chart, Top Rated matching Stats › Explore Highest Rated (vote-count minimum), a failed movie-details download keeping the page up, retrying on the next click and offering a page reload, a drawer crash shown as the error view (not as a failed download), unknown revenue/ratings not shown as real values, accessible names on cards, Recent Releases as a list of buttons, h4 section headings
 - **Movies** — layout, table/grid toggle, drawer from row and card, search, filters drawer (open/close, language/genre filters), empty state, clear/reset, active-filter dot indicator, sorting, pagination, page size, CSV export
 - **Movies Grid View** — poster image renders (real or fallback), card keyboard-activatable (Enter), grid pagination page-size changer
 - **Movies Grid Sort** — every grid sort option orders the cards as expected (mocked catalogue)
-- **Movies Advanced Filters** — director filter chip, runtime range slider, revenue range slider
-- **Movies Add & Delete** — Add Movie search → import → "Added" → refetch, and Delete via Popconfirm → refetch → drawer closes, the background refresh announced as a status, a new search replacing a running one, a `409` shown as "Added", Import offered again after a delete, an earlier import error kept visible, a delete finishing after switching movies leaving the new drawer alone, and unknown runtime/rating/date shown as unknown (TMDB and every write are `page.route`-mocked)
+- **Movies Advanced Filters** — director, runtime and revenue filters narrowing mocked rows to exact counts (unknown runtime/revenue excluded), revenue keyboard step of 1/100 of the span, the language picker found by typing its name
+- **Movies Add & Delete** — Add Movie search → import → "Added" → refetch, and Delete via Popconfirm → refetch → drawer closes, the background refresh announced as a status, a new search replacing a running one, a `409` shown as "Added", a blank server error still showing a message, Import offered again after a delete, an earlier import error kept visible, a delete finishing after switching movies leaving the new drawer alone, and unknown runtime/rating/date shown as unknown (TMDB and every write are `page.route`-mocked)
 - **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title updates, sidebar collapsed on a tablet-width load, the collapsed logo link's name, Back keeping the scroll position while a nav link opens the new section at the top
 - **Mobile** — phone viewport shows the bottom nav instead of the sidebar, and its links work (named by their visible label only); a sort on a column hidden by narrowing the window is cleared, also for the export
-- **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence, Release Year Range slider + Reset, chart PNG download, tab switches that don't remount the page, whole-number count tooltips
+- **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence, Release Year Range slider + Reset, chart PNG download, tab switches that don't remount the page, whole-number count tooltips, a continuous per-year chart with no Unknown point, empty states (empty catalogue, a range with no releases), the year range clamped or reset after a refresh, Top 10 "Oldest" by release date, the Top 10 toolbar at 320 px, rating averages leaving out unrated films, no Unknown radar spoke, a gap-filled average-vote-by-year line that drills down
 - **Theme** — default dark, toggle to light, reload persistence, OS changes followed live until a toggle (and ignored after), nothing saved on a first visit, another app's bare `theme` key ignored
 - **Filter Persistence** — search filter survives route changes via `sessionStorage`; filters still restore when `localStorage` is blocked
-- **Edge Cases** — Language sorted by its shown name, a row missing Genres/Release Date rendering in every view (table, grid, drawer, Stats tabs), grid-card accessible descriptions, CSV export BOM + guarded header names, combined filters, pagination, sort + filter combo, a failed first load showing the server's reason with no catalogue count, a first-load 503 retried once, a non-list `/api/movies` response showing the load error (not the crash screen), Clear all dropping the search without waiting for the debounce (Playwright clock)
-- **Drill-down consistency** — clicking a Dashboard rating bar opens exactly the movies it counted (and opening the filters drawer doesn't rewrite the range); a Stats drill-down carries the Release Year Range scope; `?tab=bogus` falls back to Overview; a drill-down never renders the filters saved earlier in the session; a decade drill-down past the data is clamped like a restored range. Bars are located on the canvas via the pointer cursor the chart wrappers set over clickable elements; expected counts come from `/api/movies`, so the tests work on any dataset
+- **Edge Cases** — search ignoring surrounding whitespace, a saved genre filter on a catalogue without Genres, runtime 0 treated as unknown, Export CSV's screen-reader hint and filtered filename, Language sorted by its shown name, a row missing Genres/Release Date rendering in every view (table, grid, drawer, Stats tabs), grid-card accessible descriptions, CSV export BOM + guarded header names, combined filters, pagination, sort + filter combo, a failed first load showing the server's reason with no catalogue count, a first-load 503 retried once, a non-list `/api/movies` response showing the load error (not the crash screen), Clear all dropping the search without waiting for the debounce (Playwright clock)
+- **Drill-down consistency** — clicking a Dashboard rating bar opens exactly the movies it counted (and opening the filters drawer doesn't rewrite the range, nor does moving the other vote handle); a Stats drill-down carries the Release Year Range scope; `?tab=bogus` falls back to Overview; a drill-down never renders the filters saved earlier in the session; a decade drill-down past the data is clamped like a restored range. Bars are located on the canvas via the pointer cursor the chart wrappers set over clickable elements; expected counts come from `/api/movies`, so the tests work on any dataset
 
 Tests run automatically on every push and pull request to `main` via GitHub Actions (see `.github/workflows/ci.yml`).
 
@@ -374,7 +374,7 @@ Tests require both the Vite frontend (port 3000) and Express backend (port 5000)
 npm run test:server
 ```
 
-112 tests (Node's built-in `node:test`, run via `tsx --test`, ~3s) exercise the Express API through `createApp()` (`server/app.ts`). Each test gets its own CSV in an OS temp directory — **they never read or write `src/movies.csv`** — and TMDB is stubbed, so no network or API key is needed. Coverage includes every route, helmet headers, rate limiting, TMDB retry/backoff, and the catalogue-safety guarantees: serialized writes (concurrent deletes, import during delete), duplicate-import rejection, external edits surviving in-app writes, BOM / CRLF / missing-trailing-newline files (kept as they are on rewrite), blank trailing header cells, formula-escaping round-trips, failed-write rollback, and accurate error codes. Also covered: the TMDB key never reaching the logs, a 15 s TMDB deadline (`Retry-After` honoured), unusable TMDB bodies rejected with `502`, unexpected handler errors returning `500` without crashing the server, duplicate-header files never being rewritten, the `ETag` changing across restarts, deletes surviving a concurrent external write, and retries on transient Windows file locks. The startup helpers (`server/bootstrap.ts`) are covered too: strict `PORT` parsing, `.env` read errors, port-in-use errors, graceful shutdown waiting for catalogue writes, and a failed startup load reported as an error instead of an empty list. Production hosting is covered as well: hashed assets cached as immutable and `index.html` as `no-cache`, the client-route fallback, JSON `404` for unknown `/api` paths, the Content-Security-Policy, and `TRUST_PROXY` (off by default; per-client rate limiting behind a proxy). Runs in CI before e2e.
+115 tests (Node's built-in `node:test`, run via `tsx --test`, ~3s) exercise the Express API through `createApp()` (`server/app.ts`). Each test gets its own CSV in an OS temp directory — **they never read or write `src/movies.csv`** — and TMDB is stubbed, so no network or API key is needed. Coverage includes every route, helmet headers, rate limiting, TMDB retry/backoff, and the catalogue-safety guarantees: serialized writes (concurrent deletes, import during delete), duplicate-import rejection, external edits surviving in-app writes, BOM / CRLF / missing-trailing-newline files (kept as they are on rewrite), blank trailing header cells, formula-escaping round-trips, failed-write rollback, and accurate error codes. Also covered: the TMDB key never reaching the logs, a 15 s TMDB deadline (`Retry-After` honoured), unusable TMDB bodies rejected with `502`, unexpected handler errors returning `500` without crashing the server, duplicate-header files never being rewritten, the `ETag` changing across restarts, deletes surviving a concurrent external write, and retries on transient Windows file locks. The startup helpers (`server/bootstrap.ts`) are covered too: strict `PORT` parsing, `.env` read errors, port-in-use errors, graceful shutdown waiting for catalogue writes, and a failed startup load reported as an error instead of an empty list. Production hosting is covered as well: hashed assets cached as immutable and `index.html` as `no-cache`, the client-route fallback, JSON `404` for unknown `/api` paths, the Content-Security-Policy, and `TRUST_PROXY` (off by default; per-client rate limiting behind a proxy). Runs in CI before e2e.
 
 ### Frontend unit tests
 
@@ -382,7 +382,7 @@ npm run test:server
 npm run test:unit
 ```
 
-26 tests (Node's built-in `node:test`, run via `tsx --test`, no browser or server) for the shared display helpers in `src/utils` and the chart wrappers' `formatNumber`: revenue labels at unit boundaries (`$1.0M`, not `$1000K`), `withAlpha` colour parsing (`#RGB`/`#RRGGBB`, anything else throws), `DD-MM-YYYY` date formatting (input trimmed, other shapes passed through, missing or blank values give an empty string), language-name lookup (including inherited keys like `constructor`), multi-valued grouping, top-7-plus-Other, and the half-open chart buckets used by drill-downs. Playwright ignores `tests/unit/`. Runs in CI after the server tests.
+30 tests (Node's built-in `node:test`, run via `tsx --test`, no browser or server) for the shared display helpers in `src/utils` and the chart wrappers' `formatNumber`: revenue labels at unit boundaries (`$1.0M`, not `$1000K`), `withAlpha` colour parsing (`#RGB`/`#RRGGBB`, anything else throws), `DD-MM-YYYY` date formatting (input trimmed, other shapes passed through, missing or blank values give an empty string), language-name lookup (including inherited keys like `constructor`), multi-valued grouping, top-7-plus-Other, the half-open chart buckets used by drill-downs, the range-slider helpers (rc-slider step alignment, readable revenue step, runtime 0 left out of the slider span), and `parseVote` (vote 0 = unrated). Playwright ignores `tests/unit/`. Runs in CI after the server tests.
 
 ### Python tool tests
 
@@ -391,7 +391,7 @@ pip install -r requirements.txt
 python -m unittest discover -s tests/python -v
 ```
 
-38 stdlib `unittest` tests for `catalogue_io.py` and `backfill_posters.py`, against temp files with no network or API key: BOM files read with the right `Movie ID`, BOM and CRLF/LF kept on rewrite and append, a missing trailing newline fixed before appending, stray extra cells dropped instead of crashing, a file changed by another writer never replaced, a file with no readable header never overwritten, formula-escaping that keeps real leading apostrophes, Windows lock retry, rows added during a backfill kept, a busy checkpoint postponed instead of ending the backfill, a rejected API key stopping the backfill, a no-op backfill leaving the file untouched, header names read like the server (trimmed, blank and repeated columns), appends that stay aligned under a blank header cell, the column list matching `src/types/movie.ts`, duplicate re-checks before appending, and an interrupted backfill keeping its posters. Runs in CI after `ruff`.
+40 stdlib `unittest` tests for `catalogue_io.py` and `backfill_posters.py`, against temp files with no network or API key: BOM files read with the right `Movie ID`, BOM and CRLF/LF kept on rewrite and append, a missing trailing newline fixed before appending, stray extra cells dropped instead of crashing, a file changed by another writer never replaced, a file with no readable header never overwritten, formula-escaping (tab/CR included, same characters as the server) that keeps real leading apostrophes, Windows lock retry, rows added during a backfill kept, a busy checkpoint postponed instead of ending the backfill, a rejected API key stopping the backfill, a no-op backfill leaving the file untouched, header names read like the server (trimmed, blank and repeated columns), appends that stay aligned under a blank header cell, the column list matching `src/types/movie.ts`, duplicate re-checks before appending, and an interrupted backfill keeping its posters. Runs in CI after `ruff`.
 
 ---
 

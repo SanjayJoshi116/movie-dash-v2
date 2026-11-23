@@ -113,6 +113,17 @@ describe('installShutdown', () => {
     assert.deepEqual(exits, [0]);
   });
 
+  it('drain finishing first still waits for the server to close, then exits 0', async () => {
+    const { server, work, target, exits } = setup();
+    target.emit('SIGTERM');
+    work.resolve();
+    await tick();
+    assert.deepEqual(exits, [], 'must not exit while open requests are still closing');
+    server.finishClose();
+    await tick();
+    assert.deepEqual(exits, [0]);
+  });
+
   it('exits 1 after the timeout if work is still pending', async () => {
     const { target, exits } = setup(30);
     target.emit('SIGINT');

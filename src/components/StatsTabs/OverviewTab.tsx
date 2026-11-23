@@ -5,7 +5,7 @@ import BarChart from '../Charts/BarChart';
 import LineChart from '../Charts/LineChart';
 import ChartBlock from './ChartBlock';
 import { getCardStyle, CHART_PALETTE, CHART_PRIMARY, withAlpha } from '../../utils/chartTheme';
-import { groupByField, topNWithOther, isDrillableLabel } from '../../utils/statsHelpers';
+import { groupByField, topNWithOther, isDrillableLabel, drillableLabelAt, continuousYears } from '../../utils/statsHelpers';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { getLanguageName } from '../../utils/languages';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -16,7 +16,8 @@ interface OverviewTabProps { movies: Movie[] }
 interface GroupMetric {
   key: string;
   label: string;
-  value: number;
+  /** `null` = unknown: shown as "—" with no suffix. */
+  value: number | null;
   suffix?: string;
   color: string;
   noGrouping?: boolean;
@@ -31,8 +32,8 @@ const MetricGroupCard: React.FC<{ title: string; accentColor: string; metrics: G
       {metrics.map(({ key, label, value, suffix, color, noGrouping }) => (
         <Col span={colSpan} key={key}>
           <div style={{ color, fontWeight: 700, fontSize: 20, lineHeight: 1.2 }}>
-            {noGrouping ? value : value.toLocaleString()}
-            {suffix && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}>{suffix}</span>}
+            {value === null ? '—' : noGrouping ? value : value.toLocaleString()}
+            {value !== null && suffix && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}>{suffix}</span>}
           </div>
           <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{label}</div>
         </Col>
@@ -68,12 +69,20 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
     return { languages: languages.size, genres: genres.size, directors: directors.size };
   }, [movies]);
 
-  const yearSpan = useMemo(() => {
-    const years = movies.map(m => parseInt(m['Release Year'], 10)).filter(y => !isNaN(y));
-    return {
-      earliest: years.length ? Math.min(...years) : 0,
-      latest: years.length ? Math.max(...years) : 0,
-    };
+  // One pass for the per-year counts and the span, no spread into Math.min/max (that throws RangeError
+  // on a very large catalogue). Span is `null` when no movie in scope has a year, so the cards show "—".
+  const { byYear, earliest, latest } = useMemo(() => {
+    const byYear = new Map<number, number>();
+    let earliest: number | null = null;
+    let latest: number | null = null;
+    for (const m of movies) {
+      const y = parseInt(m['Release Year'], 10);
+      if (isNaN(y)) continue;
+      byYear.set(y, (byYear.get(y) ?? 0) + 1);
+      if (earliest === null || y < earliest) earliest = y;
+      if (latest === null || y > latest) latest = y;
+    }
+    return { byYear, earliest, latest };
   }, [movies]);
 
   useEffect(() => {
@@ -113,36 +122,40 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
     const g = topNWithOther(groupByField(movies, 'Language'));
     const codes = Object.keys(g);
     const labels = codes.map((c) => (isDrillableLabel(c) ? getLanguageName(c) : c));
-    const data: ChartData<'bar'> = { labels, datasets: [{ label: 'Movies', data: Object.values(g), backgroundColor: CHART_PALETTE, hoverBackgroundColor: CHART_PALETTE }] };
+    const data: ChartData<'bar'> = { labels, datasets: [{ label: 'Movies', data: Object.values(g), backgroundColor: CHART_PALETTE }] };
     return { languageBarData: data, languageCodes: codes };
   }, [movies]);
 
-  const { yearLineData, yearLabels } = useMemo(() => {
-    const g = groupByField(movies, 'Release Year');
-    const sorted = Object.entries(g).sort(([a], [b]) => parseInt(a) - parseInt(b));
-    const labels = sorted.map(([y]) => y);
+  // Every year from the earliest to the latest dated release, 0 for gap years; undated movies are
+  // left off (they still count in Total Movies). Zero years aren't drill-down targets.
+  const { yearLineData, yearLabels, yearCounts } = useMemo(() => {
+    const years = continuousYears(earliest, latest);
+    const labels = years.map(String);
+    const counts = years.map((y) => byYear.get(y) ?? 0);
     const data: ChartData<'line'> = {
       labels,
       datasets: [{
         label: 'Movies Released',
-        data: sorted.map(([, c]) => c),
+        data: counts,
         borderColor: CHART_PRIMARY,
         backgroundColor: withAlpha(CHART_PRIMARY, 0.15),
         fill: true,
       }],
     };
-    return { yearLineData: data, yearLabels: labels };
-  }, [movies]);
+    return { yearLineData: data, yearLabels: labels, yearCounts: counts };
+  }, [byYear, earliest, latest]);
 
+  // Plain functions: the chart wrappers read callbacks at event time and only call onElementClick
+  // for elements isClickable accepts, so neither identity nor a second guard is needed.
   const handleLanguageClick = (index: number) => {
-    const code = languageCodes[index];
-    if (!isDrillableLabel(code)) return;
-    drillDown({ languages: [code] });
+    const code = drillableLabelAt(languageCodes, index);
+    if (code) drillDown({ languages: [code] });
   };
+  const isLanguageClickable = (index: number) => drillableLabelAt(languageCodes, index) !== null;
 
+  const isYearClickable = (index: number) => (yearCounts[index] ?? 0) > 0;
   const handleYearClick = (index: number) => {
     const year = parseInt(yearLabels[index], 10);
-    if (isNaN(year)) return;
     drillDown({ yearRange: [year, year] });
   };
 
@@ -157,8 +170,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
             colSpan={24}
             metrics={[
               { key: 'total', label: 'Total Movies', value: counts.totalMovies, color: '#818cf8' },
-              { key: 'earliest', label: 'Earliest Release', value: yearSpan.earliest, color: '#34d399', noGrouping: true },
-              { key: 'latest', label: 'Latest Release', value: yearSpan.latest, color: '#f472b6', noGrouping: true },
+              { key: 'earliest', label: 'Earliest Release', value: earliest, color: '#34d399', noGrouping: true },
+              { key: 'latest', label: 'Latest Release', value: latest, color: '#f472b6', noGrouping: true },
             ]}
           />
         </Col>
@@ -204,10 +217,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
       </Row>
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={12}>
-          <ChartBlock title="Movies by Language" height={360} isDark={isDark}><BarChart data={languageBarData} isDark={isDark} onElementClick={handleLanguageClick} isClickable={(i) => isDrillableLabel(languageCodes[i])} /></ChartBlock>
+          <ChartBlock title="Movies by Language" height={360} isDark={isDark}><BarChart data={languageBarData} isDark={isDark} onElementClick={handleLanguageClick} isClickable={isLanguageClickable} /></ChartBlock>
         </Col>
         <Col xs={24} lg={12}>
-          <ChartBlock title="Movies Released per Year" height={360} isDark={isDark}><LineChart data={yearLineData} isDark={isDark} onElementClick={handleYearClick} isClickable={(i) => !isNaN(parseInt(yearLabels[i], 10))} /></ChartBlock>
+          <ChartBlock title="Movies Released per Year" height={360} isDark={isDark}><LineChart data={yearLineData} isDark={isDark} onElementClick={handleYearClick} isClickable={isYearClickable} /></ChartBlock>
         </Col>
       </Row>
     </>

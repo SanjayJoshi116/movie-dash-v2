@@ -42,6 +42,8 @@ export interface FsHooks {
   stat: (p: string) => Promise<{ mtimeMs: number; size: number }>;
   /** The rename-retry backoff wait; tests pass a no-op so lock-retry cases don't sleep ~750ms. */
   sleep: (ms: number) => Promise<void>;
+  /** The import's CSV append; tests make it throw to simulate a failed write without chmod. */
+  appendFile: (p: string, data: string) => Promise<void>;
 }
 
 export interface CreatedApp {
@@ -223,6 +225,7 @@ export function createApp(options: CreateAppOptions): CreatedApp {
     rename: fsHooks.rename ?? ((from, to) => fs.promises.rename(from, to)),
     stat: fsHooks.stat ?? ((p) => fs.promises.stat(p)),
     sleep: fsHooks.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
+    appendFile: fsHooks.appendFile ?? ((p, data) => fs.promises.appendFile(p, data, 'utf-8')),
   };
 
   const app = express();
@@ -381,7 +384,7 @@ export function createApp(options: CreateAppOptions): CreatedApp {
     const lines: string[] = [];
     if (size === 0) lines.push(CATALOGUE_COLUMNS.map(escapeCsvField).join(','));
     lines.push(toCsvLine(row, headers));
-    await fs.promises.appendFile(csvPath, prefix + lines.join(eol) + eol, 'utf-8');
+    await fsOps.appendFile(csvPath, prefix + lines.join(eol) + eol);
     if (size === 0) {
       csvHeaders = [...CATALOGUE_COLUMNS];
       csvLayout = [...CATALOGUE_COLUMNS];

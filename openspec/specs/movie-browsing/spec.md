@@ -29,7 +29,7 @@ Export CSV SHALL output the movies matching the current search and filters, in t
 - **THEN** the exported file still has a Poster URL column, filled for the movies that have one
 
 ### Requirement: Exported values are safe to open in spreadsheets
-Exported cell values that begin with `=`, `+`, `-` or `@` SHALL be written in a form that spreadsheet applications don't run as a formula. This SHALL apply to header cells as well as data cells. The exported file SHALL declare its UTF-8 encoding so spreadsheet applications show non-ASCII text correctly.
+Exported cell values that begin with `=`, `+`, `-`, `@`, a tab or a carriage return SHALL be written in a form that spreadsheet applications don't run as a formula. This SHALL apply to header cells as well as data cells. The exported file SHALL declare its UTF-8 encoding so spreadsheet applications show non-ASCII text correctly.
 
 #### Scenario: Formula-like title
 - **WHEN** a movie title begins with `=` and the user exports and opens the file in a spreadsheet
@@ -38,6 +38,10 @@ Exported cell values that begin with `=`, `+`, `-` or `@` SHALL be written in a 
 #### Scenario: Formula-like column name
 - **WHEN** the catalogue has an extra column whose name begins with `=` and the user exports
 - **THEN** the header cell shows as text and no formula runs
+
+#### Scenario: Title with a leading tab
+- **WHEN** a movie title begins with a tab followed by `=` and the user exports
+- **THEN** the exported cell is written in the same formula-safe form as other formula-like values
 
 #### Scenario: Accented title in Excel
 - **WHEN** the export contains "Amélie" and the user opens it in Excel on Windows
@@ -151,3 +155,53 @@ The details drawer and grid cards SHALL NOT present a blank or unknown value as 
 #### Scenario: Unknown runtime on a grid card
 - **WHEN** a movie's runtime is 0
 - **THEN** its grid card doesn't show "0 mins"
+
+### Requirement: Range controls keep bounds the user didn't change
+Adjusting one end of a range filter SHALL NOT change the other end. A bound set more precisely than the control's step (for example by a drill-down) SHALL be kept exactly until the user moves that end.
+
+#### Scenario: Rating drill-down, then lower handle moved
+- **WHEN** the user drills down into the "2–4" rating bucket (vote range 2–3.999) and then moves the lower Vote Average handle to 2.5
+- **THEN** the vote filter is 2.5–3.999, and movies rated exactly 4.0 are still not listed
+
+### Requirement: Range controls step usefully by keyboard
+Each keyboard step on a range filter control SHALL move the value by a meaningful amount for that field. For box office revenue a step SHALL be roughly one hundredth of the slider's span, rounded to a readable amount.
+
+#### Scenario: Revenue by keyboard
+- **WHEN** the revenue span is $1M–$2.8B and a keyboard user presses Right Arrow on the lower handle
+- **THEN** the lower bound moves by tens of millions of dollars, not by $1
+
+### Requirement: Search ignores surrounding whitespace
+Leading and trailing spaces in the search text SHALL NOT affect which movies match. Search text that is only whitespace SHALL count as no search: no search chip and no active-filters indicator.
+
+#### Scenario: Pasted title with a trailing space
+- **WHEN** the user pastes "The Matrix " (with a trailing space) into the search box
+- **THEN** the same movies are listed as for "The Matrix"
+
+#### Scenario: Only a space typed
+- **WHEN** the user types a single space into the empty search box
+- **THEN** every movie is still listed and no "Search:" chip appears
+
+### Requirement: Missing catalogue columns never crash filtering
+Filtering SHALL work when the catalogue lacks a column a filter reads. A movie with no value for the filtered field SHALL simply not match that filter.
+
+#### Scenario: Saved genre filter, no Genres column
+- **WHEN** the session has a saved genre filter and the catalogue file has no Genres column
+- **THEN** the Movies page loads, lists no movies for that filter, and shows the genre chip so it can be removed
+
+### Requirement: Export filename says whether it is filtered
+The exported file's name SHALL include "filtered" only when a search or filter is active.
+
+#### Scenario: No filters
+- **WHEN** no search or filter is active and the user exports CSV
+- **THEN** the file is named `movies-<count>.csv`
+
+#### Scenario: Genre filter active
+- **WHEN** a genre filter is active and the user exports CSV
+- **THEN** the file is named `movies-filtered-<count>.csv`
+
+### Requirement: Language filter is searchable by name
+Typing in the Filters drawer's language picker SHALL match the language names it shows, not only the stored language codes.
+
+#### Scenario: Search by language name
+- **WHEN** the catalogue has a movie in Tamil (`ta`) and the user types "Tamil" in the language picker
+- **THEN** "Tamil" is offered and selecting it filters to that movie

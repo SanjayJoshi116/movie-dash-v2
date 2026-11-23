@@ -10,7 +10,7 @@ import { createTmdbClient, TmdbRequestError, tmdbErrorStatus } from '../tmdb';
 import type { FsHooks } from '../app';
 import {
   serverPool, request, postJson, readCsvRows, deferred, stubTmdb, tmdbDetails, csvRow, HEADER,
-  errnoError, sleep, type TestServer,
+  errnoError, reached, isPending, type TestServer,
 } from './helpers';
 
 type MovieJson = Record<string, string>;
@@ -207,17 +207,15 @@ describe('Startup load failures are visible', () => {
 describe('drain() waits for in-progress catalogue operations', () => {
   it('resolves only after an in-flight delete has finished writing', async () => {
     const gate = deferred();
+    const atRename = reached();
     let renamed = false;
     const s = await start({
-      fsHooks: { rename: async (a, b) => { await gate.promise; await fs.promises.rename(a, b); renamed = true; } },
+      fsHooks: { rename: async (a, b) => { atRename.hit(); await gate.promise; await fs.promises.rename(a, b); renamed = true; } },
     });
     const del = request(s.baseUrl, '/api/movies/1', { method: 'DELETE' });
-    // Let the delete reach the gated rename before draining.
-    await sleep(50);
-    let drained = false;
-    const drainDone = s.drain().then(() => { drained = true; });
-    await sleep(50);
-    assert.equal(drained, false, 'drain must wait for the queued delete');
+    await atRename.promise; // the delete is inside the queue, holding the rename
+    const drainDone = s.drain();
+    assert.equal(await isPending(drainDone), true, 'drain must wait for the queued delete');
     gate.resolve();
     await drainDone;
     assert.equal(renamed, true);
@@ -240,15 +238,28 @@ describe('Catalogue validators are unique across server restarts', () => {
   });
 });
 
-/** fsHooks.stat that runs `onCall(n)` before the n-th stat after `arm()`. */
-function armedStat(onCall: (n: number, p: string) => void | Promise<void>) {
+/**
+ * fsHooks.stat that runs `onCall(n)` before the n-th stat after `arm()`. `onCall` returns true (or
+ * throws) when it acted; those call numbers land in `fired`, so a test can assert its fault really
+ * happened instead of passing with nothing tested if the server's stat order changes.
+ */
+function armedStat(onCall: (n: number, p: string) => boolean | Promise<boolean>) {
   let armed = false;
   let n = 0;
+  const fired: number[] = [];
   const stat: FsHooks['stat'] = async (p) => {
-    if (armed) await onCall(++n, p);
+    if (armed) {
+      const k = ++n;
+      try {
+        if (await onCall(k, p)) fired.push(k);
+      } catch (err) {
+        fired.push(k);
+        throw err;
+      }
+    }
     return fs.promises.stat(p);
   };
-  return { stat, arm: () => { armed = true; n = 0; } };
+  return { stat, fired, calls: () => n, arm: () => { armed = true; n = 0; fired.length = 0; } };
 }
 
 describe('Deletes do not overwrite concurrent external writes', () => {
@@ -257,7 +268,9 @@ describe('Deletes do not overwrite concurrent external writes', () => {
     // exactly an external write landing after the delete read the file.
     let renames = 0;
     const hooks = armedStat((n, p) => {
-      if (n === 2) fs.appendFileSync(p, csvRow('9001', 'External') + '\n');
+      if (n !== 2) return false;
+      fs.appendFileSync(p, csvRow('9001', 'External') + '\n');
+      return true;
     });
     const s = await start({
       fsHooks: { stat: hooks.stat, rename: async (a, b) => { renames++; await fs.promises.rename(a, b); } },
@@ -267,7 +280,10 @@ describe('Deletes do not overwrite concurrent external writes', () => {
     const stored = await ids(s);
     assert.ok(stored.includes('9001'), 'externally appended row kept');
     assert.ok(!stored.includes('1'), 'deleted movie gone');
+    assert.deepEqual(hooks.fired, [2], 'the external append landed at the pre-rename check');
     assert.equal(renames, 1, 'the stale rewrite was never renamed into place');
+    // A retry happened: after the failed check, a reload and a second pre-rename check ran.
+    assert.ok(hooks.calls() >= 4, `expected a reload + retry after the fault, saw ${hooks.calls()} stats`);
   });
 });
 
@@ -307,10 +323,12 @@ describe('Committed writes are reported as successful', () => {
   it('a failing stat after the append still returns 201, and the next list re-reads the file', async () => {
     // Import stats: #1 the fast-path reloadForRead, #2 reloadIfChanged in the queue,
     // #3 appendMovieToCsv's size check, #4 markWritten.
-    const hooks = armedStat((n) => { if (n === 4) throw errnoError('EBUSY'); });
+    const hooks = armedStat((n) => { if (n === 4) throw errnoError('EBUSY'); return false; });
     const s = await start({ tmdbApiKey: 'k', tmdb: stubTmdb(), fsHooks: { stat: hooks.stat } });
     hooks.arm();
     assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 603 })).status, 201);
+    assert.deepEqual(hooks.fired, [4], 'the stat after the append (markWritten) failed');
+    assert.ok(s.errors.some((args) => String(args[0]).startsWith('Could not stat CSV after write')), 'the failed stat was logged');
     const list = await request<MovieJson[]>(s.baseUrl, '/api/movies');
     assert.equal(list.body.filter((m) => m['Movie ID'] === '603').length, 1);
     assert.ok((await ids(s)).includes('603'));

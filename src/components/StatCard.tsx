@@ -1,10 +1,11 @@
 import React from 'react';
 import { Card, Statistic } from 'antd';
-import { getCardStyle, SPACING, FONT_SIZE, CHART_PRIMARY } from '../utils/chartTheme';
+import { getCardStyle, SPACING, FONT_SIZE, CHART_PRIMARY, withAlpha } from '../utils/chartTheme';
 
 interface StatCardProps {
   label: string;
   value: number | string;
+  /** Accent colour as a `#RGB`/`#RRGGBB` hex string (the hero tint is built with `withAlpha`, which throws on anything else). */
   color?: string;
   suffix?: string;
   icon?: React.ReactNode;
@@ -19,14 +20,14 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, color = CHART_PRIMARY
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      aria-label={onClick ? `${label}: view details` : undefined}
+      aria-label={onClick ? `${label}: ${value}${suffix ? ` ${suffix}` : ''}, view details` : undefined}
       onKeyDown={onClick ? (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
       } : undefined}
       style={{
         ...getCardStyle(),
         // Hero only tints the background; border/radius/shadow stay the shared surface.
-        ...(hero && { background: `linear-gradient(135deg, ${color}14, var(--glass-bg))` }),
+        ...(hero && { background: `linear-gradient(135deg, ${withAlpha(color, 0.08)}, var(--glass-bg))` }),
         borderTop: `3px solid ${color}`,
         height: '100%',
         cursor: onClick ? 'pointer' : undefined,

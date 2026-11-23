@@ -7,7 +7,8 @@ import RadarChart from '../Charts/RadarChart';
 import LineChart from '../Charts/LineChart';
 import ScatterChart from '../Charts/ScatterChart';
 import ChartBlock from './ChartBlock';
-import { groupByField, countIntoBuckets, bucketToRange, VOTE_STEP, VOTE_MAX, type Bucket } from '../../utils/statsHelpers';
+import { countIntoBuckets, bucketToRange, parseVote, continuousYears, VOTE_STEP, VOTE_MAX } from '../../utils/statsHelpers';
+import { VOTE_BUCKETS } from '../../utils/chartBuckets';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { getLanguageName } from '../../utils/languages';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -16,20 +17,13 @@ import type { Movie } from '../../types/movie';
 
 interface RatingsTabProps { movies: Movie[] }
 
-// 0–1 … 9–10, half-open; the last bucket also takes 10.0. Shared by the count and the click.
-const VOTE_BUCKETS: Bucket[] = Array.from({ length: 10 }, (_, i) => ({
-  label: `${i}–${i + 1}`,
-  min: i,
-  maxExclusive: i === 9 ? Infinity : i + 1,
-}));
-
 const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
   const drillDown = useDrillDown();
 
   const voteDistData = useMemo<ChartData<'bar'>>(() => {
     // 0 = unrated: skipped here, and excluded by the Movies vote filter, so counts match drill-downs.
-    const votes = movies.map(m => parseFloat(m['Vote Average'])).filter(v => !isNaN(v) && v > 0);
+    const votes = movies.map(m => parseVote(m['Vote Average'])).filter((v): v is number => v !== null);
     const counts = countIntoBuckets(votes, VOTE_BUCKETS);
     return { labels: VOTE_BUCKETS.map(b => b.label), datasets: [{ label: 'Movies', data: counts, backgroundColor: CHART_PRIMARY }] };
   }, [movies]);
@@ -37,8 +31,8 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
   const avgVoteByGenreData = useMemo<ChartData<'bar'>>(() => {
     const sums: Record<string, { sum: number; count: number }> = {};
     movies.forEach(m => {
-      const v = parseFloat(m['Vote Average']);
-      if (!isNaN(v) && m.Genres) {
+      const v = parseVote(m['Vote Average']);
+      if (v !== null && m.Genres) {
         m.Genres.split(',').forEach(g => {
           const genre = g.trim();
           if (!genre) return;
@@ -61,16 +55,20 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
   const avgVoteByLanguageData = useMemo<ChartData<'radar'>>(() => {
     const sums: Record<string, { sum: number; count: number }> = {};
     movies.forEach(m => {
-      const v = parseFloat(m['Vote Average']);
-      if (!isNaN(v) && m.Language) {
+      const v = parseVote(m['Vote Average']);
+      if (v !== null && m.Language) {
         if (!sums[m.Language]) sums[m.Language] = { sum: 0, count: 0 };
         sums[m.Language].sum += v;
         sums[m.Language].count += 1;
       }
     });
-    const langCounts = groupByField(movies, 'Language');
-    const top8 = Object.entries(langCounts).sort(([, a], [, b]) => b - a).slice(0, 8).map(([l]) => l);
-    const avgs = top8.map(l => sums[l] ? parseFloat((sums[l].sum / sums[l].count).toFixed(2)) : 0);
+    // Top 8 among languages with rated movies (most rated first, code for ties): every spoke is a
+    // real average — no blank-language "Unknown" or unrated-only language plotted at 0.
+    const top8 = Object.entries(sums)
+      .sort(([a, x], [b, y]) => y.count - x.count || a.localeCompare(b))
+      .slice(0, 8)
+      .map(([l]) => l);
+    const avgs = top8.map(l => parseFloat((sums[l].sum / sums[l].count).toFixed(2)));
     return {
       labels: top8.map(getLanguageName),
       datasets: [{
@@ -79,28 +77,35 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
         backgroundColor: withAlpha(CHART_PRIMARY, 0.2),
         borderColor: CHART_PRIMARY,
         pointBackgroundColor: CHART_PRIMARY,
-        pointBorderColor: isDark ? '#fff' : '#1e1e3f',
       }],
     };
-  }, [movies, isDark]);
+  }, [movies]);
 
-  const avgVoteByYearData = useMemo<ChartData<'line'>>(() => {
-    const sums: Record<string, { sum: number; count: number }> = {};
+  // Every year from the first to the last with a rated release; years with none are `null`, so the
+  // line breaks there (spanGaps stays false) and they aren't drill-down targets.
+  const avgVoteByYearData = useMemo<ChartData<'line', (number | null)[]>>(() => {
+    const sums = new Map<number, { sum: number; count: number }>();
+    let lo = Infinity, hi = -Infinity;
     movies.forEach(m => {
-      const v = parseFloat(m['Vote Average']);
-      const y = m['Release Year'];
-      if (!isNaN(v) && y) {
-        if (!sums[y]) sums[y] = { sum: 0, count: 0 };
-        sums[y].sum += v;
-        sums[y].count += 1;
-      }
+      const v = parseVote(m['Vote Average']);
+      const y = parseInt(m['Release Year'], 10);
+      if (v === null || isNaN(y)) return;
+      const s = sums.get(y) ?? { sum: 0, count: 0 };
+      s.sum += v;
+      s.count += 1;
+      sums.set(y, s);
+      if (y < lo) lo = y;
+      if (y > hi) hi = y;
     });
-    const sorted = Object.entries(sums).sort(([a], [b]) => parseInt(a) - parseInt(b));
+    const years = isFinite(lo) ? continuousYears(lo, hi) : [];
     return {
-      labels: sorted.map(([y]) => y),
+      labels: years.map(String),
       datasets: [{
         label: 'Avg Vote',
-        data: sorted.map(([, { sum, count }]) => parseFloat((sum / count).toFixed(2))),
+        data: years.map((y) => {
+          const s = sums.get(y);
+          return s ? parseFloat((s.sum / s.count).toFixed(2)) : null;
+        }),
         borderColor: CHART_PALETTE[1],
         backgroundColor: withAlpha(CHART_PALETTE[1], 0.15),
         fill: true,
@@ -112,8 +117,8 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
     const points: { name: string; x: number; y: number }[] = [];
     movies.forEach(m => {
       const voteCount = parseInt(m['Vote Count'], 10);
-      const voteAvg = parseFloat(m['Vote Average']);
-      if (!isNaN(voteCount) && voteCount > 0 && !isNaN(voteAvg) && voteAvg > 0) {
+      const voteAvg = parseVote(m['Vote Average']);
+      if (!isNaN(voteCount) && voteCount > 0 && voteAvg !== null) {
         points.push({ name: m.Name, x: voteCount, y: voteAvg });
       }
     });
@@ -122,27 +127,26 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
         label: 'Movies',
         data: points.map(p => ({ x: p.x, y: p.y })),
         backgroundColor: withAlpha(CHART_PRIMARY, 0.5),
-        hoverBackgroundColor: CHART_PRIMARY,
       }],
     };
     return { voteScatterData: data, voteScatterLabels: points.map(p => p.name) };
   }, [movies]);
 
+  // Plain functions: the chart wrappers read callbacks at event time (useLatest), so identity doesn't matter.
+  // onElementClick only fires for elements isClickable accepts, so handleYearClick needs no second guard.
   const handleVoteBucketClick = (index: number) => {
     const bucket = VOTE_BUCKETS[index];
-    if (!bucket) return;
-    drillDown({ voteRange: bucketToRange(bucket, VOTE_STEP, VOTE_MAX) });
+    if (bucket) drillDown({ voteRange: bucketToRange(bucket, VOTE_STEP, VOTE_MAX) });
   };
 
   const handleGenreClick = (index: number) => {
     const genre = avgVoteByGenreData.labels?.[index] as string | undefined;
-    if (!genre) return;
-    drillDown({ genres: [genre] });
+    if (genre) drillDown({ genres: [genre] });
   };
 
+  const isYearClickable = (index: number) => typeof avgVoteByYearData.datasets[0].data[index] === 'number';
   const handleYearClick = (index: number) => {
     const year = parseInt(avgVoteByYearData.labels?.[index] as string, 10);
-    if (isNaN(year)) return;
     drillDown({ yearRange: [year, year] });
   };
 
@@ -155,7 +159,7 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
         <ChartBlock title="Average Vote by Language (Top 8)" height={360} isDark={isDark}><RadarChart data={avgVoteByLanguageData} isDark={isDark} /></ChartBlock>
       </Col>
       <Col xs={24}>
-        <ChartBlock title="Average Vote by Year" height={360} isDark={isDark}><LineChart data={avgVoteByYearData} isDark={isDark} onElementClick={handleYearClick} /></ChartBlock>
+        <ChartBlock title="Average Vote by Year" height={360} isDark={isDark}><LineChart data={avgVoteByYearData} isDark={isDark} onElementClick={handleYearClick} isClickable={isYearClickable} /></ChartBlock>
       </Col>
       <Col xs={24}>
         <ChartBlock title="Average Vote by Genre (Top 15)" height={440} isDark={isDark}><HorizontalBarChart data={avgVoteByGenreData} height={440} isDark={isDark} onElementClick={handleGenreClick} /></ChartBlock>
