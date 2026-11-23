@@ -7,7 +7,7 @@ DASHBOARD (/)
 - Trends & Breakdown: 10-year release trend (continuous span, empty years shown as 0), top-7 genre breakdown (+ "Other"), rating distribution (each clickable — jumps to Movies pre-filtered by that year/genre/vote range; years and rating bars with no movies aren't clickable), recent releases list with poster thumbnails ("No dated releases" when no movie has a date; a list of buttons — click or Enter/Space opens the detail drawer; unrated movies tagged "Not rated")
 - Unknown values aren't shown as real ones: revenue ≤ 0 doesn't count toward Total Box Office, averages with no data show "—"
 - If the movie-details panel fails to download, the Dashboard stays up with an error message and the next click retries
-- Skeleton placeholder layout while data loads (instead of a bare spinner)
+- Skeleton placeholder layout while data loads (instead of a bare spinner); the page heading stays above it and above a load error
 - Empty state (0 movies): Empty component + "Go to Movies" CTA instead of zeroed-out stats/charts
 - CTA cards linking to Movies and Stats
 - Standardized section layout (title + spacing) via a shared DashboardSection wrapper
@@ -31,7 +31,7 @@ MOVIES (/movies)
 - Back/Forward keep the scroll position; following a nav link opens the new section at the top
 - Each page names the browser tab ("Movies · MovieDash") and its heading takes focus after an in-app navigation (screen readers announce the page; the first page of a visit keeps normal focus)
 - A page whose code failed to download offers Try Again (downloads it again, no full reload, doesn't wait on the catalogue) and Reload page; after a crash, Try Again waits for the catalogue reload before re-rendering
-- A crashed page clears when its own nav link is clicked (Dashboard and Movies too, not just Stats); a failed first load shows the server's reason (a first-load 503 is retried once) and hides the movie count
+- A crashed page clears when its own nav link is clicked (Dashboard and Movies too, not just Stats); a failed first load shows the server's reason (a first-load 503 is retried once) under the page's heading and hides the movie count
 - Below the sm breakpoint: sidebar replaced by fixed bottom nav bar (Dashboard/Movies/Stats), grid view default, detail/filters drawers go full-width, table columns hide progressively, pagination switches to simple mode
 - Release dates rendered as DD-MM-YYYY (table + detail drawer); any other date text is shown as-is
 
@@ -50,7 +50,7 @@ STATISTICS (6 tabs)
 - Explore: genre distribution, year x genre heatmap, Top 10 Explorer (highest rated — min. 50 votes / longest / most recent / oldest — by release date, undated left out / most popular; readable in light theme, toolbar wraps on phones)
 
 THEME
-- Light / dark toggle; follows the OS preference (including live changes) until the user toggles, and only a toggled choice is saved (localStorage key movieDash_theme); works even when storage is blocked; applied before the first paint (no white flash, browser scrollbars/controls match the theme)
+- Light / dark toggle; follows the OS preference (including live changes) until the user toggles, and only a toggled choice is saved (localStorage key movieDash_theme); works even when storage is blocked; applied before the first paint (no white flash, browser scrollbars/controls match the theme); on the light theme the selected tab, sidebar item and bottom-nav item use a darker indigo for contrast
 - Refined glassmorphism design system — shared surface/spacing/typography tokens (CSS custom properties + chartTheme.ts) applied consistently to sidebar, top bar, bottom nav, and every page; calmer border/shadow, muted 8-color chart palette shared by every chart (one color per single-series chart, positive/negative pair for profit/loss); compact doughnut legends on phones
 
 BACKEND / DATA
@@ -74,6 +74,7 @@ SECURITY
 - helmet() security headers on all responses, with a Content-Security-Policy tuned to what the app loads: img-src allows TMDB posters (https://image.tmdb.org) and the data: poster placeholder, style-src allows Ant Design's runtime inline styles; scripts/connections stay 'self'
 - Rate limiting on /api/* (300 req/min per client via express-rate-limit); TRUST_PROXY (unset by default; a hop count or address list) makes it count per original client behind a reverse proxy; TRUST_PROXY=true is refused at startup (it would let any client pick its rate-limit key)
 - CORS allowlist restricted to CLIENT_ORIGIN env var (default http://localhost:3000), not an open cors()
+- robots.txt asks crawlers not to crawl the app (a personal dashboard with no login); search engines may still list a linked URL without its content
 - Movie ID route param length-validated before lookup (400 on invalid)
 - Local-only by default: the API binds 127.0.0.1 (HOST override for deployments) and the Vite dev server binds localhost, so nobody on the same Wi-Fi can list or delete movies; npm run dev:lan opens the dev web app to the LAN for phone testing (its /api proxy lets LAN devices use the API too, so trusted networks only; port 5000 itself stays loopback)
 - Startup is explicit about problems: a CSV that exists but fails to load gives health "error" and 500s on catalogue routes (no fake empty catalogue), retried on each request so fixing the file recovers without a restart; a port already in use or an invalid PORT prints one line and exits 1; an unreadable .env is logged; shutdown waits for in-progress catalogue writes (10s cap)
@@ -86,12 +87,12 @@ SECURITY
 QUALITY
 - ESLint (typescript-eslint, react-hooks, unused-imports), zero warnings allowed; lint also enforces the e2e safety rules (specs import test/expect from tests/helpers.ts, no waitForTimeout)
 - e2e specs, helpers and the Vite/Playwright configs are type-checked on every build (tsconfig.node.json), and the server tests by type-check:server (server/tsconfig.test.json); a committed test.only fails CI; the dev server refuses a busy port 3000 instead of silently moving
-- 135 Playwright E2E tests across 13 suites (no fixed sleeps; every write and TMDB call mocked, so e2e never modifies src/movies.csv)
+- 153 Playwright E2E tests across 13 suites (no fixed sleeps; every write and TMDB call mocked, so e2e never modifies src/movies.csv)
 - ruff lint for the Python tools (movie-search.py, backfill_posters.py, catalogue_io.py) in CI
 - 42 Python unit tests (stdlib unittest, tests/python) for the shared CSV I/O and the backfill — temp files, no network
 - 118 server API tests (node:test via tsx) against temp CSVs with a stubbed TMDB client — never touch src/movies.csv or the network
-- 56 frontend unit tests (node:test via tsx, tests/unit) for the shared display helpers: revenue labels, chart colours and ink, dates, language names, grouping, rankings and averages, drill-down buckets, chart tooltip numbers and cursor, range-slider helpers, the unrated-vote rule, accent-folded search, saved-filter validation and CSV formula escaping
-- GitHub Actions CI: npm audit (no high/critical advisories) + lint + ruff + Python tests + server type-check + build + bundle budget + server tests + unit tests + e2e on push/PR to main
+- 60 frontend unit tests (node:test via tsx, tests/unit) for the shared display helpers: revenue labels, chart colours and ink, dates, language names, grouping, rankings and averages, drill-down buckets, chart tooltip numbers and cursor, range-slider helpers, the unrated-vote rule, accent-folded search, saved-filter validation and CSV formula escaping
+- GitHub Actions CI: npm audit (no high/critical advisories) + lint + ruff + Python tests + server type-check + build + bundle budget + server tests + unit tests + e2e on push/PR to main (read-only workflow token)
 - Bundle budget (npm run check:bundle): landing-page JS must stay within 400 kB gzip (currently ~332, down from ~517) and no chunk may exceed 500 kB minified; per-route antd chunks, lazy Movies/Stats routes and a lazy Dashboard movie drawer keep table/slider/drawer/modal code off the landing page
 - Current majors: React 19, Ant Design 6, Vite 8 (Rolldown), Express 5, TypeScript 6 (TypeScript 7 waits on typescript-eslint support)
 - Hover lift on stat cards and grid cards is a CSS transition (no animation library)

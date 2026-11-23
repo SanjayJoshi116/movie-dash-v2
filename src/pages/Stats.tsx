@@ -91,14 +91,14 @@ const Stats: React.FC = () => {
   ];
 
   return (
-    <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: 24 }}>
       <PageTitle emoji="📊" title="Statistics Dashboard" />
+      <LoadingError loading={loading} error={error} onRetry={refetch}>
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
         Deep-dive charts and breakdowns across ratings, people, runtime, box office, and more.
       </Text>
       {movies.length === 0 ? (
-        <EmptyState description="No movies yet — add one to see analytics here." actionLabel="Go to Movies" onAction={() => navigate('/movies')} isDark={isDark} />
+        <EmptyState description="No movies yet — add one to see analytics here." actionLabel="Go to Movies" onAction={() => navigate('/movies')} />
       ) : (
       <>
       <div style={{ ...getCardStyle(isDark), padding: '16px 24px', marginBottom: 24 }}>
@@ -128,7 +128,7 @@ const Stats: React.FC = () => {
       </div>
       {scopedMovies.length === 0 ? (
         // activeTab and ?tab= stay as they are, so Reset brings back the same tab.
-        <EmptyState description="No movies released in this range" actionLabel="Reset range" onAction={() => setYearRange(null)} isDark={isDark} />
+        <EmptyState description="No movies released in this range" actionLabel="Reset range" onAction={() => setYearRange(null)} />
       ) : (
         <DrilldownScopeProvider yearRange={yearRange}>
         <Tabs
@@ -142,8 +142,8 @@ const Stats: React.FC = () => {
       )}
       </>
       )}
+      </LoadingError>
     </div>
-    </LoadingError>
   );
 };
 

@@ -25,4 +25,6 @@ test('matchesSearch: trims, blank matches everything, misses stay misses', () =>
 
 test('matchesSearch: language display name, accent-folded', () => {
   assert.equal(matchesSearch({ Language: 'fr' }, 'french'), true);
+  assert.equal(matchesSearch({ Language: 'fr' }, 'Frénch'), true);
+  assert.equal(matchesSearch({ Language: 'gn' }, 'guarani'), true); // the name is "Guaraní"
 });

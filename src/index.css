@@ -29,10 +29,12 @@ code {
   --row-hover: rgba(129, 140, 248, 0.07);
   --filters-bg: linear-gradient(135deg, #1e293b 0%, #2d3748 100%);
   --filters-border: rgba(255, 255, 255, 0.1);
+  --accent-text: #818cf8; /* selected navigation text; App.tsx's accentText is the same pair */
 }
 
 [data-theme="light"] {
   color-scheme: light;
+  --accent-text: #4f46e5; /* #818cf8 is about 2.8:1 on the light background (B209) */
   --bg-gradient: linear-gradient(135deg, #f5f7ff 0%, #eef1ff 50%, #f5f7ff 100%);
   --export-bg: #f5f7ff;
   --glass-bg: rgba(255, 255, 255, 0.92);
@@ -112,14 +114,6 @@ code {
 
 [data-theme="dark"] .ant-tabs-tab:hover {
   color: rgba(255, 255, 255, 0.85) !important;
-}
-
-.ant-tabs-tab-active .ant-tabs-tab-btn {
-  color: #818cf8 !important;
-}
-
-.ant-tabs-ink-bar {
-  background: #818cf8 !important;
 }
 
 /* ── Ant Design Menu active item accent ─────────────────────────────────── */

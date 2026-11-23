@@ -144,9 +144,9 @@ const Movies: React.FC = () => {
   ]);
 
   return (
-    <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: 24 }}>
       <PageTitle emoji="🎬" title="Movies" />
+      <LoadingError loading={loading} error={error} onRetry={refetch}>
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
         Browse, search, and filter your full movie catalogue in table or grid view.
       </Text>
@@ -234,8 +234,8 @@ const Movies: React.FC = () => {
       <MovieDrawer movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
 
       <AddMovieModal open={addMovieOpen} onClose={() => setAddMovieOpen(false)} />
+      </LoadingError>
     </div>
-    </LoadingError>
   );
 };
 

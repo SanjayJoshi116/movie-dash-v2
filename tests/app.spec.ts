@@ -26,6 +26,7 @@ import {
   movieTotal,
   expectTotal,
   makeMovie,
+  mockDelete,
   mockMovies,
   searchMatchCount,
   yearSpan,
@@ -69,6 +70,10 @@ function canvasTexts(canvas: Locator): Promise<string[]> {
   return canvas.evaluate((c) => (window as unknown as CanvasTextWindow)
     .__canvasTexts.filter((e) => e.c === c).map((e) => e.t));
 }
+
+/** One movie per year from `from` to `to`, released on 1 March. */
+const yearRows = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) =>
+  makeMovie(i + 1, { 'Release Year': String(from + i), 'Release Date': `${from + i}-03-01` }));
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
 
@@ -279,6 +284,69 @@ test.describe('Dashboard', () => {
     release();
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
+  });
+
+  test('sections render in order: Overview, Highlights, Trends & Breakdown, Explore More', async ({ page }) => {
+    await mockMovies(page, Array.from({ length: 6 }, (_, i) => makeMovie(i + 1)));
+    await page.goto('/');
+    const headings = page.getByRole('heading', { level: 4 });
+    await expect(headings.first()).toBeVisible();
+    expect(await headings.allInnerTexts()).toEqual(['Overview', 'Highlights', 'Trends & Breakdown', 'Explore More']);
+  });
+
+  test('Total Movies is styled as the primary metric', async ({ page }) => {
+    await mockMovies(page, Array.from({ length: 6 }, (_, i) => makeMovie(i + 1)));
+    await page.goto('/');
+    const valueSize = (label: string) => page.locator('.ant-statistic').filter({ hasText: label })
+      .locator('.ant-statistic-content').evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    const total = await valueSize('Total Movies');
+    for (const label of ['Average Rating', 'Average Runtime', 'Total Box Office']) {
+      expect(total, label).toBeGreaterThan(await valueSize(label));
+    }
+  });
+
+  test('a genre slice drills down to that genre', async ({ page }) => {
+    // Drama covers the first 3/5 of the ring (clockwise from the top), Comedy the rest, so the ring's
+    // upper-left quarter is Comedy.
+    await mockMovies(page, [
+      ...[1, 2, 3].map((i) => makeMovie(i, { Genres: 'Drama' })),
+      ...[4, 5].map((i) => makeMovie(i, { Genres: 'Comedy' })),
+    ]);
+    await page.goto('/');
+    const canvas = dashboardChartCanvas(page, 'Genre Breakdown (Top 7)');
+    await expect(canvas).toBeVisible();
+    const pt = await findPointer(page, canvas, 'x', 0.35);
+    await page.mouse.click(pt.x, pt.y);
+    await expect(page).toHaveURL('/movies');
+    await expect(filterChip(page, 'Comedy')).toBeVisible();
+    await expectTotal(page, 2);
+  });
+
+  test('the Other genre slice is not a drill-down target', async ({ page }) => {
+    // 7 named genres with 2 movies each, then 20 single-movie genres folded into "Other" (20 of 34):
+    // Other is the last slice, covering the ring's whole upper-left quarter.
+    const rows = [
+      ...Array.from({ length: 14 }, (_, i) => makeMovie(i + 1, { Genres: `Named ${Math.floor(i / 2)}` })),
+      ...Array.from({ length: 20 }, (_, i) => makeMovie(100 + i, { Genres: `Rare ${i}` })),
+    ];
+    await mockMovies(page, rows);
+    await page.goto('/');
+    const canvas = dashboardChartCanvas(page, 'Genre Breakdown (Top 7)');
+    await expect(canvas).toBeVisible();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('genre canvas not visible');
+    const middle = box.x + box.width / 2;
+    const runs = await pointerRuns(page, canvas, 'x', 0.35, { step: 8 });
+    expect(runs.length, 'the named slices on the right are clickable').toBeGreaterThan(0);
+    for (const pt of runs) expect(pt.x, 'no pointer over the Other slice').toBeGreaterThan(middle);
+    // Click where the ring is actually drawn on the left (the Other slice), not on empty canvas.
+    const now = await canvas.boundingBox(); // the sweep scrolled the chart into view
+    const y = now!.y + now!.height * 0.35;
+    const x = await firstPaintedX(canvas, y, box.x, middle);
+    expect(x, 'the Other slice is drawn on the left of the sweep line').not.toBeNull();
+    expect(await isPointerAt(page, canvas, x! + 6, y)).toBe(false);
+    await page.mouse.click(x! + 6, y);
+    await expect(page).toHaveURL('/');
   });
 
   test('Recent Releases says so when no movie has a release date', async ({ page }) => {
@@ -675,6 +743,47 @@ test.describe('Movies Advanced Filters', () => {
     await expectTotal(page, expected);
   });
 
+  test('dragging the year slider applies the filter once, on release', async ({ page }) => {
+    await mockMovies(page, yearRows(1990, 2020));
+    // Every applied filter change is saved; count the saves to count the updates.
+    await page.addInitScript((key) => {
+      const w = window as unknown as { __filterSaves: number };
+      w.__filterSaves = 0;
+      const orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k: string, v: string) {
+        if (this === window.sessionStorage && k === key) w.__filterSaves += 1;
+        return orig.call(this, k, v);
+      };
+    }, FILTERS_STORAGE_KEY);
+    await page.goto('/movies');
+    await waitForTable(page);
+    await openFiltersDrawer(page);
+    const handle = page.getByRole('slider', { name: 'Release year minimum' });
+    await handle.hover(); // waits for the drawer's slide-in to finish, so the boxes below are final
+    const track = page.locator('.ant-drawer-body .ant-slider').first();
+    const box = await track.boundingBox();
+    const start = await handle.boundingBox();
+    if (!box || !start) throw new Error('year slider not visible');
+    const saves = () => page.evaluate(() => (window as unknown as { __filterSaves: number }).__filterSaves);
+    const before = await saves();
+
+    const cx = start.x + start.width / 2;
+    const cy = start.y + start.height / 2;
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx + box.width * 0.65, cy, { steps: 10 });
+    expect(await saves(), 'nothing applied while dragging').toBe(before);
+    await page.mouse.up();
+
+    await expect.poll(saves).toBe(before + 1);
+    const lo = Number(await handle.getAttribute('aria-valuenow'));
+    expect(lo).toBeGreaterThanOrEqual(2005); // dragged across 15+ years
+    await closeFiltersDrawer(page);
+    await expect(filterChip(page, `Year: ${lo}–2020`)).toBeVisible();
+    await expectTotal(page, 2020 - lo + 1);
+    expect(await saves()).toBe(before + 1);
+  });
+
   test('range slider handles have accessible names', async ({ page }) => {
     await mockMovies(page, rangeRows());
     await page.goto('/movies');
@@ -833,10 +942,9 @@ test.describe('Movies Add & Delete', () => {
     const rows = [makeMovie(1), makeMovie(2)];
     const victim = rows[1];
     const setMovies = await mockMovies(page, rows);
-    await page.route('**/api/movies/*', (route) => {
-      if (route.request().method() !== 'DELETE') return route.fallback();
+    await mockDelete(page, () => {
       setMovies([rows[0]]); // another tab already removed it
-      return route.fulfill({ status: 404, json: { error: 'Movie not found' } });
+      return { status: 404, json: { error: 'Movie not found' } };
     });
     await page.goto('/movies');
     await waitForTable(page);
@@ -852,11 +960,9 @@ test.describe('Movies Add & Delete', () => {
     const victim = rows[1];
     const setMovies = await mockMovies(page, rows);
     const deleted: string[] = [];
-    await page.route('**/api/movies/*', (route) => {
-      if (route.request().method() !== 'DELETE') return route.fallback();
-      deleted.push(new URL(route.request().url()).pathname);
+    await mockDelete(page, (id) => {
+      deleted.push(id);
       setMovies(rows.filter((m) => m !== victim));
-      return route.fulfill({ json: { ok: true } });
     });
 
     await page.goto('/movies');
@@ -873,10 +979,71 @@ test.describe('Movies Add & Delete', () => {
     await confirm.getByRole('button', { name: 'Delete' }).click();
 
     await expect(page.locator('.ant-drawer-open')).toHaveCount(0);
-    expect(deleted).toEqual([`/api/movies/${victim['Movie ID']}`]);
+    expect(deleted).toEqual([victim['Movie ID']]);
     await expectTotal(page, 2);
     await expect(page.locator('.ant-table-row', { hasText: victim.Name })).toHaveCount(0);
     await expect(page.getByTitle('2 movies in catalogue')).toBeVisible();
+  });
+
+  test('Delete from page 3 keeps the rating sort and page 3', async ({ page }) => {
+    const rows = Array.from({ length: 30 }, (_, i) => makeMovie(i + 1, { 'Vote Average': (1 + i * 0.25).toFixed(2) }));
+    const setMovies = await mockMovies(page, rows);
+    const victim = rows[20]; // first row of page 3, sorted by rating ascending
+    await mockDelete(page, () => setMovies(rows.filter((m) => m !== victim)));
+    await page.goto('/movies');
+    await waitForTable(page);
+    const voteHeader = page.getByRole('columnheader', { name: /Vote Avg/ });
+    await voteHeader.click();
+    await expect(voteHeader).toHaveAttribute('aria-sort', 'ascending');
+    await page.locator('.ant-pagination-item-3').click();
+    const firstRow = page.locator('.ant-table-row').first();
+    await expect(firstRow).toContainText(victim.Name);
+
+    await firstRow.getByRole('button', { name: victim.Name }).click();
+    await confirmDrawerDelete(page);
+    await expect(page.locator('.ant-drawer-open')).toHaveCount(0);
+    await expectTotal(page, 29);
+    await expect(page.locator('.ant-pagination-item-active')).toHaveText('3');
+    await expect(voteHeader).toHaveAttribute('aria-sort', 'ascending');
+    await expect(firstRow).toContainText(rows[21].Name);
+  });
+
+  test('Add Movie: two imports in flight each show their own progress', async ({ page }) => {
+    const catalogue = [makeMovie(1)];
+    const setMovies = await mockMovies(page, catalogue);
+    await page.route(/\/api\/tmdb\/search(\?|$)/, (route) => route.fulfill({
+      json: { results: [tmdbResult(999101, 'Mock Import A'), tmdbResult(999102, 'Mock Import B')] },
+    }));
+    const release: Record<number, () => void> = {};
+    await page.route('**/api/tmdb/import', async (route) => {
+      const { movieId } = route.request().postDataJSON() as { movieId: number };
+      await new Promise<void>((resolve) => { release[movieId] = resolve; });
+      const movie = makeMovie(movieId - 999000, { 'Movie ID': String(movieId) });
+      catalogue.push(movie); // the refetch after the import includes it, so "Added" stays
+      setMovies([...catalogue]);
+      return route.fulfill({ status: 201, json: { movie } });
+    });
+    await page.goto('/movies');
+    await waitForTable(page);
+    const modal = await openAddMovie(page);
+    await modal.getByPlaceholder('Movie name').fill('Mock');
+    await modal.getByRole('button', { name: 'Search' }).click();
+    const rowA = searchResult(modal, 'Mock Import A');
+    const rowB = searchResult(modal, 'Mock Import B');
+    const importA = rowA.getByRole('button', { name: 'Import' });
+    const importB = rowB.getByRole('button', { name: 'Import' });
+
+    await importA.click();
+    await importB.click();
+    await expect.poll(() => Object.keys(release).length).toBe(2);
+    await expect(importA).toHaveClass(/ant-btn-loading/);
+    await expect(importB).toHaveClass(/ant-btn-loading/);
+
+    release[999102]();
+    await expect(rowB.getByText('Added')).toBeVisible();
+    await expect(importA).toHaveClass(/ant-btn-loading/);
+    release[999101]();
+    await expect(rowA.getByText('Added')).toBeVisible();
   });
 
   test('Add Movie: a new search replaces one still running', async ({ page }) => {
@@ -950,11 +1117,7 @@ test.describe('Movies Add & Delete', () => {
       setMovies([...base, imported]);
       return route.fulfill({ status: 201, json: { movie: imported } });
     });
-    await page.route('**/api/movies/*', (route) => {
-      if (route.request().method() !== 'DELETE') return route.fallback();
-      setMovies(base);
-      return route.fulfill({ json: { ok: true } });
-    });
+    await mockDelete(page, () => setMovies(base));
 
     await page.goto('/movies');
     await waitForTable(page);
@@ -1014,11 +1177,9 @@ test.describe('Movies Add & Delete', () => {
     const setMovies = await mockMovies(page, rows);
     let releaseDelete: () => void = () => {};
     const deleteHeld = new Promise<void>((r) => { releaseDelete = r; });
-    await page.route('**/api/movies/*', async (route) => {
-      if (route.request().method() !== 'DELETE') return route.fallback();
+    await mockDelete(page, async () => {
       await deleteHeld;
       setMovies(rows.filter((m) => m !== a));
-      return route.fulfill({ json: { ok: true } });
     });
 
     await page.goto('/movies');
@@ -1045,10 +1206,7 @@ test.describe('Movies Add & Delete', () => {
     const rows = [makeMovie(1), makeMovie(2)];
     await mockMovies(page, rows);
     await page.route(/\/api\/tmdb\/search(\?|$)/, (route) => route.fulfill({ status: 500, json: { error: '' } }));
-    await page.route('**/api/movies/*', (route) => {
-      if (route.request().method() !== 'DELETE') return route.fallback();
-      return route.fulfill({ status: 500, json: { error: '  ' } });
-    });
+    await mockDelete(page, () => ({ status: 500, json: { error: '  ' } }));
 
     await page.goto('/movies');
     await waitForTable(page);
@@ -1117,6 +1275,50 @@ test.describe('Navigation', () => {
     await page.goto('/nonexistent-route');
     await page.getByRole('button', { name: 'Back to Dashboard' }).click();
     await expect(page).toHaveURL('/');
+  });
+
+  /**
+   * Serves the Stats page through a wrapper that throws while `window.__crashStats` is true and
+   * otherwise renders the real page (loaded from the same URL plus `?real`, which this route skips).
+   */
+  async function crashStatsWhileFlagged(page: Page): Promise<() => boolean> {
+    let served = false;
+    await page.addInitScript(() => { (window as unknown as { __crashStats: boolean }).__crashStats = true; });
+    await page.route((url) => url.pathname === '/src/pages/Stats.tsx' && !url.search.includes('real'), (route) => {
+      served = true;
+      return route.fulfill({
+        contentType: 'application/javascript',
+        // Calls the real page as a function so the wrapper needs no React import (bare imports aren't
+        // resolved in a fulfilled body); fine because the flag only flips while Stats is unmounted.
+        body: "import Real from '/src/pages/Stats.tsx?real';\n"
+          + "export default function Stats(props) { if (window.__crashStats) throw new Error('stats render crash'); return Real(props); }",
+      });
+    });
+    return () => served;
+  }
+
+  test('navigating away from a crashed page renders the new page', async ({ page }) => {
+    const served = await crashStatsWhileFlagged(page);
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Stats', exact: true }).click();
+    await expect(page.getByText('Something went wrong')).toBeVisible();
+    expect(served(), 'the crashing wrapper was served').toBe(true);
+    await page.getByRole('link', { name: 'Movies', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Movies', exact: true })).toBeVisible();
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  });
+
+  test('re-opening the crashed section clears the error and starts from its default tab', async ({ page }) => {
+    const served = await crashStatsWhileFlagged(page);
+    await page.goto('/stats?tab=people');
+    await expect(page.getByText('Something went wrong')).toBeVisible();
+    expect(served(), 'the crashing wrapper was served').toBe(true);
+    await page.evaluate(() => { (window as unknown as { __crashStats: boolean }).__crashStats = false; });
+    await page.getByRole('link', { name: 'Stats', exact: true }).click();
+    await waitForStats(page);
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: /Overview/, selected: true })).toBeVisible();
+    await expect(page).toHaveURL('/stats?tab=overview');
   });
 
   test('a trailing slash still highlights Movies in the sidebar', async ({ page }) => {
@@ -1524,11 +1726,7 @@ test.describe('Stats Page', () => {
     await page.route('**/api/movies', (route) => (route.request().method() === 'GET' && failGet
       ? route.fulfill({ status: 500, json: { error: 'boom' } })
       : route.fallback()));
-    await page.route('**/api/movies/*', (route) => {
-      if (route.request().method() !== 'DELETE') return route.fallback();
-      failGet = true;
-      return route.fulfill({ json: { ok: true } });
-    });
+    await mockDelete(page, () => { failGet = true; });
     await page.goto('/movies');
     await waitForTable(page);
     await page.locator('.ant-table-row', { hasText: victim.Name }).click();
@@ -1541,9 +1739,6 @@ test.describe('Stats Page', () => {
       refresh: async (next: ApiMovie[]) => { setMovies(next); failGet = false; await retry.click(); },
     };
   }
-
-  const yearRows = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) =>
-    makeMovie(i + 1, { 'Release Year': String(from + i), 'Release Date': `${from + i}-03-01` }));
 
   test('the year range is clamped when a refresh shrinks the data span', async ({ page }) => {
     const rows = yearRows(2010, 2024);
@@ -1587,21 +1782,6 @@ test.describe('Stats Page', () => {
     expect(text.indexOf('February Ninety')).toBeLessThan(text.indexOf('August Ninety'));
     expect(text.indexOf('August Ninety')).toBeLessThan(text.indexOf('Later One'));
   });
-
-  /** The canvas inside the active tab's ChartBlock titled `title`. */
-
-  /** Moves the mouse along a line across `canvas` until Chart.js shows the pointer cursor; returns that point. */
-  async function findPointer(page: Page, canvas: Locator, along: 'x' | 'y', at: number): Promise<{ x: number; y: number }> {
-    await canvas.scrollIntoViewIfNeeded();
-    const box = await canvas.boundingBox();
-    if (!box) throw new Error('canvas not visible');
-    const len = along === 'x' ? box.width : box.height;
-    for (let d = 4; d < len - 4; d += 4) {
-      const pt = along === 'x' ? { x: box.x + d, y: box.y + box.height * at } : { x: box.x + box.width * at, y: box.y + d };
-      if (await isPointerAt(page, canvas, pt.x, pt.y)) return pt;
-    }
-    throw new Error('no clickable element found');
-  }
 
   test('rating averages leave out unrated films; the director drill-down still lists them', async ({ page }) => {
     const rows = [
@@ -1677,6 +1857,24 @@ test.describe('Stats Page', () => {
     await expectTotal(page, 1);
   });
 
+  test('a co-production counts toward each of its countries', async ({ page }) => {
+    await mockMovies(page, [
+      makeMovie(1, { 'Production Country': 'United Kingdom, United States of America' }),
+      makeMovie(2, { 'Production Country': 'France' }),
+    ]);
+    await recordCanvasText(page);
+    await page.goto('/stats?tab=runtime');
+    await waitForStats(page);
+    const polar = chartCanvas(page, 'Movies by Country');
+    await expect(polar).toBeVisible();
+    await polar.scrollIntoViewIfNeeded();
+    await expect.poll(() => canvasTexts(polar)).toContain('United Kingdom');
+    const texts = await canvasTexts(polar);
+    expect(texts).toContain('United States of America');
+    expect(texts).toContain('France');
+    expect(texts).not.toContain('United Kingdom, United States of America');
+  });
+
   test('Top 10 toolbar wraps at 320 px instead of squeezing the metric select', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 800 });
     await mockMovies(page, Array.from({ length: 12 }, (_, i) => makeMovie(i + 1)));
@@ -1714,6 +1912,23 @@ test.describe('Theme', () => {
     await expect(html(page)).toHaveAttribute('data-theme', 'light');
     await expect(html(page)).toHaveCSS('color-scheme', 'light');
     await expect(html(page)).toHaveCSS('background-color', 'rgb(245, 247, 255)');
+  });
+
+  test('a first visit on a light-mode system opens in light theme', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.goto('/');
+    await expect(html(page)).toHaveAttribute('data-theme', 'light');
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
+    expect(await savedTheme(page)).toBeNull();
+  });
+
+  test('the selected Stats tab uses the darker accent on the light theme (B203)', async ({ page }) => {
+    await page.goto('/stats');
+    await waitForStats(page);
+    const active = page.getByRole('tab', { selected: true });
+    await expect(active).toHaveCSS('color', 'rgb(129, 140, 248)');
+    await page.locator('button[title*="light mode"]').click();
+    await expect(active).toHaveCSS('color', 'rgb(79, 70, 229)'); // #4f46e5, after the colour transition
   });
 
   test('toggle switches to light theme', async ({ page }) => {
@@ -1786,6 +2001,25 @@ test.describe('Filter Persistence', () => {
 
     // Cleanup
     await page.locator('button[title="Clear all filters"]').click();
+  });
+
+  test('with all site storage blocked the app loads and the theme toggle works', async ({ page }) => {
+    await page.addInitScript(() => {
+      for (const name of ['localStorage', 'sessionStorage']) {
+        Object.defineProperty(window, name, { get() { throw new DOMException('blocked', 'SecurityError'); } });
+      }
+    });
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto('/movies');
+    await waitForTable(page);
+    await searchBox(page).fill('Mock');
+    await page.getByRole('link', { name: 'Stats', exact: true }).click();
+    await waitForStats(page);
+    await page.locator('button[title*="light mode"]').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    expect(errors).toEqual([]);
   });
 
   test('filters restore with localStorage blocked; theme toggle still works', async ({ page }) => {
@@ -2019,6 +2253,17 @@ test.describe('Edge Cases', () => {
     await expect(page.locator('[title$="movies in catalogue"]')).toHaveCount(0);
   });
 
+  test('a failed first load still names the page and moves focus on navigation', async ({ page }) => {
+    await page.route('**/api/movies', (route) => route.fulfill({ status: 500, json: { error: 'down' } }));
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
+    await expect(page).toHaveTitle('Dashboard · MovieDash');
+    await page.getByRole('link', { name: 'Stats', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Statistics Dashboard', exact: true })).toBeFocused();
+    await expect(page).toHaveTitle('Statistics Dashboard · MovieDash');
+    await expect(page.getByText('Failed to load movies')).toBeVisible();
+  });
+
   test('a first-load 503 is retried once automatically', async ({ page }) => {
     const rows = [makeMovie(1), makeMovie(2)];
     // 503 for every request in the first 300 ms (StrictMode's dev double-fetch lands there too);
@@ -2165,8 +2410,10 @@ async function nextFrames(page: Page) {
 /** Hovers (x, y) and reports whether Chart.js shows the pointer cursor there (a clickable element). */
 async function isPointerAt(page: Page, canvas: Locator, x: number, y: number): Promise<boolean> {
   await page.mouse.move(x, y);
-  await nextFrames(page);
-  return (await canvas.evaluate((el) => (el as HTMLElement).style.cursor)) === 'pointer';
+  // Wait two frames for Chart.js's hover handling, then read the cursor in the same round trip.
+  const cursor = await canvas.evaluate((el) => new Promise<string>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve((el as HTMLElement).style.cursor)))));
+  return cursor === 'pointer';
 }
 
 /** Clicks the index-th of `slots` vertical bars on a Chart.js bar chart (aiming within its slot). */
@@ -2189,6 +2436,57 @@ async function clickVerticalBar(page: Page, canvas: Locator, index: number, slot
     }
   }
   throw new Error(`no clickable bar found at slot ${index}/${slots}`);
+}
+
+/**
+ * The first page x in [fromX, toX) on row `y` where `canvas` has a drawn (non-transparent) pixel and
+ * the next 8 px are drawn too (so a 1 px grid line doesn't count), or null. Read in one evaluate.
+ */
+async function firstPaintedX(canvas: Locator, y: number, fromX: number, toX: number): Promise<number | null> {
+  return canvas.evaluate((el, [y0, from, to]) => {
+    const c = el as HTMLCanvasElement;
+    const r = c.getBoundingClientRect();
+    const sx = c.width / r.width;
+    const row = Math.round((y0 - r.top) * (c.height / r.height)); // boundingBox and getBoundingClientRect are both viewport-relative
+    const data = c.getContext('2d')!.getImageData(0, row, c.width, 1).data;
+    const drawn = (px: number) => data[Math.round((px - r.left) * sx) * 4 + 3] > 0;
+    for (let x = from; x < to - 8; x++) {
+      if ([0, 2, 4, 6, 8].every((d) => drawn(x + d))) return x;
+    }
+    return null;
+  }, [y, fromX, toX] as const);
+}
+
+/** Moves the mouse along a line across `canvas` until Chart.js shows the pointer cursor; returns that point. */
+async function findPointer(page: Page, canvas: Locator, along: 'x' | 'y', at: number): Promise<{ x: number; y: number }> {
+  const [first] = await pointerRuns(page, canvas, along, at, { limit: 1 });
+  if (!first) throw new Error('no clickable element found');
+  return first;
+}
+
+/**
+ * Sweeps a line across `canvas` (`along` the x or y axis, at fraction `at` of the other) and returns
+ * the first point of each stretch where Chart.js shows the pointer cursor, i.e. one point per
+ * clickable element the line crosses, in order. `limit` stops after that many; `step` is the probe
+ * spacing in px (4 by default; large targets such as doughnut slices can use a coarser one).
+ */
+async function pointerRuns(
+  page: Page, canvas: Locator, along: 'x' | 'y', at: number,
+  { limit = Infinity, step = 4 }: { limit?: number; step?: number } = {},
+): Promise<{ x: number; y: number }[]> {
+  await canvas.scrollIntoViewIfNeeded();
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('canvas not visible');
+  const len = along === 'x' ? box.width : box.height;
+  const runs: { x: number; y: number }[] = [];
+  let inRun = false;
+  for (let d = 4; d < len - 4 && runs.length < limit; d += step) {
+    const pt = along === 'x' ? { x: box.x + d, y: box.y + box.height * at } : { x: box.x + box.width * at, y: box.y + d };
+    const hit = await isPointerAt(page, canvas, pt.x, pt.y);
+    if (hit && !inRun) runs.push(pt);
+    inRun = hit;
+  }
+  return runs;
 }
 
 test.describe('Drill-down consistency', () => {
@@ -2316,6 +2614,95 @@ test.describe('Drill-down consistency', () => {
     await waitForTable(page);
     await expect(filterChip(page, 'Year: 2020–2024')).toBeVisible();
     await expectTotal(page, 5);
+  });
+
+  /** Rated movies with these runtimes, so each runtime bucket that has one gets a bar. */
+  const runtimeRows = (runtimes: number[]) => runtimes.map((r, i) => makeMovie(i + 1, { Runtime: String(r), 'Vote Average': '7.0' }));
+
+  test('a 90-minute movie is in the 90–120 bar, not 60–90', async ({ page }) => {
+    await mockMovies(page, runtimeRows([75, 90, 100]));
+    await page.goto('/stats?tab=runtime');
+    await waitForStats(page);
+    const canvas = chartCanvas(page, 'Avg Vote by Runtime Length');
+    await expect(canvas).toBeVisible();
+    // Bars top to bottom: 60–90 (75 min), 90–120 (90 and 100 min).
+    const bars = await pointerRuns(page, canvas, 'y', 0.6, { step: 8 });
+    expect(bars).toHaveLength(2);
+    await page.mouse.click(bars[0].x, bars[0].y);
+    await expect(page).toHaveURL('/movies');
+    // The lower bound is clamped to the data's shortest runtime (75); the upper bound shows 90 is out.
+    await expect(filterChip(page, 'Runtime: 75–89m')).toBeVisible();
+    await expectTotal(page, 1);
+
+    await page.goBack();
+    await waitForStats(page);
+    await expect(canvas).toBeVisible();
+    // Same data and layout, so the second bar is where the sweep found it.
+    await canvas.scrollIntoViewIfNeeded();
+    expect(await isPointerAt(page, canvas, bars[1].x, bars[1].y)).toBe(true);
+    await page.mouse.click(bars[1].x, bars[1].y);
+    await expect(page).toHaveURL('/movies');
+    await expect(filterChip(page, 'Runtime: 90–100m')).toBeVisible(); // upper bound clamped to the longest runtime
+    await expectTotal(page, 2);
+  });
+
+  test('the "> 180 min" bar lists every longer movie with a range the slider can show', async ({ page }) => {
+    await mockMovies(page, runtimeRows([100, 200, 240]));
+    await page.goto('/stats?tab=runtime');
+    await waitForStats(page);
+    const canvas = chartCanvas(page, 'Avg Vote by Runtime Length');
+    await expect(canvas).toBeVisible();
+    const bars = await pointerRuns(page, canvas, 'y', 0.6, { step: 8 });
+    expect(bars).toHaveLength(2); // 90–120, > 180
+    await page.mouse.click(bars[1].x, bars[1].y);
+    await expect(page).toHaveURL('/movies');
+    await expect(filterChip(page, 'Runtime: 180–240m')).toBeVisible();
+    await expectTotal(page, 2);
+    await openFiltersDrawer(page);
+    const handles = page.getByRole('slider', { name: /^Runtime (minimum|maximum)$/ });
+    expect(await handles.evaluateAll((els) => els.map((el) => el.getAttribute('aria-valuenow')))).toEqual(['180', '240']);
+  });
+
+  test('a decade partly outside the Release Year Range lists only the years inside it', async ({ page }) => {
+    await mockMovies(page, yearRows(2003, 2012));
+    await page.goto('/stats?tab=runtime');
+    await waitForStats(page);
+    const lower = page.getByRole('slider').first();
+    await lower.focus();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/^2005 – 2012 · /)).toBeVisible();
+    const canvas = chartCanvas(page, 'Avg Runtime by Decade');
+    await clickVerticalBar(page, canvas, 0, 2); // bars: 2000s, 2010s
+    await expect(page).toHaveURL('/movies');
+    await waitForTable(page);
+    await expect(filterChip(page, 'Year: 2005–2009')).toBeVisible();
+    await expectTotal(page, 5);
+  });
+
+  test('an "Unknown" bar has no pointer and doesn\'t navigate', async ({ page }) => {
+    // Three movies with no language (the "Unknown" bar, first) and one English (clickable, second).
+    await mockMovies(page, [
+      ...[1, 2, 3].map((i) => makeMovie(i, { Language: '' })),
+      makeMovie(4, { Language: 'en' }),
+    ]);
+    await page.goto('/stats?tab=overview');
+    await waitForStats(page);
+    const canvas = chartCanvas(page, 'Movies by Language');
+    await expect(canvas).toBeVisible();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('language canvas not visible');
+    const runs = await pointerRuns(page, canvas, 'x', 0.85, { step: 8 });
+    expect(runs, 'only the English bar is clickable').toHaveLength(1);
+    expect(runs[0].x).toBeGreaterThan(box.x + box.width / 2);
+    // Click where the tall Unknown bar is actually drawn in the left half: Stats stays put.
+    const now = await canvas.boundingBox(); // the sweep scrolled the chart into view
+    const y = now!.y + now!.height * 0.85;
+    const x = await firstPaintedX(canvas, y, box.x + box.width * 0.2, box.x + box.width / 2);
+    expect(x, 'the Unknown bar is drawn in the left half').not.toBeNull();
+    expect(await isPointerAt(page, canvas, x! + 6, y)).toBe(false);
+    await page.mouse.click(x! + 6, y);
+    await expect(page).toHaveURL('/stats?tab=overview');
   });
 
   test('unknown ?tab= falls back to Overview and fixes the URL', async ({ page }) => {

@@ -3,6 +3,35 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.12.1] - 2026-11-23
+
+Review of §6 Batch O (rows 86–101): the modules added in 0.11.11–0.12.0 plus config and entry files that were never tracked. `/code-review` (high) found B201–B208 (BUG_BACKLOG §3w), all fixed or documented; `/security-review` found nothing at ≥ 8 confidence. All 101 tracked modules are now reviewed. The last spec scenarios with no test (BUG_BACKLOG §4) are covered, so §4 is empty.
+
+### Fixed
+- **A failed first load left the tab title stale and announced no page change** (B202). Each page now renders its heading above `LoadingError`, so the heading, tab title and focus behave the same while loading, on a load error and with data (the skeleton's placeholder title bar is gone).
+- **The selected Stats tab was hard to read on the light theme** (B203, about 2.8:1 contrast). It is `#4f46e5` there; dark keeps `#818cf8`. The colour comes from antd's `Tabs` tokens in `ConfigProvider`; the `!important` tab rules in `index.css` are gone.
+- **More light-theme navigation text was low contrast** (B209, B210): the selected Sidebar item and mobile bottom-nav item, and a hovered Stats tab, now use `#4f46e5` on light (a light `Menu` token, a `--accent-text` CSS variable, `itemHoverColor`).
+
+### Security hardening
+- The CI workflow's token is read-only (`permissions: contents: read`, B204).
+- `robots.txt` asks crawlers to stay out (`Disallow: /`, B205): a personal dashboard with no login.
+
+### Changed
+- `EmptyState` drops its unused `isDark` prop (B208).
+- `/simplify` pass over the 0.12.1 diff:
+  - e2e canvas sweeps are cheaper: `findPointer` stops at the first hit again (via `pointerRuns`' new `limit`), `isPointerAt` reads the cursor in the same round trip as its frame wait, large targets sweep in 8 px steps, and the 90-minute test re-checks the bar it already found instead of sweeping again.
+  - New `mockDelete()` helper in `tests/helpers.ts` replaces 7 copies of the `DELETE /api/movies/:id` route mock; `yearRows()` moved to module level and reused; the slider drag uses Playwright's `steps`.
+  - The Stats crash wrapper asserts it was served, so a route that stops matching fails instead of testing nothing.
+  - `allowScripts.test.ts` checks every esbuild copy in the lockfile, not only the top-level one.
+  - A follow-up `/code-review` found B209–B215 (BUG_BACKLOG §3x), all fixed: the two contrast items above; the export column test moved to a unit test of the new pure `moviesToCsv()` (the e2e version couldn't fail, since `normalizeMovie` fills every column), with a quote-aware CSV split (B211); `mockDelete` gives a non-2xx status an error body by default (B212); the Other-slice and Unknown-bar tests click only where the element is drawn (`firstPaintedX`, B213); the light-tab test uses a role query (B214); features.txt says `robots.txt` stops crawling, not indexing (B215).
+  - Skipped: an `exportCsvRows()` helper (the other export tests parse differently on purpose), a shared "not drillable" assertion for the Other/Unknown tests (two short copies), a theme-dependent `colorPrimary` for every accent use (a visual change across the app), a route-level title/focus map (bigger redesign), and the remaining `isDark` props that only feed `getCardStyle` (outside this diff).
+- A module that throws while loading is still reported as a failed download (B201, the same as B192, kept by choice). This is now documented in `retryableLazy` and CLAUDE.md, whose claim that every drawer crash reaches the error view is narrowed to render crashes.
+- README, CLAUDE.md and features.txt updated; `BUG_BACKLOG.md` §3w added, §6 Batch O ticked, §4 emptied, the stale "Suggested grouping" diagram removed and the §3 headings updated to their archived changes.
+
+### Added
+- 18 e2e tests (135 → 153): the light-theme tab colour (B203); a failed first load still naming the page; and for the §4 gaps: navigating away from / re-opening a crashed page, all site storage blocked, a first visit on a light-mode OS, delete from page 3 keeping sort and page, a slider drag applied once, two imports in flight, the 90-minute and "> 180 min" runtime buckets, a decade partly outside the year range, an "Unknown" bar not navigating, a co-production counted per country, Dashboard sections in order, Total Movies emphasis, a genre slice drill-down and the Other slice not clickable. `findPointer` moved to module level beside a new `pointerRuns` canvas sweep.
+- 4 frontend unit tests (56 → 60): `tests/unit/exportCsv.test.ts` (columns from every row incl. a first row without Poster URL, guarded header names; B211); 7 + Other categories get distinct colours (`makeDoughnut`/`makePolar`); `tests/unit/allowScripts.test.ts` fails if the lockfile's esbuild moves without `package.json`'s exact `allowScripts` entry (B206). `search.test.ts` gains accented language-name cases (B207).
+
 ## [0.12.0] - 2026-11-23
 
 Clears the rest of `BUG_BACKLOG.md` §1–§3: every remaining item is fixed or closed. A `/simplify` pass and a `/code-review` (high) of the result follow; that review's findings (B194–B200, §3v) are fixed too. Full e2e 135/135.

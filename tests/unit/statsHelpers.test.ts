@@ -11,6 +11,8 @@ import {
   countIntoBuckets,
   drillableLabelAt,
   groupByField,
+  makeDoughnut,
+  makePolar,
   parseVote,
   topNWithOther,
   VOTE_MAX,
@@ -110,4 +112,15 @@ test('averagesBy: a movie counts toward every key; null values are skipped', () 
   ];
   const avgs = averagesBy(movies, (m) => splitNames(m.Genres), (m) => (Number(m['Vote Average']) > 0 ? Number(m['Vote Average']) : null));
   assert.deepEqual(avgs, { Drama: { avg: 7, count: 2 }, Crime: { avg: 8, count: 1 } });
+});
+
+test('7 named categories plus Other get 8 distinct colours (doughnut and polar)', () => {
+  const data = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`c${i}`, 20 - i]));
+  const grouped = topNWithOther(data);
+  const n = Object.keys(grouped).length;
+  assert.equal(n, 8);
+  const doughnut = makeDoughnut(grouped, 'x').datasets[0].backgroundColor as string[];
+  assert.equal(new Set(doughnut.slice(0, n)).size, n);
+  const polar = makePolar(grouped, 'x').datasets[0].backgroundColor as string[];
+  assert.equal(new Set(polar.slice(0, n)).size, n);
 });

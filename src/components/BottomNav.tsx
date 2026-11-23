@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router';
 import { normalizePath } from '../utils/path';
 import { DashboardOutlined, BarChartOutlined, UnorderedListOutlined } from '@ant-design/icons';
 
-const ACCENT = '#818cf8';
+// The theme's accent for the active item: darker on the light theme for contrast (B209).
+const ACCENT = 'var(--accent-text)';
 
 const ITEMS = [
   { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },

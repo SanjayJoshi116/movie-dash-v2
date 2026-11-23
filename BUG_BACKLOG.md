@@ -1,6 +1,6 @@
 # Bug Backlog
 
-Last full sweep: **2026-10-28** (v0.9.1, working tree on `main`). Last updated **2026-11-07**, v0.11.0 (Batch A review: B51–B60 added and fixed, §3c, §6 batch column; Batch B review: B61–B67 added and fixed with B3/B8/B9, §3d; Batch C review: B68–B78 added, all but B75 fixed, §3e; §6 Fix column + batch status). Updated **2026-11-14**, v0.11.1: Batch B re-review B79–B86 and follow-up B87–B93 added and fixed, §3f. Updated **2026-11-20**, v0.11.2 (all 75 §6 modules reviewed; fixes proposed, none applied yet): Batch D review (app shell) B94–B101 added, §3g, owned by `fix-app-shell-review`; Batch E review (contexts + hooks) B102–B107 added, §3h, owned by `fix-contexts-hooks-review`; Batch F review (Dashboard) B108–B116 added, §3i, owned by `fix-dashboard-review`; Batch G review (Movies page + filtering) B117–B123 added, §3j, owned by `fix-movies-filtering-review`; Batch H review (Movies views + mutations + export) B124–B130 added, §3k, owned by `fix-movies-views-review`; Batch I1 review (Stats page) B131–B135 added, §3l, owned by `fix-stats-review`; Batch I2 review (Stats tabs) B136–B138 added, §3m, owned by `fix-stats-tabs-review`; Batch J review (chart wrappers) B139–B142 added, §3n, owned by `fix-chart-wrappers-review`; Batch K review (utils + types) B143–B151 added, §3o, mostly owned by `fix-utils-types-review` (B146/B147 open); Batch L review (server tests) B152–B161 added, §3p, owned by `fix-server-tests-review`; Batch M review (e2e spec + helpers) B162–B171 added, §3q, owned by `fix-e2e-review`. Updated **2026-11-21**, v0.11.3: `fix-utils-types-review` applied and archived; B143–B145 and B148–B151 fixed, B15 partly fixed (new `npm run test:unit`), §6 rows 53, 56–61, 75 and Batch K Fix ☑. Updated **2026-11-21**, v0.11.4: `fix-contexts-hooks-review` applied and archived; B102–B107 (and B22, same as B102) fixed, §6 rows 17–22 and Batch E Fix ☑. Updated **2026-11-21**, v0.11.5: `fix-app-shell-review` (B94–B101, B27) and `fix-chart-wrappers-review` (B139–B142, B13 at wrapper level, B26) applied and archived; §6 rows 9–16, 44–51 and Batches D and J Fix ☑ (the Batch D row's extra cell repaired). v0.11.8 (2026-11-21): `fix-movies-filtering-review` (B117–B123, B5, B20 trim part) applied and archived; §3j fixed; §6 rows 24, 30–32, 54, 55, 74 and Batch G Fix ☑; §6 tidied (legend, Batch F/G cells, stale §0/§5 rows, Batch N rows 76–80). v0.11.7 (2026-11-21): `/code-review` + `/simplify` of the staged 0.11.3–0.11.6 changes; B172–B176 added and fixed, §3r. v0.11.6 (2026-11-21): `fix-movies-views-review` (B124–B130, B14, B17, B19, B21, B31, B37; B24/B30 drawer and grid parts) applied and archived; §6 rows 26–29, 52 and Batch H Fix ☑. Same day as v0.11.2: older open items that the Batch D–H entries duplicate were cross-referenced both ways (◐ prefix = owned by an in-flight change). Read-only sweep: four parallel reviewers (server/scripts/CI, Movies page, analytics, shell/tests), then a merge pass. Earlier records: `docs/audit-findings-2026-10-08.md` (S/F/C/T IDs) and `docs/review-findings-2026-10-15.md` (R1–R7, all resolved). Updated **2026-11-22**, v0.11.9: `fix-dashboard-review` applied and archived; B108–B116 fixed (B109's error is an inline `Alert`, not antd `message`, to keep the landing bundle flat), B7 and B30 closed, Dashboard parts of B13/B24 done, B10 still open; §6 rows 23, 33–35 and Batch F Fix ☑; new row 81 (`ChunkErrorBoundary.tsx`, unreviewed). Same day: `fix-stats-review` applied and archived; B131–B135 fixed, B4, B24, B25, B34 closed, OverviewTab/ExploreTab part of B13 done; §6 rows 25, 36–38, 43 and Batch I1 Fix ☑. Same day: `fix-stats-tabs-review` applied and archived; B136–B138 fixed, B6 and B18 closed, the last (People/Ratings/Runtime/BoxOffice) caller part of B13 done; §6 rows 39–42 and Batch I2 Fix ☑. Same day: `fix-server-tests-review` applied and archived; B152–B161 fixed (tests only, plus an `fsHooks.appendFile` seam); §6 rows 62–66, 68, 70, 71 and Batch L Fix ☑. 2026-11-23 (v0.11.10): `fix-e2e-review` archived; B162–B171 fixed (tests only, plus `src/utils/chartBuckets.ts`); §6 rows 67, 73 and Batch M Fix ☑. 2026-11-23 (v0.11.12): `/code-review` (high) of the staged 0.11.8–0.11.11 diff logged B187–B193 (§3u); B187–B190 and B193 fixed, B191 accepted, B192 open. Same day: quick wins B12, B23, B29, B32, B36 fixed. Same day, second pass: B10, B11, B15, B20, B28, B33, B35, B38, B40, B41, B47, B49, B50, B146, B147 fixed; B39 closed as by-design; B75, B191, B192 closed as won't-fix; 10 §4 scenarios covered; rows 87–88 added (unreviewed). Same day, v0.12.0: `/code-review` (high) of the whole uncommitted diff logged B194–B200 (§3v), all fixed; rows 87–88 CR ☑ (covered by that diff review; SR not run), rows 89–90 added. Nothing in §1–§3 is open any more. This file lists only **open** items. Line numbers are pointers, so re-check them before editing.
+Last full sweep: **2026-10-28** (v0.9.1, working tree on `main`). Last updated **2026-11-07**, v0.11.0 (Batch A review: B51–B60 added and fixed, §3c, §6 batch column; Batch B review: B61–B67 added and fixed with B3/B8/B9, §3d; Batch C review: B68–B78 added, all but B75 fixed, §3e; §6 Fix column + batch status). Updated **2026-11-14**, v0.11.1: Batch B re-review B79–B86 and follow-up B87–B93 added and fixed, §3f. Updated **2026-11-20**, v0.11.2 (all 75 §6 modules reviewed; fixes proposed, none applied yet): Batch D review (app shell) B94–B101 added, §3g, owned by `fix-app-shell-review`; Batch E review (contexts + hooks) B102–B107 added, §3h, owned by `fix-contexts-hooks-review`; Batch F review (Dashboard) B108–B116 added, §3i, owned by `fix-dashboard-review`; Batch G review (Movies page + filtering) B117–B123 added, §3j, owned by `fix-movies-filtering-review`; Batch H review (Movies views + mutations + export) B124–B130 added, §3k, owned by `fix-movies-views-review`; Batch I1 review (Stats page) B131–B135 added, §3l, owned by `fix-stats-review`; Batch I2 review (Stats tabs) B136–B138 added, §3m, owned by `fix-stats-tabs-review`; Batch J review (chart wrappers) B139–B142 added, §3n, owned by `fix-chart-wrappers-review`; Batch K review (utils + types) B143–B151 added, §3o, mostly owned by `fix-utils-types-review` (B146/B147 open); Batch L review (server tests) B152–B161 added, §3p, owned by `fix-server-tests-review`; Batch M review (e2e spec + helpers) B162–B171 added, §3q, owned by `fix-e2e-review`. Updated **2026-11-21**, v0.11.3: `fix-utils-types-review` applied and archived; B143–B145 and B148–B151 fixed, B15 partly fixed (new `npm run test:unit`), §6 rows 53, 56–61, 75 and Batch K Fix ☑. Updated **2026-11-21**, v0.11.4: `fix-contexts-hooks-review` applied and archived; B102–B107 (and B22, same as B102) fixed, §6 rows 17–22 and Batch E Fix ☑. Updated **2026-11-21**, v0.11.5: `fix-app-shell-review` (B94–B101, B27) and `fix-chart-wrappers-review` (B139–B142, B13 at wrapper level, B26) applied and archived; §6 rows 9–16, 44–51 and Batches D and J Fix ☑ (the Batch D row's extra cell repaired). v0.11.8 (2026-11-21): `fix-movies-filtering-review` (B117–B123, B5, B20 trim part) applied and archived; §3j fixed; §6 rows 24, 30–32, 54, 55, 74 and Batch G Fix ☑; §6 tidied (legend, Batch F/G cells, stale §0/§5 rows, Batch N rows 76–80). v0.11.7 (2026-11-21): `/code-review` + `/simplify` of the staged 0.11.3–0.11.6 changes; B172–B176 added and fixed, §3r. v0.11.6 (2026-11-21): `fix-movies-views-review` (B124–B130, B14, B17, B19, B21, B31, B37; B24/B30 drawer and grid parts) applied and archived; §6 rows 26–29, 52 and Batch H Fix ☑. Same day as v0.11.2: older open items that the Batch D–H entries duplicate were cross-referenced both ways (◐ prefix = owned by an in-flight change). Read-only sweep: four parallel reviewers (server/scripts/CI, Movies page, analytics, shell/tests), then a merge pass. Earlier records: `docs/audit-findings-2026-10-08.md` (S/F/C/T IDs) and `docs/review-findings-2026-10-15.md` (R1–R7, all resolved). Updated **2026-11-22**, v0.11.9: `fix-dashboard-review` applied and archived; B108–B116 fixed (B109's error is an inline `Alert`, not antd `message`, to keep the landing bundle flat), B7 and B30 closed, Dashboard parts of B13/B24 done, B10 still open; §6 rows 23, 33–35 and Batch F Fix ☑; new row 81 (`ChunkErrorBoundary.tsx`, unreviewed). Same day: `fix-stats-review` applied and archived; B131–B135 fixed, B4, B24, B25, B34 closed, OverviewTab/ExploreTab part of B13 done; §6 rows 25, 36–38, 43 and Batch I1 Fix ☑. Same day: `fix-stats-tabs-review` applied and archived; B136–B138 fixed, B6 and B18 closed, the last (People/Ratings/Runtime/BoxOffice) caller part of B13 done; §6 rows 39–42 and Batch I2 Fix ☑. Same day: `fix-server-tests-review` applied and archived; B152–B161 fixed (tests only, plus an `fsHooks.appendFile` seam); §6 rows 62–66, 68, 70, 71 and Batch L Fix ☑. 2026-11-23 (v0.11.10): `fix-e2e-review` archived; B162–B171 fixed (tests only, plus `src/utils/chartBuckets.ts`); §6 rows 67, 73 and Batch M Fix ☑. 2026-11-23 (v0.11.12): `/code-review` (high) of the staged 0.11.8–0.11.11 diff logged B187–B193 (§3u); B187–B190 and B193 fixed, B191 accepted, B192 open. Same day: quick wins B12, B23, B29, B32, B36 fixed. Same day, second pass: B10, B11, B15, B20, B28, B33, B35, B38, B40, B41, B47, B49, B50, B146, B147 fixed; B39 closed as by-design; B75, B191, B192 closed as won't-fix; 10 §4 scenarios covered; rows 87–88 added (unreviewed). Same day, v0.12.0: `/code-review` (high) of the whole uncommitted diff logged B194–B200 (§3v), all fixed; rows 87–88 CR ☑ (covered by that diff review; SR not run), rows 89–101 added (new modules plus config/entry files never tracked) as Batch O, with 86–88; v0.12.1: Batch O reviewed (CR B201–B208, §3w, all fixed or documented; SR nothing at ≥ 8). Same day: the last §4 spec gaps covered (e2e 136 → 153, unit 57 → 58), then a `/simplify` pass (B202 moved to a PageTitle-above-LoadingError layout, B203 to antd tokens, `mockDelete` helper, cheaper canvas sweeps; e2e 154), then a `/code-review` of the staged diff (B209–B215, §3x, all fixed; e2e 153, unit 60); the stale "Suggested grouping" diagram removed (every group in it is done). Nothing in §1–§3 is open any more. This file lists only **open** items. Line numbers are pointers, so re-check them before editing.
 
 Severity: **High** = broken today / data loss / security / CI red · **Med** = wrong behavior users will hit · **Low** = polish, a11y, edge cases.
 Confidence: **H** = traced through the code and/or reproduced · **M** = needs a specific data shape or environment.
@@ -19,7 +19,7 @@ Confidence: **H** = traced through the code and/or reproduced · **M** = needs a
 | `npm run test:unit` | ✅ 56/56 |
 | `python -m unittest discover -s tests/python` | ✅ 42/42 |
 | `ruff check` | ✅ clean |
-| `npm run test:e2e` | ✅ 134/134 (`CI=1`, `--workers=1` because memory was low, real CSV, no retries needed); after the `/simplify` pass (133 tests: the Language case test moved to the server) the 76 affected tests re-ran green; after the §3v fixes ✅ 135/135 full run |
+| `npm run test:e2e` | ✅ 134/134 (`CI=1`, `--workers=1` because memory was low, real CSV, no retries needed); after the `/simplify` pass (133 tests: the Language case test moved to the server) the 76 affected tests re-ran green; after the §3v fixes ✅ 135/135 full run; after the §3w fixes ✅ 136/136 full run (server 118/118, unit 57/57, Python 42/42, lint clean); after the §4 tests ✅ 153/153 full run, unit 58/58; after the `/simplify` pass ✅ 154/154 (9.1 min, was 11.0); after §3x ✅ 153/153, unit 60/60, server 118/118 |
 | `npm audit --audit-level=high` | ✅ passes (10 moderate: `minimatch` under typescript-eslint) (0.10.0) |
 
 ---
@@ -229,7 +229,7 @@ CR found 10, all checked against the code: 9 confirmed, 1 plausible but never ob
 - ✅ **B77 — `tseslint.config()` is deprecated** in typescript-eslint 8.72, which recommends `defineConfig()` from `eslint/config`. *(cleanup)*
 - ✅ **B78 — Docs say `dev:lan` keeps the API local.** README Security says "`npm run dev:lan` opens only the web app", and CLAUDE.md and the `vite.config.ts` comment say "the API stays loopback". Through the dev proxy, LAN devices can list, add and delete movies; only port 5000 itself stays loopback. *(Low, H, from SR)*
 
-## 3g. Found 2026-11-20 (Batch D review: app shell, §6 rows 9–16), owned by `fix-app-shell-review`
+## 3g. Found 2026-11-20 (Batch D review: app shell, §6 rows 9–16), fixed by `fix-app-shell-review` (archived 2026-11-21)
 
 CR (high) of `main.tsx`, `App.tsx`, `Sidebar.tsx`, `TopBar.tsx`, `BottomNav.tsx`, `ErrorBoundary.tsx`, `LoadingError.tsx`, `ScrollToTop.tsx` found 8, all confirmed by reading the code (B94 and B99 against `node_modules/antd` 6.7.0). SR found nothing (no HTML injection, eval or dynamic `href`; error text renders as escaped React text; theme storage is only compared to a fixed string). Already-logged B10, B11, B12, B23, B35 were re-checked: still open, not in this change.
 
@@ -242,7 +242,7 @@ CR (high) of `main.tsx`, `App.tsx`, `Sidebar.tsx`, `TopBar.tsx`, `BottomNav.tsx`
 - ✅ *Fixed 2026-11-21 by `fix-app-shell-review`.* **B100 — Collapsed Sidebar logo link is announced as "play-circle".** `Sidebar.tsx:62`. *Fix:* `aria-label` on the link, icon `aria-hidden`. *(Low, H)*
 - ✅ *Fixed 2026-11-21 by `fix-app-shell-review`.* **B101 — BottomNav icons leak into link names** ("unordered-list Movies"). `BottomNav.tsx:55`. *Fix:* wrap icons in `aria-hidden`. *(Low, H)*
 
-## 3h. Found 2026-11-20 (Batch E review: contexts + hooks, §6 rows 17–22), owned by `fix-contexts-hooks-review`
+## 3h. Found 2026-11-20 (Batch E review: contexts + hooks, §6 rows 17–22), fixed by `fix-contexts-hooks-review` (archived 2026-11-21)
 
 CR (high) of `MoviesContext.tsx`, `ThemeContext.tsx`, `DrilldownContext.tsx`, `useMovies.ts`, `useDebounce.ts`, `usePersistedFilters.ts` (plus their callers in `Movies.tsx`, `Stats.tsx`, `TopBar.tsx`, `MovieDrawer.tsx`, `AddMovieModal.tsx`) found 8, all confirmed by reading the code. Nothing found in `DrilldownContext.tsx` or `useMovies.ts`. Two were duplicates and are not logged again: the generic axios error text is B96 (fix it with the `extractErrorMessage` that `AddMovieModal.tsx:25` and `MovieDrawer.tsx:19` each define, moved to a shared util, not a third copy), and the missing `color-scheme` is B35. SR found nothing (fixed `/api/movies` URL and `/movies` navigation target, theme storage compared to fixed strings, restored filters shape-checked by `sanitizeFilters` and rendered as escaped React text, no HTML injection or eval). All six re-checked against the code 2026-11-20: still present.
 
@@ -279,7 +279,7 @@ CR (high) of `Movies.tsx`, `FiltersDrawer.tsx`, `ActiveFilters.tsx`, `RangeSlide
 - ✅ *Fixed 2026-11-21 by `fix-movies-filtering-review`.* **B122 — Export CSV hint is mouse-only.** `Movies.tsx:202`: Tooltip on an unfocusable `InfoCircleOutlined`. *Fix:* hint on the button (Tooltip + `aria-describedby`). *(Low, H)*
 - ✅ *Fixed 2026-11-21 by `fix-movies-filtering-review`.* **B123 — Export is always named `movies-filtered-N.csv`.** `Movies.tsx:198`, even with no filters. *Fix:* `movies-N.csv` unless filters are active. *(Nit, H)*
 
-## 3k. Found 2026-11-20 (Batch H review: Movies views + mutations + export, §6 rows 26–29, 52), owned by `fix-movies-views-review`
+## 3k. Found 2026-11-20 (Batch H review: Movies views + mutations + export, §6 rows 26–29, 52), fixed by `fix-movies-views-review` (archived 2026-11-21)
 
 CR (high) of `AddMovieModal.tsx`, `MovieDrawer.tsx`, `MovieTable.tsx`, `MovieCardGrid.tsx`, `exportCsv.ts` reported 10, all confirmed by reading the code. Three were already logged (B14, B19, B31). One widens B17 to these files (B129). Older open items in these files the review skipped (B21, B24 drawer/grid parts, B30 grid part, B37) were re-checked, are still present, and are owned by the same change. B49 (antd `List`) stays open. SR found nothing exploitable: search/import params are encoded and validated server-side, delete uses `encodeURIComponent`, posters are only `<img src>` under the CSP. B130's header gap needs a hand-edited CSV, so it is a hardening nit, not a vulnerability.
 
@@ -314,7 +314,7 @@ SR found nothing: CSV strings only reach Chart.js labels and data (canvas text, 
 - ✅ *Fixed 2026-11-22 by `fix-stats-tabs-review`.* **B137 — Radar point borders are hardcoded hex.** `RatingsTab.tsx:82` `pointBorderColor: isDark ? '#fff' : '#1e1e3f'`, which breaks the CLAUDE.md "never hardcode hex in a chart dataset" rule. *Fix:* remove it (falls back to `borderColor`). *(Nit, H)*
 - ✅ *Fixed 2026-11-22 by `fix-stats-tabs-review`.* **B138 — Scatter sets `hoverBackgroundColor`.** `RatingsTab.tsx:125`; CLAUDE.md says to leave it unset. *(Nit, H)*
 
-## 3n. Found 2026-11-20 (Batch J review: chart wrappers, §6 rows 44–51), owned by `fix-chart-wrappers-review`
+## 3n. Found 2026-11-20 (Batch J review: chart wrappers, §6 rows 44–51), fixed by `fix-chart-wrappers-review` (archived 2026-11-21)
 
 CR (high) of the 8 files in `src/components/Charts/` reported 7, checked against the code and Chart.js 4's defaults in `node_modules`. Nothing in `RadarChart.tsx` or `MatrixChart.tsx`.
 - **Already logged:** the options memo rebuilt on every render is B13 (fixed here inside the wrappers with a latest-ref, so the callers' `useCallback` tasks in three other changes become optional). The 2-decimal tooltip is B26 (plus a `null` value throwing in the tooltip callback).
@@ -328,7 +328,7 @@ SR found nothing: no HTML tooltips or raw-HTML sinks, callbacks return plain str
 - ✅ *Fixed 2026-11-21 by `fix-chart-wrappers-review`.* **B141 — Scatter tooltip hardcodes "votes" and "/10".** `ScatterChart.tsx:26-28` ignores `xLabel`/`yLabel`; correct today only because the one caller is the vote scatter. *Fix:* build it from the axis labels. *(Nit, H)*
 - ✅ *Fixed 2026-11-21 by `fix-chart-wrappers-review`.* **B142 — Single-series charts show a legend that hides all the data.** `BarChart.tsx:29`, `LineChart.tsx:29`: clicking the only entry (e.g. "Movies" on the Dashboard rating chart) empties the chart. *Fix:* legend only when there's more than one dataset. *(Low, H)*
 
-## 3o. Found 2026-11-20 (Batch K review: utils + types, §6 rows 53, 56–61, 75), mostly owned by `fix-utils-types-review`
+## 3o. Found 2026-11-20 (Batch K review: utils + types, §6 rows 53, 56–61, 75), fixed by `fix-utils-types-review` (archived 2026-11-21; B146/B147 fixed 2026-11-23)
 
 CR (high) of `statsHelpers.ts`, `chartTheme.ts`, `formatDate.ts`, `languages.ts`, `path.ts`, `poster.ts`, `types/movie.ts`, `slugify.ts` reported 9, all confirmed by reading the code. Nothing in `path.ts`, `poster.ts` or `slugify.ts`. The crash from a row missing its trailing cells (csv-parser omits those keys, and `Release Date` is last) is B129, owned by `fix-movies-views-review`. SR found nothing exploitable: `slugify` maps everything outside `[a-z0-9]` to `-` and only ever gets fixed titles, poster URLs only reach `<img src>` under the CSP, `normalizePath` only highlights nav, all regexes are literals, and `__proto__` keys can't pollute `Object.prototype`. SR noted one functional bug (B151).
 
@@ -400,9 +400,9 @@ CR (high) of the 9 Batch N modules, read whole (no diff), reported 9; all checke
 - ✅ *Fixed 2026-11-23 by `fix-batch-n-review`.* **B185 — No test that the Python and TS formula rules match; the "round trip" test wasn't one.** *Fix:* `test_formula_prefixes_match_typescript`, `tests/unit/csvEscape.test.ts` case table, a real append → read test. *(Nit, H)*
 - ✅ *Fixed 2026-11-23 by `fix-batch-n-review`.* **B186 — Backfill "untouched" test relied on `st_mtime_ns`.** A coarse-timestamp filesystem can't show a no-op rewrite. *Fix:* assert `rewrite_catalogue` is never called. *(Nit, H)*
 
-## 3u. Found 2026-11-23 (`/code-review` high of the staged 0.11.8–0.11.11 diff), open
+## 3u. Found 2026-11-23 (`/code-review` high of the staged 0.11.8–0.11.11 diff), all fixed or closed 2026-11-23
 
-CR of the whole uncommitted diff (Batches F–N fixes plus the `/simplify` pass) reported 7: 1 bug that predates this release, 6 nits. Checked 2026-11-23: B187–B190 and B193 fixed; B191 accepted; B192 still open (design to decide).
+CR of the whole uncommitted diff (Batches F–N fixes plus the `/simplify` pass) reported 7: 1 bug that predates this release, 6 nits. Checked 2026-11-23: B187–B190 and B193 fixed; B191 and B192 closed as won't-fix.
 
 - ✅ *Fixed 2026-11-23 (`isClickable` = count > 0 on both).* **B187 — Dashboard trend and rating charts let you click empty years/bars.** `Dashboard.tsx:346, 356`: a zero-filled trend year (or an empty rating bucket) shows the pointer and drills down to an empty Movies list. The Stats charts got `isClickable` (count > 0) in 0.11.9; these two never did. *Fix:* `isClickable={(i) => counts[i] > 0}` on both. *(Low, pre-existing, M)*
 - ✅ *Fixed 2026-11-23 (name from `isFiltersActive({ ...filters, search: searchTerm })`).* **B188 — Export filename can disagree with the exported rows.** `Movies.tsx:213`: the name uses `filtersActive` (live `filters.search`) while the rows use the debounced search, so exporting within 300 ms of typing or clearing names the file wrongly. *Fix:* derive the name from the debounced search. *(Nit, M)*
@@ -424,18 +424,43 @@ CR of the uncommitted diff (the §1–§3 fixes plus the `/simplify` pass) repor
 - ✅ *Fixed 2026-11-23 (documented as CLAUDE.md's second Tag exception; dropping it would misalign the tag with the Import button).* **B199 — "Added" tag restyles its margin at the call site.** `AddMovieModal.tsx:185`. *(Nit, H)*
 - ✅ *Fixed 2026-11-23 (`setDocumentTitle('Something went wrong')` in `componentDidCatch`; shared `src/utils/documentTitle.ts`).* **B200 — Tab title keeps the previous page's name after a failed route.** *(Nit, H)*
 
+## 3w. Found 2026-11-23 (Batch O review: §6 rows 86–101), all fixed or documented 2026-11-23
+
+`/code-review` (high) of the Batch O modules reported 8 findings: 1 important, 1 that predates this release, 6 nits. `/security-review` of the same modules found nothing at ≥ 8 confidence. The important finding repeats B192 and was handled the same way, by documenting it (your call).
+
+- ✖ *Documented 2026-11-23, no code change (your call; same as B192): `retryableLazy`'s doc comment and CLAUDE.md now say so, and CLAUDE.md's claim that every drawer crash reaches the route error view is narrowed to render crashes.* **B201 — A module that throws while loading is shown as a failed download.** `retryableLazy.ts:25`: a top-level throw also rejects `import()`, so it is wrapped in `ChunkLoadError`. *(Low, H)*
+- ✅ *Fixed 2026-11-23 (each page renders its `PageTitle` above `LoadingError`; e2e test).* **B202 — A failed first load leaves the tab title stale and announces no page change.** The error branch rendered only the alert, so no `PageTitle` mounted. *(Nit, H)*
+- ✅ *Fixed 2026-11-23 (antd `Tabs` tokens: `#4f46e5` light, `#818cf8` dark; the `!important` CSS rules removed; e2e test).* **B203 — The selected Stats tab is hard to read on the light theme.** `index.css:117`: `#818cf8` on `#f5f7ff` is about 2.8:1. *(Low, pre-existing, H)*
+- ✅ *Fixed 2026-11-23 (`permissions: contents: read`; pinning actions to commit hashes not done).* **B204 — CI runs with the repo's default token permissions.** `ci.yml`. *(Nit, M)*
+- ✅ *Fixed 2026-11-23 (`Disallow: /`, your call).* **B205 — robots.txt invites crawlers to index the app.** *(Nit, M)*
+- ✅ *Fixed 2026-11-23 (`tests/unit/allowScripts.test.ts` fails if any esbuild copy in the lockfile moves without the allowlist; package.json can't hold a comment).* **B206 — The install-script allowlist names one exact esbuild version.** `package.json:72`. *(Nit, M)*
+- ✅ *Fixed 2026-11-23 (`'Frénch'` and `guarani` → "Guaraní" cases).* **B207 — The "accent-folded" language search test used no accent.** `search.test.ts:26`. *(Nit, H)*
+- ✅ *Fixed 2026-11-23 (prop removed from the component and its three call sites).* **B208 — `EmptyState` requires an `isDark` prop that does nothing.** *(Nit, H)*
+
+## 3x. Found 2026-11-23 (`/code-review` high of the staged 0.12.1 diff), all fixed 2026-11-23
+
+7 findings: 1 that predates this release, 6 nits. All fixed in 0.12.1.
+
+- ✅ *Fixed 2026-11-23 (light `components.Menu.itemSelectedColor` and `--accent-text` for BottomNav: `#4f46e5` on light).* **B209 — Selected Sidebar / bottom-nav item is low contrast on the light theme.** `BottomNav.tsx:50`, `App.tsx` `colorPrimary`: `#818cf8` on the light background is about 2.8:1. *(Low, pre-existing, H)*
+- ✅ *Fixed 2026-11-23 (`itemHoverColor`).* **B210 — A hovered Stats tab is about 2:1 on the light theme.** The new Tabs tokens left the hover colour to antd's lighter tint. *(Nit, H)*
+- ✅ *Fixed 2026-11-23 (pure `moviesToCsv()` + `tests/unit/exportCsv.test.ts` with raw rows and a quote-aware split; the e2e test removed).* **B211 — The Poster URL export test couldn't fail.** `normalizeMovie()` adds every catalogue column before export. *(Nit, H)*
+- ✅ *Fixed 2026-11-23.* **B212 — `mockDelete` answered an error status with a success body.** *(Nit, H)*
+- ✅ *Fixed 2026-11-23 (`firstPaintedX` picks a drawn point that shows no pointer, then clicks it).* **B213 — The Other-slice / Unknown-bar click checks could click empty canvas.** *(Nit, M)*
+- ✅ *Fixed 2026-11-23 (`getByRole('tab', { selected: true })`).* **B214 — The light-tab test used antd class names.** *(Nit, H)*
+- ✅ *Fixed 2026-11-23.* **B215 — features.txt said robots.txt stops indexing.** `Disallow: /` only stops crawling. *(Nit, H)*
+
 ## 4. Spec scenarios with no test at all
 
-Covered 2026-11-23 (removed from the list below): bottom nav at 1440px · `/movies/` highlights Movies · empty catalogue badge 0 · corrupted saved filters · export after sorting · formula-like title in export · grid page 3 → page 1 on a filter change · import stores a missing director as empty and joined names · DELETE `404` closes the drawer and refreshes.
+None left (2026-11-23, v0.12.1). The last gaps were covered by e2e tests (136 → 153) and one unit test:
 
-Excludes what `e2e-hardening` already plans (Add/Delete happy path, Stats slider + Reset, PNG download, Dashboard empty state, mobile BottomNav, grid sort).
+- **accessible-ui:** navigate away from a crash; re-open the crashed section from its default tab (*Navigation*).
+- **movie-browsing:** all site storage blocked (*Filter Persistence*); first visit on a light-mode OS (*Theme*); Poster URL column kept when the first movie has none (unit test `exportCsv.test.ts`, B211); delete from page 3 keeps the rating sort and page (*Movies Add & Delete*); a year-slider drag applies once, on release (*Movies Advanced Filters*).
+- **analytics-drilldown:** 90-minute boundary; "> 180 min" open bucket; decade partly outside the year range; "Unknown" bar has no pointer and doesn't navigate (*Drill-down consistency*); 7 + "Other" distinct colours (unit test in `statsHelpers.test.ts`). Already covered before: revenue filter excludes unknown revenue (*Movies Advanced Filters*), gap years shown as 0 (*Stats Page*).
+- **dashboard-layout:** sections in order; Total Movies emphasis; genre slice click; "Other" slice not clickable (*Dashboard*). Already covered before: year point click, recent-release click.
+- **catalog-data-format:** a co-production counts toward each country, end to end (*Stats Page*).
+- **catalog-persistence (client):** two imports in flight, each with its own progress (*Movies Add & Delete*).
 
-- **accessible-ui:** navigate away from a crash (no ErrorBoundary test).
-- **movie-browsing:** storage blocked · first visit on a light-mode OS (config pins dark) · first movie lacks `Poster URL` but the column is still exported · delete from page 3 keeps sort/page · slider drag updates results once.
-- **analytics-drilldown:** 90-min runtime boundary · "> 180 min" open bucket · decade click partly outside the year range · "Unknown" bar doesn't navigate · revenue filter excludes unknown revenue · gap year shown as 0 · 7 + "Other" distinct colors.
-- **dashboard-layout:** sections in order · Total Movies emphasis · genre slice / year point / recent-release clicks · "Other" slice not clickable.
-- **catalog-data-format:** co-production counts toward each country (unit-tested in `groupByField`, not end to end).
-- **catalog-persistence (client):** two imports in flight (per-row spinners).
+Earlier rounds covered: bottom nav at 1440px · `/movies/` highlights Movies · empty catalogue badge 0 · corrupted saved filters · export after sorting · formula-like title in export · grid page 3 → page 1 on a filter change · import stores a missing director as empty and joined names · DELETE `404` closes the drawer and refreshes.
 
 ---
 
@@ -451,26 +476,11 @@ Excludes what `e2e-hardening` already plans (Add/Delete happy path, Stats slider
 
 ---
 
-## Suggested grouping for follow-up changes
-
-```
- ┌─ security-and-ci ──────────┐  B1 ✅, B2 ✅, B38 ◐ (only `server/__tests__` left)
- ├─ csv-tools-robustness ─────┤  B3, B8, B9, B16          (Python writers + server dup-header guard)
- ├─ unknown-values ───────────┤  B4, B5, B6, B7, B17, B18, B24, B25, B26, B27
- ├─ shell-resilience ─────────┤  B10, B11, B22 ✅, B23 ✅, B35, B36 ✅
- ├─ chart-perf-and-cleanup ───┤  B13, B40, B41
- ├─ movies-page-polish ───────┤  B14, B19, B20, B21, B37
- ├─ a11y-pass-2 ──────────────┤  B12 ✅, B28, B29 ✅, B30 ✅, B31 ✅, B32 ✅, B33, B34 ✅
- └─ unit-tests ───────────────┘  B15 + section 4 gaps
-```
-
----
-
 ## 6. Per-module review tracker
 
 Started 2026-11-04. Covers 86 source modules (67 at start, rows 76–80 added 2026-11-21, row 81 2026-11-22, rows 82–85 2026-11-23, row 86 (`EmptyState.tsx`, from the 0.11.11 `/simplify` pass) the same day: `catalogue_io.py`, `csvEscape.ts` and `test_catalogue_io.py` had been missing from the tracker, `chartBuckets.ts` is new in `fix-e2e-review`; plus `hardening.test.ts`, `bootstrap.ts`, `bootstrap.test.ts`, and on 2026-11-06 `hosting.test.ts`, `check-bundle.mjs`, `tests/helpers.ts`, `search.ts`, `slugify.ts`) (`.ts`/`.tsx`/`.py`/`.mjs`, excluding `openspec/`). Tick ☑ when a pass is done and add any new findings as B-IDs above. **CR** = `/code-review <path>` · **SR** = `/security-review`. **Fix** = the pass's findings were verified by hand and fixed: ☑ fixed and its OpenSpec change archived · ◐ fix implemented, change not archived yet · ☐ not yet (or no review yet) · — no findings to fix.
 
-**Progress (2026-11-23, v0.12.0):** 85 of 90 modules reviewed (CR + SR) and fully fixed or finding-free. Not fully reviewed: row 86 (`EmptyState.tsx`, read through only), rows 87–88 (`PageTitle.tsx`, `retryableLazy.ts`: CR'd in the §3v diff review, SR not run) and rows 89–90 (`documentTitle.ts`, `firstPage.ts`, added by the §3v fixes). Before Batch N, 76 were: rows 1–75, plus row 82 (`catalogue_io.py`, reviewed in the Batch B re-review, §3f). Batch N (rows 76–81, 83–85, all added or found after the sweep) reviewed 2026-11-23: B178–B186, SR nothing at ≥ 8, fixed by `fix-batch-n-review`, archived 2026-11-23. All 85 modules are now reviewed and fixed. History: rows 1–8, 69, 72 fixed first (rows 4, 5 via `fix-python-csv-writers` + re-review `harden-python-catalogue-io`, both archived 2026-11-14). Batch D (rows 9–16) reviewed 2026-11-20: B94–B101, fixed by `fix-app-shell-review`, archived 2026-11-21. Batch E (rows 17–22) reviewed 2026-11-20: B102–B107, SR found nothing, fixed by `fix-contexts-hooks-review`, archived 2026-11-21. Batch F (rows 23, 33–35) reviewed 2026-11-20: B108–B116, SR found nothing, fixed by `fix-dashboard-review`, archived 2026-11-22 (row 33 had no findings). Batch G (rows 24, 30–32, 54, 55, 74) reviewed 2026-11-20: B117–B123, SR found nothing, fixed by `fix-movies-filtering-review`, archived 2026-11-21. Batch H (rows 26–29, 52) reviewed 2026-11-20: B124–B130 plus older B14/B17/B19/B21/B24/B30/B31/B37, SR found nothing, fixed by `fix-movies-views-review`, archived 2026-11-21. Batch I1 (rows 25, 36–38, 43) reviewed 2026-11-20: B131–B135 plus older B4/B13/B24/B25/B34, SR found nothing, fixed by `fix-stats-review`, archived 2026-11-22 (row 37 had no findings). Batch I2 (rows 39–42) reviewed 2026-11-20: B136–B138 plus older B6/B13/B18 (B17, B119 owned elsewhere; 2 findings rejected), SR found nothing, fixed by `fix-stats-tabs-review`, archived 2026-11-22. Batch J (rows 44–51) reviewed 2026-11-20: B139–B142 plus older B13 (wrapper fix)/B26 (1 finding rejected), SR found nothing, fixed by `fix-chart-wrappers-review`, archived 2026-11-21. Batch K (rows 53, 56–61, 75) reviewed 2026-11-20: B143–B151 (B146/B147 left open; the trailing-cells crash is B129), SR found nothing, fixed by `fix-utils-types-review`, archived 2026-11-21. Batch L (rows 62–66, 68, 70, 71) reviewed 2026-11-20: B152–B161 (tests only, no production bug), SR found nothing, fixed by `fix-server-tests-review`, archived 2026-11-22 (row 71 had no findings). Batch M (rows 67, 73) reviewed 2026-11-20: B162–B171 (tests only), SR found nothing, fixed by `fix-e2e-review`, archived 2026-11-23. All batches reviewed, and all 11 review-fix changes archived (Batches D–M fully fixed; B177, found while applying `fix-e2e-review`, is open in §3s). 2026-11-21 (0.11.7): `/code-review` (high) + `/simplify` of the staged 0.11.3–0.11.6 diff found B172–B176 in rows 10, 14, 28, 29, all fixed in place (§3r); the Fix ticks of those rows stay ☑. Modules added since the sweep are rows 76–81 (Batch N); rows 82–85 were added 2026-11-23. 2026-11-22 (0.11.9): Batches F, I1 and I2 fixed and archived (`fix-dashboard-review`, `fix-stats-review`, `fix-stats-tabs-review`). Before logging a batch's findings, check §1–§3 for an older ID first (Batches D–G re-logged B5, B7, B13, B20, B22, B24, B27, B30). SR reviews pending branch changes, not a path, so it may need a scoped diff or explicit file instructions.
+**Progress (2026-11-23, v0.12.1):** all 101 modules reviewed (CR + SR) and fixed, documented or finding-free. Batch O (rows 86–101: modules added in 0.11.11–0.12.0 plus config/entry files never tracked before) reviewed 2026-11-23: B201–B208 (§3w), SR nothing at ≥ 8. Before Batch N, 76 were: rows 1–75, plus row 82 (`catalogue_io.py`, reviewed in the Batch B re-review, §3f). Batch N (rows 76–81, 83–85, all added or found after the sweep) reviewed 2026-11-23: B178–B186, SR nothing at ≥ 8, fixed by `fix-batch-n-review`, archived 2026-11-23. All 85 modules are now reviewed and fixed. History: rows 1–8, 69, 72 fixed first (rows 4, 5 via `fix-python-csv-writers` + re-review `harden-python-catalogue-io`, both archived 2026-11-14). Batch D (rows 9–16) reviewed 2026-11-20: B94–B101, fixed by `fix-app-shell-review`, archived 2026-11-21. Batch E (rows 17–22) reviewed 2026-11-20: B102–B107, SR found nothing, fixed by `fix-contexts-hooks-review`, archived 2026-11-21. Batch F (rows 23, 33–35) reviewed 2026-11-20: B108–B116, SR found nothing, fixed by `fix-dashboard-review`, archived 2026-11-22 (row 33 had no findings). Batch G (rows 24, 30–32, 54, 55, 74) reviewed 2026-11-20: B117–B123, SR found nothing, fixed by `fix-movies-filtering-review`, archived 2026-11-21. Batch H (rows 26–29, 52) reviewed 2026-11-20: B124–B130 plus older B14/B17/B19/B21/B24/B30/B31/B37, SR found nothing, fixed by `fix-movies-views-review`, archived 2026-11-21. Batch I1 (rows 25, 36–38, 43) reviewed 2026-11-20: B131–B135 plus older B4/B13/B24/B25/B34, SR found nothing, fixed by `fix-stats-review`, archived 2026-11-22 (row 37 had no findings). Batch I2 (rows 39–42) reviewed 2026-11-20: B136–B138 plus older B6/B13/B18 (B17, B119 owned elsewhere; 2 findings rejected), SR found nothing, fixed by `fix-stats-tabs-review`, archived 2026-11-22. Batch J (rows 44–51) reviewed 2026-11-20: B139–B142 plus older B13 (wrapper fix)/B26 (1 finding rejected), SR found nothing, fixed by `fix-chart-wrappers-review`, archived 2026-11-21. Batch K (rows 53, 56–61, 75) reviewed 2026-11-20: B143–B151 (B146/B147 left open; the trailing-cells crash is B129), SR found nothing, fixed by `fix-utils-types-review`, archived 2026-11-21. Batch L (rows 62–66, 68, 70, 71) reviewed 2026-11-20: B152–B161 (tests only, no production bug), SR found nothing, fixed by `fix-server-tests-review`, archived 2026-11-22 (row 71 had no findings). Batch M (rows 67, 73) reviewed 2026-11-20: B162–B171 (tests only), SR found nothing, fixed by `fix-e2e-review`, archived 2026-11-23. All batches reviewed, and all 11 review-fix changes archived (Batches D–M fully fixed; B177, found while applying `fix-e2e-review`, is open in §3s). 2026-11-21 (0.11.7): `/code-review` (high) + `/simplify` of the staged 0.11.3–0.11.6 diff found B172–B176 in rows 10, 14, 28, 29, all fixed in place (§3r); the Fix ticks of those rows stay ☑. Modules added since the sweep are rows 76–81 (Batch N); rows 82–85 were added 2026-11-23. 2026-11-22 (0.11.9): Batches F, I1 and I2 fixed and archived (`fix-dashboard-review`, `fix-stats-review`, `fix-stats-tabs-review`). Before logging a batch's findings, check §1–§3 for an older ID first (Batches D–G re-logged B5, B7, B13, B20, B22, B24, B27, B30). SR reviews pending branch changes, not a path, so it may need a scoped diff or explicit file instructions.
 
 **Batches** (added 2026-11-07): rows stay per-file so ticks stay precise, but review one batch per pass, passing all its paths to `/code-review` so cross-file bugs inside a feature slice get caught. Tick each row the pass covered.
 
@@ -491,6 +501,7 @@ Started 2026-11-04. Covers 86 source modules (67 at start, rows 76–80 added 20
 | L | Server tests | 62–66, 68, 70, 71 | ☑ | ☑ | ☑ | B152–B161 · `fix-server-tests-review` (archived 2026-11-22; row 71 had no findings) |
 | M | E2E spec + helpers | 67, 73 | ☑ | ☑ | ☑ | B162–B171 · `fix-e2e-review` (archived 2026-11-23) |
 | N | Modules added after the sweep | 76–81, 83–85 | ☑ | ☑ | ☑ | B178–B186 (+ B177) · `fix-batch-n-review` (archived 2026-11-23; rows 76, 79, 85 had no findings) |
+| O | Modules added in 0.11.11–0.12.0, plus untracked config/entry files | 86–101 | ☑ | ☑ | ☑ | B201–B208 (§3w; B201 documented, = B192); SR nothing at ≥ 8 |
 
 ### Server (highest security priority)
 
@@ -537,6 +548,13 @@ Batch C (2026-11-07, rows 6, 7, 8, 72): CR found 10 (9 confirmed, B75 plausible 
 | 6 | `vite.config.ts` | C | ☑ | ☑ | ☑ |
 | 7 | `playwright.config.ts` | C | ☑ | ☑ | ☑ |
 | 8 | `eslint.config.mjs` | C | ☑ | ☑ | ☑ |
+| 91 | `tsconfig.json` (root app project; tracked 2026-11-23) | O | ☑ | ☑ | ☑ |
+| 92 | `tsconfig.node.json` (tests + Vite/Playwright configs; tracked 2026-11-23) | O | ☑ | ☑ | ☑ |
+| 93 | `server/tsconfig.json` (server build, `include` list; tracked 2026-11-23) | O | ☑ | ☑ | ☑ |
+| 94 | `server/tsconfig.test.json` (added 2026-11-23, B38) | O | ☑ | ☑ | ☑ |
+| 95 | `package.json` (scripts, dependency pins; tracked 2026-11-23) | O | ☑ | ☑ | ☑ |
+| 96 | `.github/workflows/ci.yml` (tracked 2026-11-23) | O | ☑ | ☑ | ☑ |
+| 97 | `public/robots.txt` (tracked 2026-11-23; trivial) | O | ☑ | ☑ | ☑ |
 
 ### Frontend: entry / app shell
 | # | Module | Batch | CR | SR | Fix |
@@ -549,6 +567,9 @@ Batch C (2026-11-07, rows 6, 7, 8, 72): CR found 10 (9 confirmed, B75 plausible 
 | 14 | `src/components/ErrorBoundary.tsx` | D | ☑ | ☑ | ☑ |
 | 15 | `src/components/LoadingError.tsx` | D | ☑ | ☑ | ☑ |
 | 16 | `src/components/ScrollToTop.tsx` | D | ☑ | ☑ | ☑ |
+| 98 | `index.html` (inline theme style + `theme-init.js` tag, CSP-relevant; tracked 2026-11-23) | O | ☑ | ☑ | ☑ |
+| 99 | `public/theme-init.js` (added 2026-11-23, B35; runs before the app on every load) | O | ☑ | ☑ | ☑ |
+| 100 | `src/index.css` (global styles and theme tokens; tracked 2026-11-23) | O | ☑ | ☑ | ☑ |
 
 ### Frontend: contexts / hooks
 | # | Module | Batch | CR | SR | Fix |
@@ -630,11 +651,11 @@ Batch C (2026-11-07, rows 6, 7, 8, 72): CR found 10 (9 confirmed, B75 plausible 
 | 79 | `src/utils/vote.ts` (added 0.11.7 by `/simplify`) | N | ☑ | ☑ | ☑ |
 | 83 | `src/utils/csvEscape.ts` (added 0.11.0 by B60; tracked 2026-11-23) | N | ☑ | ☑ | ☑ |
 | 85 | `src/utils/chartBuckets.ts` (added 0.11.10 by `fix-e2e-review`, B166) | N | ☑ | ☑ | ☑ |
-| 86 | `src/components/EmptyState.tsx` (added 0.11.11 by `/simplify`; read through 2026-11-23, no findings, formal CR/SR not run) | N | ◐ | ☐ | — |
-| 87 | `src/components/PageTitle.tsx` (added 2026-11-23, B33; CR'd in the §3v diff review, B194/B200 fixed) | — | ☑ | ☐ | ☑ |
-| 88 | `src/utils/retryableLazy.ts` (added 2026-11-23, B10; CR'd in the §3v diff review, no findings) | — | ☑ | ☐ | — |
-| 89 | `src/utils/documentTitle.ts` (added 2026-11-23, B200) | — | ☐ | ☐ | — |
-| 90 | `src/utils/firstPage.ts` (added 2026-11-23, B194) | — | ☐ | ☐ | — |
+| 86 | `src/components/EmptyState.tsx` (added 0.11.11 by `/simplify`; Batch O: B208) | O | ☑ | ☑ | ☑ |
+| 87 | `src/components/PageTitle.tsx` (added 2026-11-23, B33; CR'd in the §3v diff review, B194/B200 fixed; Batch O) | O | ☑ | ☑ | ☑ |
+| 88 | `src/utils/retryableLazy.ts` (added 2026-11-23, B10; CR'd in the §3v diff review; Batch O: B201, documented) | O | ☑ | ☑ | ☑ |
+| 89 | `src/utils/documentTitle.ts` (added 2026-11-23, B200) | O | ☑ | ☑ | ☑ |
+| 90 | `src/utils/firstPage.ts` (added 2026-11-23, B194) | O | ☑ | ☑ | ☑ |
 
 ### Tests
 | # | Module | Batch | CR | SR | Fix |
@@ -651,6 +672,7 @@ Batch C (2026-11-07, rows 6, 7, 8, 72): CR found 10 (9 confirmed, B75 plausible 
 | 71 | `server/__tests__/hosting.test.ts` (added by `prod-deploy`) | L | ☑ | ☑ | ☑ |
 | 72 | `scripts/check-bundle.mjs` (added by `reduce-bundle-size`) | C | ☑ | ☑ | ☑ |
 | 73 | `tests/helpers.ts` (added by `e2e-hardening`) | M | ☑ | ☑ | ☑ |
-| 80 | `tests/unit/*.test.ts` (added 0.11.3–0.11.8; 8 files with `csvEscape.test.ts`, added by `fix-batch-n-review`) | N | ☑ | ☑ | ☑ |
+| 80 | `tests/unit/*.test.ts` (added 0.11.3–0.11.8; the 8 files up to `csvEscape.test.ts`, added by `fix-batch-n-review`; new files are row 101) | N | ☑ | ☑ | ☑ |
 | 81 | `src/components/ChunkErrorBoundary.tsx` (added by `fix-dashboard-review`, B109) | N | ☑ | ☑ | ☑ |
 | 84 | `tests/python/test_catalogue_io.py` (added 0.11.0; tracked 2026-11-23) | N | ☑ | ☑ | ☑ |
+| 101 | `tests/unit/search.test.ts`, `tests/unit/persistedFilters.test.ts` (added 2026-11-23, B15) | O | ☑ | ☑ | ☑ |

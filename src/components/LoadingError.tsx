@@ -15,11 +15,14 @@ const skeletonCardStyle: React.CSSProperties = {
   padding: 20,
 };
 
+/**
+ * A page body's loading skeleton / load-error alert. The page renders its PageTitle above this, so the
+ * heading, tab title and navigation focus are the same in every state (B202).
+ */
 const LoadingError: React.FC<LoadingErrorProps> = ({ loading, error, onRetry, children }) => {
   if (loading) {
     return (
-      <div style={{ padding: 24 }}>
-        <Skeleton.Input active size="large" style={{ width: 220, marginBottom: 8 }} />
+      <div>
         <Skeleton.Input active size="small" style={{ width: 360, marginBottom: 24, display: 'block' }} />
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           {[0, 1, 2, 3].map((i) => (
@@ -45,14 +48,16 @@ const LoadingError: React.FC<LoadingErrorProps> = ({ loading, error, onRetry, ch
   }
   if (error) {
     return (
-      <Alert
-        type="error"
-        title="Failed to load movies"
-        description={error}
-        showIcon
-        style={{ margin: 24 }}
-        action={<Button size="small" onClick={onRetry}>Retry</Button>}
-      />
+      <div>
+        <Alert
+          type="error"
+          title="Failed to load movies"
+          description={error}
+          showIcon
+          style={{ marginTop: 16 }}
+          action={<Button size="small" onClick={onRetry}>Retry</Button>}
+        />
+      </div>
     );
   }
   return <>{children}</>;

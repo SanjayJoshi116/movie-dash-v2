@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# The job only reads the repo; keep the token read-only even if the repo default is read/write.
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest

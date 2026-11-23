@@ -2,13 +2,11 @@ import { CATALOGUE_COLUMNS, type Movie } from '../types/movie';
 import { escapeCsvField, sanitizeCsvValue } from './csvEscape';
 
 /**
- * Downloads `movies` as CSV, in the order given (callers pass the rows as the active view
- * shows them). Columns are the full catalogue set plus any extra keys found on any row — not
- * just the first row's keys, which would drop e.g. a Poster URL the first movie happens to lack.
+ * `movies` as CSV text (no BOM), in the order given. Columns are the full catalogue set plus any
+ * extra keys found on any row — not just the first row's keys, which would drop e.g. a Poster URL
+ * the first movie happens to lack.
  */
-export function exportMoviesToCsv(movies: Movie[], filename = 'movies.csv'): void {
-  if (movies.length === 0) return;
-
+export function moviesToCsv(movies: Movie[]): string {
   const extraKeys = new Set<string>();
   movies.forEach((m) => Object.keys(m).forEach((k) => {
     if (!(CATALOGUE_COLUMNS as readonly string[]).includes(k)) extraKeys.add(k);
@@ -20,7 +18,13 @@ export function exportMoviesToCsv(movies: Movie[], filename = 'movies.csv'): voi
   );
 
   // Header names get the same formula guard as data cells (an extra column could be named "=X").
-  const csv = [headers.map((h) => escapeCsvField(sanitizeCsvValue(h))).join(','), ...rows].join('\n');
+  return [headers.map((h) => escapeCsvField(sanitizeCsvValue(h))).join(','), ...rows].join('\n');
+}
+
+/** Downloads `movies` as CSV (see `moviesToCsv`), in the order the active view shows them. */
+export function exportMoviesToCsv(movies: Movie[], filename = 'movies.csv'): void {
+  if (movies.length === 0) return;
+  const csv = moviesToCsv(movies);
   // UTF-8 BOM so Excel reads accented text correctly. Built from the code point, never a
   // literal or escape (editing tools mangle those — see CLAUDE.md "Known gotchas").
   const bom = String.fromCharCode(0xfeff);

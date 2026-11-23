@@ -50,6 +50,7 @@ const AppContent: React.FC = () => {
   noteNavigation(location.pathname);
   const navigationType = useNavigationType();
   const { isDark } = useTheme();
+  const accentText = isDark ? '#818cf8' : '#4f46e5';
   const { refetch } = useMoviesContext();
   const screens = Grid.useBreakpoint();
   // antd 6.7's useBreakpoint() reads matchMedia in its first snapshot, so `screens` is real on the
@@ -104,10 +105,14 @@ const AppContent: React.FC = () => {
           } : {}),
         },
         components: {
+          // #818cf8 reads well only on the dark background (about 2.8:1 on the light one, B203, B209,
+          // B210); the light theme uses #4f46e5 for selected/hovered navigation text. Same pair as
+          // index.css's --accent-text.
           Tabs: {
-            inkBarColor:       '#818cf8',
-            itemActiveColor:   '#818cf8',
-            itemSelectedColor: '#818cf8',
+            inkBarColor:       accentText,
+            itemActiveColor:   accentText,
+            itemSelectedColor: accentText,
+            itemHoverColor:    accentText,
           },
           ...(isDark ? {
             Menu: {
@@ -117,7 +122,9 @@ const AppContent: React.FC = () => {
             Drawer: {
               colorBgElevated: '#1a1030',
             },
-          } : {}),
+          } : {
+            Menu: { itemSelectedColor: accentText },
+          }),
         },
       }}
     >

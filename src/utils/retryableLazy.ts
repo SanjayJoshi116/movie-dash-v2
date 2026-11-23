@@ -18,6 +18,8 @@ const pendingRetries = new Set<() => void>();
  *
  * The rejection is wrapped in `ChunkLoadError`, so the boundary can offer "Reload page" (browsers
  * other than Chromium may cache the failed module, and after a redeploy the old chunk is gone).
+ * A module whose top-level code throws also rejects `import()`, so it is reported the same way: browsers'
+ * error messages can't reliably tell the two apart (B192, B201, accepted). Render crashes are unaffected.
  * Call it at module level, like `React.lazy`, so Vite still sees a static `import()` to split on.
  */
 export function retryableLazy<P extends object>(loader: Loader<P>): React.FC<P> {

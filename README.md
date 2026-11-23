@@ -8,7 +8,7 @@ A full-stack movie analytics dashboard: a React frontend backed by an Express AP
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-5.24-1677ff)
 
-**Highlights:** Table/grid movie catalogue with poster art · add or delete movies without leaving the browser (TMDB search) · 6 analytics tabs with click-to-filter drill-down, a global year-range slider, and per-chart PNG export · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 117 Playwright E2E + 115 server API + 39 frontend unit + 40 Python tool tests · light/dark theme · filter state persisted per-session
+**Highlights:** Table/grid movie catalogue with poster art · add or delete movies without leaving the browser (TMDB search) · 6 analytics tabs with click-to-filter drill-down, a global year-range slider, and per-chart PNG export · mobile bottom nav · hardened Express API (helmet, rate limiting, CORS allowlist) with gzip + caching · CSV export · 153 Playwright E2E + 118 server API + 60 frontend unit + 42 Python tool tests · light/dark theme · filter state persisted per-session
 
 No hosted demo — this project runs locally against your own CSV dataset. See [Getting Started](#getting-started).
 
@@ -36,7 +36,7 @@ Dashboard, Movies, and Statistics are split into separate pages (`/`, `/movies`,
 - Total Box Office stat card is clickable, jumping straight to the Stats page's Box Office tab
 - Recent Releases list with poster thumbnails, keyboard-accessible (`Enter`/`Space`) like the rest of the app
 - Trend/breakdown mini-charts (release year, genre, rating distribution) are clickable — clicking a data point/slice/bar jumps to Movies pre-filtered to that year, genre, or rating range (years and bars with no movies aren't clickable)
-- Skeleton placeholder layout while data loads, instead of a bare spinner
+- Skeleton placeholder layout while data loads, instead of a bare spinner; the page heading stays above it (and above a load error), so the tab title and screen-reader focus are right in every state
 - Empty state (0 movies) shows a "Go to Movies" CTA instead of zeroed-out stat cards/charts
 - CTA cards linking through to Movies and Stats
 
@@ -70,6 +70,7 @@ A global Release Year Range slider at the top of the page scopes every tab to a 
 - Light / dark toggle (sun/moon button in the top bar)
 - Follows the OS light/dark setting (including live changes) until you use the toggle; only a toggled choice is saved, to `localStorage` under `movieDash_theme`
 - The theme is applied before the first paint (`public/theme-init.js`), so there's no white flash and the browser's own scrollbars/controls match it
+- On the light theme, selected and hovered navigation (Stats tabs, the sidebar item, the bottom-nav item) uses a darker indigo (`#4f46e5`) so it stays readable; the dark theme keeps `#818cf8`
 - Refined glassmorphism design system — shared surface, spacing, and typography tokens (CSS custom properties + `src/utils/chartTheme.ts`) applied consistently across the sidebar/top bar and every page, with a calmer border/shadow and a muted 8-color chart palette used by every chart (single-series charts use one palette color, profit/loss a positive/negative pair); doughnut legends switch to a compact layout on phones so no legend row is dropped
 
 ### Accessibility
@@ -94,7 +95,7 @@ A global Release Year Range slider at the top of the page scopes every tab to a 
 | HTTP | Axios |
 | Backend | Express 5 (TypeScript, tsx) |
 | Data | CSV file via csv-parser |
-| Testing | Playwright (117 E2E tests), Node `node:test` via tsx (115 server API tests, 39 frontend unit tests), Python `unittest` (40 tool tests) |
+| Testing | Playwright (153 E2E tests), Node `node:test` via tsx (118 server API tests, 60 frontend unit tests), Python `unittest` (42 tool tests) |
 | Linting | ESLint (typescript-eslint, react-hooks, unused-imports) |
 
 ---
@@ -267,9 +268,9 @@ movie-dash-v2/
 │   ├── tmdb.ts                 # TMDB client (axios + retries)
 │   └── __tests__/              # Server API tests (node:test, 118 tests)
 ├── tests/
-│   ├── app.spec.ts             # Playwright E2E tests (135 tests)
+│   ├── app.spec.ts             # Playwright E2E tests (153 tests)
 │   ├── helpers.ts              # Shared e2e helpers + mutation-guard fixture
-│   ├── unit/                   # Frontend unit tests (node:test, 56 tests)
+│   ├── unit/                   # Frontend unit tests (node:test, 60 tests)
 │   └── python/                 # Python tool tests (unittest, 42 tests)
 ├── movie-search.py             # Tkinter TMDB search → appends to src/movies.csv
 ├── backfill_posters.py         # One-off Poster URL backfill
@@ -301,7 +302,7 @@ movie-dash-v2/
 │   │   ├── FiltersDrawer.tsx   # Category/range filters, opened via the Filters button
 │   │   ├── RangeSlider.tsx     # Range slider that applies on release (filters drawer, Stats year range)
 │   │   ├── ActiveFilters.tsx   # Removable filter chips + "Clear all"
-│   │   ├── LoadingError.tsx    # Shared skeleton-loading / error alert wrapper (Dashboard, Movies, Stats)
+│   │   ├── LoadingError.tsx    # Shared skeleton-loading / error alert wrapper for page bodies (Dashboard, Movies, Stats)
 │   │   ├── BottomNav.tsx       # Fixed mobile nav bar, replaces Sidebar below the `sm` breakpoint
 │   │   ├── MovieTable.tsx
 │   │   ├── MovieCardGrid.tsx
@@ -319,7 +320,7 @@ movie-dash-v2/
 │   │   ├── statsHelpers.ts     # groupByField, topNWithOther, chart bucket helpers, parseRevenue, formatRevenue
 │   │   ├── filterChips.ts      # buildFilterChips, isFiltersActive — shared by the Filters button and chips row
 │   │   ├── formatDate.ts       # formatDateDDMMYYYY — release dates rendered as DD-MM-YYYY
-│   │   ├── exportCsv.ts        # Export in on-screen order, all catalogue columns, formula-safe, UTF-8 BOM
+│   │   ├── exportCsv.ts        # moviesToCsv() + download: on-screen order, all catalogue columns, formula-safe, UTF-8 BOM
 │   │   ├── filterSpans.ts      # Data min/max for range sliders + clamping restored ranges
 │   │   ├── path.ts             # normalizePath — trailing-slash-safe nav highlighting
 │   │   ├── search.ts           # SEARCHABLE_FIELDS + matchesSearch() — Movies search (shared with e2e)
@@ -337,21 +338,21 @@ movie-dash-v2/
 
 ## E2E Testing
 
-Playwright tests cover the full user journey across 13 suites (135 tests):
+Playwright tests cover the full user journey across 13 suites (153 tests):
 
-- **Dashboard** — layout, highlight cards (click-to-drawer), CTA navigation to Movies/Stats, Total Box Office stat click-to-tab, empty-catalogue state, a click well above a release-trend point still drilling down to that year, no legend on the single-series rating chart, Top Rated matching Stats › Explore Highest Rated (vote-count minimum), a failed movie-details download keeping the page up, retrying on the next click and offering a page reload, a drawer crash shown as the error view (not as a failed download), unknown revenue/ratings not shown as real values, accessible names on cards, Recent Releases as a list of buttons, h4 section headings, Recent Releases' empty message when no movie has a date, a failed route download recovering on Try Again (without waiting for the catalogue) and Try Again waiting for the catalogue reload after a crash
+- **Dashboard** — layout, highlight cards (click-to-drawer), CTA navigation to Movies/Stats, Total Box Office stat click-to-tab, empty-catalogue state, a click well above a release-trend point still drilling down to that year, no legend on the single-series rating chart, Top Rated matching Stats › Explore Highest Rated (vote-count minimum), a failed movie-details download keeping the page up, retrying on the next click and offering a page reload, a drawer crash shown as the error view (not as a failed download), unknown revenue/ratings not shown as real values, accessible names on cards, Recent Releases as a list of buttons, h4 section headings, Recent Releases' empty message when no movie has a date, a failed route download recovering on Try Again (without waiting for the catalogue) and Try Again waiting for the catalogue reload after a crash, sections in order, Total Movies emphasised, a genre slice drilling down and the Other slice not clickable
 - **Movies** — layout, table/grid toggle, drawer from row and card, search, filters drawer (open/close, language/genre filters), empty state, clear/reset, active-filter dot indicator, sorting, pagination, page size, CSV export
 - **Movies Grid View** — poster image renders (real or fallback), card keyboard-activatable (Enter), grid pagination page-size changer
 - **Movies Grid Sort** — every grid sort option orders the cards as expected (mocked catalogue)
-- **Movies Advanced Filters** — director, runtime and revenue filters narrowing mocked rows to exact counts (unknown runtime/revenue excluded), revenue keyboard step of 1/100 of the span, the language picker found by typing its name
-- **Movies Add & Delete** — Add Movie search → import → "Added" → refetch, and Delete via Popconfirm → refetch → drawer closes, the background refresh announced as a status, a new search replacing a running one, a `409` shown as "Added", a blank server error still showing a message, Import offered again after a delete, an earlier import error kept visible, a delete finishing after switching movies leaving the new drawer alone, and unknown runtime/rating/date shown as unknown (TMDB and every write are `page.route`-mocked)
-- **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title and tab title updates with focus moving to the new heading (but not on the first page, even after Stats rewrites `?tab=` or a reload), the 404 heading, the keyboard-operable sidebar toggle and `nav` landmark, sidebar collapsed on a tablet-width load, the collapsed logo link's name, Back keeping the scroll position while a nav link opens the new section at the top
+- **Movies Advanced Filters** — director, runtime and revenue filters narrowing mocked rows to exact counts (unknown runtime/revenue excluded), revenue keyboard step of 1/100 of the span, a year-slider drag applied once on release, the language picker found by typing its name
+- **Movies Add & Delete** — Add Movie search → import → "Added" → refetch, and Delete via Popconfirm → refetch → drawer closes, the background refresh announced as a status, a new search replacing a running one, a `409` shown as "Added", a blank server error still showing a message, Import offered again after a delete, an earlier import error kept visible, a delete finishing after switching movies leaving the new drawer alone, a delete from page 3 keeping the rating sort and page, two imports in flight each with their own progress, and unknown runtime/rating/date shown as unknown (TMDB and every write are `page.route`-mocked)
+- **Navigation** — sidebar links, 404 page, back-to-dashboard, sidebar collapse, page title and tab title updates with focus moving to the new heading (but not on the first page, even after Stats rewrites `?tab=` or a reload), the 404 heading, navigating away from a crashed page and re-opening the crashed section from its default tab, the keyboard-operable sidebar toggle and `nav` landmark, sidebar collapsed on a tablet-width load, the collapsed logo link's name, Back keeping the scroll position while a nav link opens the new section at the top
 - **Mobile** — phone viewport shows the bottom nav instead of the sidebar, and its links work (named by their visible label only); a sort on a column hidden by narrowing the window is cleared, also for the export
-- **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence, Release Year Range slider + Reset, chart PNG download, tab switches that don't remount the page, whole-number count tooltips, a continuous per-year chart with no Unknown point, empty states (empty catalogue, a range with no releases), the year range clamped or reset after a refresh, Top 10 "Oldest" by release date, the Top 10 toolbar at 320 px, rating averages leaving out unrated films, no Unknown radar spoke, a gap-filled average-vote-by-year line that drills down
-- **Theme** — default dark, toggle to light, reload persistence, OS changes followed live until a toggle (and ignored after), nothing saved on a first visit, another app's bare `theme` key ignored, the theme painted before React mounts
-- **Filter Persistence** — search filter survives route changes via `sessionStorage`; filters still restore when `localStorage` is blocked
-- **Edge Cases** — search ignoring accents and surrounding whitespace, filter chips removable by keyboard, named slider handles, a saved genre filter on a catalogue without Genres, runtime 0 treated as unknown, Export CSV's screen-reader hint and filtered filename, Language sorted by its shown name, a row missing Genres/Release Date rendering in every view (table, grid, drawer, Stats tabs), grid-card accessible descriptions, CSV export BOM + guarded header names, combined filters, pagination, sort + filter combo, a failed first load showing the server's reason with no catalogue count, a first-load 503 retried once, a non-list `/api/movies` response showing the load error (not the crash screen), Clear all dropping the search without waiting for the debounce (Playwright clock)
-- **Drill-down consistency** — clicking a Dashboard rating bar opens exactly the movies it counted (and opening the filters drawer doesn't rewrite the range, nor does moving the other vote handle); a Stats drill-down carries the Release Year Range scope; `?tab=bogus` falls back to Overview; a drill-down never renders the filters saved earlier in the session; a decade drill-down past the data is clamped like a restored range. Bars are located on the canvas via the pointer cursor the chart wrappers set over clickable elements; expected counts come from `/api/movies`, so the tests work on any dataset
+- **Stats Page** — all 6 tabs load, charts render, TopN explorer metric switching, tab persistence, Release Year Range slider + Reset, chart PNG download, tab switches that don't remount the page, whole-number count tooltips, a continuous per-year chart with no Unknown point, empty states (empty catalogue, a range with no releases), the year range clamped or reset after a refresh, Top 10 "Oldest" by release date, the Top 10 toolbar at 320 px, rating averages leaving out unrated films, no Unknown radar spoke, a gap-filled average-vote-by-year line that drills down, a co-production counted toward each country
+- **Theme** — default dark, toggle to light, reload persistence, OS changes followed live until a toggle (and ignored after), nothing saved on a first visit, another app's bare `theme` key ignored, the theme painted before React mounts, a first visit on a light-mode OS opening in light, the selected Stats tab readable on the light theme (darker accent)
+- **Filter Persistence** — search filter survives route changes via `sessionStorage`; filters still restore when `localStorage` is blocked, and the app works with all site storage blocked
+- **Edge Cases** — search ignoring accents and surrounding whitespace, filter chips removable by keyboard, named slider handles, a saved genre filter on a catalogue without Genres, runtime 0 treated as unknown, Export CSV's screen-reader hint and filtered filename, Language sorted by its shown name, a row missing Genres/Release Date rendering in every view (table, grid, drawer, Stats tabs), grid-card accessible descriptions, CSV export BOM + guarded header names, combined filters, pagination, sort + filter combo, a failed first load showing the server's reason with no catalogue count (and still naming the page and moving focus on navigation), a first-load 503 retried once, a non-list `/api/movies` response showing the load error (not the crash screen), Clear all dropping the search without waiting for the debounce (Playwright clock)
+- **Drill-down consistency** — clicking a Dashboard rating bar opens exactly the movies it counted (and opening the filters drawer doesn't rewrite the range, nor does moving the other vote handle); a Stats drill-down carries the Release Year Range scope; `?tab=bogus` falls back to Overview; a drill-down never renders the filters saved earlier in the session; a decade drill-down past the data is clamped like a restored range; a decade partly outside the year range lists only the years inside; a 90-minute movie lands in 90–120, not 60–90; the "> 180 min" bar lists every longer movie; an "Unknown" bar has no pointer and doesn't navigate. Bars are located on the canvas via the pointer cursor the chart wrappers set over clickable elements; expected counts come from `/api/movies`, so the tests work on any dataset
 
 Tests run automatically on every push and pull request to `main` via GitHub Actions (see `.github/workflows/ci.yml`).
 
@@ -387,7 +388,7 @@ npm run test:server
 npm run test:unit
 ```
 
-56 tests (Node's built-in `node:test`, run via `tsx --test`, no browser or server) for the shared display helpers in `src/utils` and the chart wrappers' `formatNumber`: revenue labels at unit boundaries (`$1.0M`, not `$1000K`), `withAlpha` colour parsing (`#RGB`/`#RRGGBB`, anything else throws), `DD-MM-YYYY` date formatting (input trimmed, other shapes passed through, missing or blank values give an empty string), language-name lookup (including inherited keys like `constructor`), multi-valued grouping, top-7-plus-Other, the half-open chart buckets used by drill-downs, the range-slider helpers (rc-slider step alignment, readable revenue step, runtime 0 left out of the slider span), `parseVote` (vote 0 = unrated), accent-folded search, saved-filter validation, the shared ranking/average helpers, chart ink colours and CSV formula escaping. Playwright ignores `tests/unit/`. Runs in CI after the server tests.
+60 tests (Node's built-in `node:test`, run via `tsx --test`, no browser or server) for the shared display helpers in `src/utils` and the chart wrappers' `formatNumber`: revenue labels at unit boundaries (`$1.0M`, not `$1000K`), `withAlpha` colour parsing (`#RGB`/`#RRGGBB`, anything else throws), `DD-MM-YYYY` date formatting (input trimmed, other shapes passed through, missing or blank values give an empty string), language-name lookup (including inherited keys like `constructor`), multi-valued grouping, top-7-plus-Other, the half-open chart buckets used by drill-downs, the range-slider helpers (rc-slider step alignment, readable revenue step, runtime 0 left out of the slider span), `parseVote` (vote 0 = unrated), accent-folded search, saved-filter validation, the shared ranking/average helpers, chart ink colours, CSV formula escaping, and the install-script allowlist matching the locked esbuild version, distinct colours for 7 + Other categories, and the CSV export's columns (every row's keys, not just the first row's; header names guarded). Playwright ignores `tests/unit/`. Runs in CI after the server tests.
 
 ### Python tool tests
 

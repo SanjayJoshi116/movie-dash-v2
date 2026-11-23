@@ -240,6 +240,23 @@ export function makeMovie(i: number, overrides: Partial<ApiMovie> = {}): ApiMovi
   };
 }
 
+/** What a mocked `DELETE /api/movies/:id` answers (default `200 { ok: true }`; a non-2xx status alone gets `{ error: 'Mock error' }`). */
+export interface DeleteReply { status?: number; json?: unknown }
+
+/**
+ * Mocks `DELETE /api/movies/:id`: `respond(id)` runs for each delete (it can update the catalogue via
+ * `mockMovies`' setter, record the id, or wait) and returns the reply. Other methods fall through.
+ */
+export async function mockDelete(page: Page, respond: (id: string) => DeleteReply | void | Promise<DeleteReply | void>) {
+  await page.route('**/api/movies/*', async (route) => {
+    if (route.request().method() !== 'DELETE') return route.fallback();
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() ?? '');
+    const { status = 200, json } = (await respond(id)) ?? {};
+    const ok = status >= 200 && status < 300;
+    return route.fulfill({ status, json: json ?? (ok ? { ok: true } : { error: 'Mock error' }) });
+  });
+}
+
 /**
  * Serves `GET /api/movies` from `rows` instead of the real catalogue. Returns a setter so a test
  * can change what the next fetch (e.g. the refetch after an add/delete) returns.

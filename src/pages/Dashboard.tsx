@@ -255,9 +255,9 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: SPACING.xxl }}>
       <PageTitle emoji="🏠" title="Dashboard" />
+      <LoadingError loading={loading} error={error} onRetry={refetch}>
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: SPACING.xxl }}>
         Snapshot of your movie collection — key stats, highlights, and trends at a glance.
       </Text>
@@ -276,7 +276,6 @@ const Dashboard: React.FC = () => {
           description="No movies yet — add one to see stats and trends here."
           actionLabel="Go to Movies"
           onAction={() => navigate('/movies')}
-          isDark={isDark}
         />
       ) : (
       <>
@@ -440,8 +439,8 @@ const Dashboard: React.FC = () => {
           </Suspense>
         </ChunkErrorBoundary>
       )}
+      </LoadingError>
     </div>
-    </LoadingError>
   );
 };
 
