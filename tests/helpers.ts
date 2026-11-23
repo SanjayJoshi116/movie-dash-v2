@@ -1,4 +1,5 @@
 import { test as base, expect, type Page, type Locator, type APIRequestContext, type Route } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { matchesSearch } from '../src/utils/search';
 import { getLanguageName } from '../src/utils/languages';
 export { STORAGE_KEY as FILTERS_STORAGE_KEY } from '../src/hooks/usePersistedFilters';
@@ -63,6 +64,27 @@ export function searchBox(page: Page): Locator {
  */
 export function activeTabPane(page: Page): Locator {
   return page.getByRole('tabpanel');
+}
+
+/** A result row in the Add Movie modal's "Search results" list (all rows without `text`). */
+export function searchResult(modal: Locator, text?: string): Locator {
+  const items = modal.getByRole('list', { name: 'Search results' }).getByRole('listitem');
+  return text === undefined ? items : items.filter({ hasText: text });
+}
+
+/** Clicks the Movies page's Export CSV and returns the downloaded file's text. */
+export async function exportCsv(page: Page): Promise<string> {
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: /Export CSV/i }).click();
+  return readFileSync(await (await download).path(), 'utf8');
+}
+
+/**
+ * An active-filter chip on the Movies page, found through ActiveFilters' named list rather than
+ * antd's `.ant-tag` class (the drawer's vote tag is an `.ant-tag` too). `text` is a substring of the label.
+ */
+export function filterChip(page: Page, text: string): Locator {
+  return page.getByRole('list', { name: 'Active filters' }).getByRole('listitem').filter({ hasText: text });
 }
 
 export async function waitForTable(page: Page) {
@@ -155,6 +177,18 @@ export async function fetchMovies(page: Page): Promise<ApiMovie[]> {
   const res = await page.request.get('/api/movies');
   expect(res.ok()).toBeTruthy();
   return res.json();
+}
+
+/**
+ * The Movies table's body cells under the column headed `header` (exact text), found through the
+ * header row rather than a hard-coded `td:nth-child(n)`, so reordering columns or hiding them at a
+ * breakpoint can't silently point a test at the wrong one. Fails if the column isn't shown.
+ */
+export async function columnCells(page: Page, header: string): Promise<Locator> {
+  const headers = (await page.locator('.ant-table-thead').getByRole('columnheader').allInnerTexts()).map((t) => t.trim());
+  const index = headers.indexOf(header);
+  expect(index, `column "${header}" in [${headers.join(', ')}]`).toBeGreaterThanOrEqual(0);
+  return page.locator(`.ant-table-row td:nth-child(${index + 1})`);
 }
 
 /** The pagination "a–b of n movies" text (Movies table and grid). */

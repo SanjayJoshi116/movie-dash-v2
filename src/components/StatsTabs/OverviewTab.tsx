@@ -5,7 +5,7 @@ import BarChart from '../Charts/BarChart';
 import LineChart from '../Charts/LineChart';
 import ChartBlock from './ChartBlock';
 import { getCardStyle, CHART_PALETTE, CHART_PRIMARY, withAlpha } from '../../utils/chartTheme';
-import { groupByField, topNWithOther, isDrillableLabel, drillableLabelAt, continuousYears } from '../../utils/statsHelpers';
+import { groupByField, topNWithOther, isDrillableLabel, drillableLabelAt, continuousYears, splitNames } from '../../utils/statsHelpers';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { getLanguageName } from '../../utils/languages';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -64,7 +64,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ movies }) => {
     movies.forEach((m) => {
       if (m.Language) languages.add(m.Language);
       if (m.Director) directors.add(m.Director);
-      m.Genres?.split(',').forEach(g => { const t = g.trim(); if (t) genres.add(t); });
+      splitNames(m.Genres).forEach((g) => genres.add(g));
     });
     return { languages: languages.size, genres: genres.size, directors: directors.size };
   }, [movies]);

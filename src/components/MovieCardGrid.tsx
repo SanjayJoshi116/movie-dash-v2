@@ -7,6 +7,7 @@ import { getCardStyle } from '../utils/chartTheme';
 import { POSTER_FALLBACK } from '../utils/poster';
 import { voteColor } from '../utils/vote';
 import { useTheme } from '../contexts/ThemeContext';
+import { splitNames } from '../utils/statsHelpers';
 
 interface MovieCardGridProps {
   movies: Movie[];
@@ -91,7 +92,7 @@ const MovieCardGrid: React.FC<MovieCardGridProps> = ({ movies, onRowClick, filte
     </div>
     <Row gutter={[16, 16]}>
       {pageMovies.map((movie) => {
-        const genres = movie.Genres.split(',').map(g => g.trim()).filter(Boolean).slice(0, 3);
+        const genres = splitNames(movie.Genres).slice(0, 3);
         const vote = parseFloat(movie['Vote Average']);
         const runtime = parseFloat(movie.Runtime);
         const yearLanguage = [movie['Release Year'].trim(), getLanguageName(movie.Language)].filter(Boolean).join(' · ');

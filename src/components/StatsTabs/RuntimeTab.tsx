@@ -5,7 +5,7 @@ import BarChart from '../Charts/BarChart';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import PolarAreaChart from '../Charts/PolarAreaChart';
 import ChartBlock from './ChartBlock';
-import { groupByField, topNWithOther, makePolar, drillableLabelAt, bucketIndexOf, bucketToRange, parseVote, type Bucket } from '../../utils/statsHelpers';
+import { groupByField, topNWithOther, makePolar, drillableLabelAt, bucketIndexOf, bucketToRange, parseVote, averagesBy, type Bucket } from '../../utils/statsHelpers';
 import { computeFilterSpans } from '../../utils/filterSpans';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -41,20 +41,15 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
   }, [movies]);
 
   const runtimeBucketVoteData = useMemo<ChartData<'bar', (number | null)[]>>(() => {
-    const sums: Record<string, { sum: number; count: number }> = {};
-    RUNTIME_BUCKETS.forEach(b => { sums[b.label] = { sum: 0, count: 0 }; });
-    movies.forEach(m => {
+    // Runtime ≤ 0 is unknown: skipped, so "< 60 min" counts what its drill-down lists (B119).
+    // Unrated movies (parseVote → null) don't lower a bucket's average.
+    const byBucket = averagesBy(movies, (m) => {
       const r = parseFloat(m.Runtime);
-      const v = parseVote(m['Vote Average']);
-      // Runtime ≤ 0 is unknown: skipped, so "< 60 min" counts what its drill-down lists (B119).
-      // Unrated movies (parseVote → null) don't lower a bucket's average.
-      if (r > 0 && v !== null) {
-        const i = bucketIndexOf(r, RUNTIME_BUCKETS);
-        if (i >= 0) { sums[RUNTIME_BUCKETS[i].label].sum += v; sums[RUNTIME_BUCKETS[i].label].count += 1; }
-      }
-    });
+      const i = r > 0 ? bucketIndexOf(r, RUNTIME_BUCKETS) : -1;
+      return i >= 0 ? [RUNTIME_BUCKETS[i].label] : [];
+    }, (m) => parseVote(m['Vote Average']));
     // A bucket with no rated movie has no average: null (no bar), not a fake 0.
-    const avgs = RUNTIME_BUCKETS.map(b => sums[b.label].count ? parseFloat((sums[b.label].sum / sums[b.label].count).toFixed(2)) : null);
+    const avgs = RUNTIME_BUCKETS.map(b => (byBucket[b.label] ? parseFloat(byBucket[b.label].avg.toFixed(2)) : null));
     return {
       labels: RUNTIME_BUCKETS.map(b => b.label),
       datasets: [{ label: 'Avg Vote', data: avgs, backgroundColor: CHART_PALETTE[3] }],
@@ -62,22 +57,19 @@ const RuntimeTab: React.FC<RuntimeTabProps> = ({ movies }) => {
   }, [movies]);
 
   const avgRuntimeByDecadeData = useMemo<ChartData<'bar'>>(() => {
-    const sums: Record<string, { sum: number; count: number }> = {};
-    movies.forEach(m => {
-      const r = parseFloat(m.Runtime);
+    const avgs = averagesBy(movies, (m) => {
       const y = parseInt(m['Release Year'], 10);
-      if (isNaN(r) || r <= 0 || isNaN(y)) return;
-      const decade = `${Math.floor(y / 10) * 10}s`;
-      if (!sums[decade]) sums[decade] = { sum: 0, count: 0 };
-      sums[decade].sum += r;
-      sums[decade].count += 1;
+      return isNaN(y) ? [] : [`${Math.floor(y / 10) * 10}s`];
+    }, (m) => {
+      const r = parseFloat(m.Runtime);
+      return r > 0 ? r : null; // runtime ≤ 0 = unknown
     });
-    const sorted = Object.entries(sums).sort(([a], [b]) => parseInt(a) - parseInt(b));
+    const sorted = Object.entries(avgs).sort(([a], [b]) => parseInt(a) - parseInt(b));
     return {
       labels: sorted.map(([d]) => d),
       datasets: [{
         label: 'Avg Runtime (mins)',
-        data: sorted.map(([, { sum, count }]) => Math.round(sum / count)),
+        data: sorted.map(([, { avg }]) => Math.round(avg)),
         backgroundColor: CHART_PALETTE[4],
       }],
     };

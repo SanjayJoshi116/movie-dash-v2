@@ -4,7 +4,7 @@ DASHBOARD (/)
 - Landing summary: stat cards (total movies — hero-styled with icon, average rating, average runtime, total box office), each with an icon
 - Highlight cards: top rated (min. 50 votes, same rule and same movie as Stats' Highest Rated), most popular, newest release — with poster thumbnail; click or Enter/Space opens that movie's detail drawer; screen readers hear what each card shows (value, movie, rating/date)
 - Total Box Office stat card clickable, jumps to Stats page's Box Office tab
-- Trends & Breakdown: 10-year release trend (continuous span, empty years shown as 0), top-7 genre breakdown (+ "Other"), rating distribution (each clickable — jumps to Movies pre-filtered by that year/genre/vote range; years and rating bars with no movies aren't clickable), recent releases list with poster thumbnails (a list of buttons — click or Enter/Space opens the detail drawer; unrated movies tagged "Not rated")
+- Trends & Breakdown: 10-year release trend (continuous span, empty years shown as 0), top-7 genre breakdown (+ "Other"), rating distribution (each clickable — jumps to Movies pre-filtered by that year/genre/vote range; years and rating bars with no movies aren't clickable), recent releases list with poster thumbnails ("No dated releases" when no movie has a date; a list of buttons — click or Enter/Space opens the detail drawer; unrated movies tagged "Not rated")
 - Unknown values aren't shown as real ones: revenue ≤ 0 doesn't count toward Total Box Office, averages with no data show "—"
 - If the movie-details panel fails to download, the Dashboard stays up with an error message and the next click retries
 - Skeleton placeholder layout while data loads (instead of a bare spinner)
@@ -15,9 +15,9 @@ DASHBOARD (/)
 MOVIES (/movies)
 - Table or grid view via Segmented toggle (grid = card layout with poster thumbnail, up to 6 cards/row on wide screens, taller cover to show more of the poster, own sort dropdown for name/year/rating/runtime; table = dense sortable list)
 - Poster shown in grid cards and the detail drawer when a movie has a Poster URL in the CSV; falls back to a placeholder otherwise
-- Always-visible search box (name, director, actor, genre, production company/country, release year, language name; leading/trailing spaces ignored, a space alone is no search)
+- Always-visible search box (name, director, actor, genre, production company/country, release year, language name; accents ignored — amelie finds Amélie; leading/trailing spaces ignored, a space alone is no search)
 - Filters button opens a right-side drawer with grouped Category filters (language — searchable by name, genre, director) and Range filters (year, vote average, runtime, box-office revenue — an active revenue/vote/runtime range excludes movies with unknown revenue / unrated / unknown runtime; moving one handle never changes the other end, e.g. a drill-down's 3.999 stays 3.999, even if the handles cross; the revenue slider steps by ~1/100 of its span from the keyboard); dot indicator when a filter is active
-- Removable filter chips summarizing active filters, one-click "Clear all" shown directly on the page
+- Removable filter chips summarizing active filters, one-click "Clear all" shown directly on the page; each chip has a keyboard-reachable "Remove …" button; slider handles are named for screen readers ("Runtime minimum")
 - Filter state persisted for the tab/session (sessionStorage) — survives nav within the tab, resets on new tab/restart; restored filters are validated and clamped to the current data; filters still restore when localStorage is blocked; clearing the search applies at once (typing is debounced)
 - Adding/deleting a movie refreshes the list in the background — open dialogs, sort, page and search are kept; changing filters returns to page 1
 - Range sliders apply on release (no refilter per drag tick)
@@ -27,8 +27,10 @@ MOVIES (/movies)
 - Export filtered results to CSV (named movies-filtered-N.csv while a search/filter is active, else movies-N.csv — decided by the same debounced search as the rows; the button's explanation shows on hover and keyboard focus and is read by screen readers) — in the order the table/grid currently shows them, with every catalogue column, formula-like cells and column names guarded, UTF-8 BOM so Excel reads accents
 - "Add Movie" button opens a modal to search TMDB (by movie name and/or actor, optional release-year narrowing) and import a result straight into the running catalogue — no need to leave the browser or use movie-search.py; a new search replaces a running one, and "Added" follows the current catalogue (a movie deleted later can be imported again)
 - Detail drawer has a Delete button (confirm required) to remove a movie from the catalogue
-- Sidebar auto-collapses below 768px viewport width (Ant Design breakpoint hook), collapsed from the first paint on a tablet-width load; manual toggle still works; sidebar sticky-positioned
+- Sidebar auto-collapses below 768px viewport width (Ant Design breakpoint hook), collapsed from the first paint on a tablet-width load; manual toggle is a keyboard-operable "Collapse/Expand sidebar" button; the sidebar menu is a nav landmark; sidebar sticky-positioned
 - Back/Forward keep the scroll position; following a nav link opens the new section at the top
+- Each page names the browser tab ("Movies · MovieDash") and its heading takes focus after an in-app navigation (screen readers announce the page; the first page of a visit keeps normal focus)
+- A page whose code failed to download offers Try Again (downloads it again, no full reload, doesn't wait on the catalogue) and Reload page; after a crash, Try Again waits for the catalogue reload before re-rendering
 - A crashed page clears when its own nav link is clicked (Dashboard and Movies too, not just Stats); a failed first load shows the server's reason (a first-load 503 is retried once) and hides the movie count
 - Below the sm breakpoint: sidebar replaced by fixed bottom nav bar (Dashboard/Movies/Stats), grid view default, detail/filters drawers go full-width, table columns hide progressively, pagination switches to simple mode
 - Release dates rendered as DD-MM-YYYY (table + detail drawer); any other date text is shown as-is
@@ -48,7 +50,7 @@ STATISTICS (6 tabs)
 - Explore: genre distribution, year x genre heatmap, Top 10 Explorer (highest rated — min. 50 votes / longest / most recent / oldest — by release date, undated left out / most popular; readable in light theme, toolbar wraps on phones)
 
 THEME
-- Light / dark toggle; follows the OS preference (including live changes) until the user toggles, and only a toggled choice is saved (localStorage key movieDash_theme); works even when storage is blocked
+- Light / dark toggle; follows the OS preference (including live changes) until the user toggles, and only a toggled choice is saved (localStorage key movieDash_theme); works even when storage is blocked; applied before the first paint (no white flash, browser scrollbars/controls match the theme)
 - Refined glassmorphism design system — shared surface/spacing/typography tokens (CSS custom properties + chartTheme.ts) applied consistently to sidebar, top bar, bottom nav, and every page; calmer border/shadow, muted 8-color chart palette shared by every chart (one color per single-series chart, positive/negative pair for profit/loss); compact doughnut legends on phones
 
 BACKEND / DATA
@@ -62,7 +64,7 @@ BACKEND / DATA
 - CSV path resolved via process.cwd() (not __dirname), so the compiled production server (server/dist/server/server.js) reads the correct src/movies.csv, same as dev
 - Single-process production: npm start (or build + build:server + server:prod) serves the built app from dist/ and /api on one port (5000); client routes like /movies and /stats?tab=people fall back to index.html so deep links/reloads work, unknown /api/* paths get a JSON 404, hashed /assets/* are cached immutable for a year and index.html is no-cache so a redeploy shows up on the next load; server:prod uses a --production flag (works in cmd/PowerShell/bash, unlike NODE_ENV=production cmd)
 - CSV template + TMDB API sourcing guide included
-- One canonical CSV value format shared by the in-app import, movie-search.py and the README guide: multi-value columns (genres, cast, production companies/countries) list every full name comma-joined; missing values left empty (legacy "N/A" placeholders read as empty)
+- One canonical CSV value format shared by the in-app import, movie-search.py and the README guide: multi-value columns (genres, cast, production companies/countries) list every full name comma-joined; missing values left empty (legacy "N/A" placeholders read as empty); a comma inside one name is replaced by a space so it isn't split; Language codes are trimmed and lower-cased on load (EN and en count as one language)
 - Country and production-company charts split comma-joined values, so co-productions count toward each country
 - movie-search.py: Tkinter GUI to search TMDB (by movie or actor, language filter, pagination) and append picked results (incl. poster URL) to src/movies.csv; TMDB_API_KEY read from .env (never hardcoded), always sent via requests' params= (not URL-interpolated); appends stay column-aligned with an existing CSV's own header, even one predating the Poster URL column; never stores a partial row when a TMDB request fails (one error, retry later works), and builds each row from the details fetched for that save; every TMDB fetch and save runs off the UI thread (window stays responsive, buttons disabled meanwhile), one request per saved movie; one error dialog per listing, a rejected API key named as such; Next Page continues after the last page scanned (language filter, max 10 pages per view) and ends after an actor search; a failed search keeps the shown list's paging. Still available for bulk/offline use alongside the in-app Add Movie modal.
 - backfill_posters.py: one-off script to fill Poster URL for existing CSV rows via TMDB lookup by Movie ID; checkpointed every 100 rows (each checkpoint written to a temp file and atomically swapped in, so interrupting it can't truncate the CSV); each checkpoint re-reads the CSV and merges posters by Movie ID, so movies added in the app mid-run are kept; stops on a rejected API key (401) and never rewrites the file when it found nothing; Ctrl+C or an unexpected error still saves the posters found so far; reports a specific skip reason per row
@@ -83,14 +85,14 @@ SECURITY
 
 QUALITY
 - ESLint (typescript-eslint, react-hooks, unused-imports), zero warnings allowed; lint also enforces the e2e safety rules (specs import test/expect from tests/helpers.ts, no waitForTimeout)
-- e2e specs, helpers and the Vite/Playwright configs are type-checked on every build (tsconfig.node.json); a committed test.only fails CI; the dev server refuses a busy port 3000 instead of silently moving
-- 117 Playwright E2E tests across 13 suites (no fixed sleeps; every write and TMDB call mocked, so e2e never modifies src/movies.csv)
+- e2e specs, helpers and the Vite/Playwright configs are type-checked on every build (tsconfig.node.json), and the server tests by type-check:server (server/tsconfig.test.json); a committed test.only fails CI; the dev server refuses a busy port 3000 instead of silently moving
+- 135 Playwright E2E tests across 13 suites (no fixed sleeps; every write and TMDB call mocked, so e2e never modifies src/movies.csv)
 - ruff lint for the Python tools (movie-search.py, backfill_posters.py, catalogue_io.py) in CI
-- 40 Python unit tests (stdlib unittest, tests/python) for the shared CSV I/O and the backfill — temp files, no network
-- 115 server API tests (node:test via tsx) against temp CSVs with a stubbed TMDB client — never touch src/movies.csv or the network
-- 39 frontend unit tests (node:test via tsx, tests/unit) for the shared display helpers: revenue labels, chart colours, dates, language names, grouping, drill-down buckets, chart tooltip numbers and cursor, range-slider helpers, the unrated-vote rule and CSV formula escaping
+- 42 Python unit tests (stdlib unittest, tests/python) for the shared CSV I/O and the backfill — temp files, no network
+- 118 server API tests (node:test via tsx) against temp CSVs with a stubbed TMDB client — never touch src/movies.csv or the network
+- 56 frontend unit tests (node:test via tsx, tests/unit) for the shared display helpers: revenue labels, chart colours and ink, dates, language names, grouping, rankings and averages, drill-down buckets, chart tooltip numbers and cursor, range-slider helpers, the unrated-vote rule, accent-folded search, saved-filter validation and CSV formula escaping
 - GitHub Actions CI: npm audit (no high/critical advisories) + lint + ruff + Python tests + server type-check + build + bundle budget + server tests + unit tests + e2e on push/PR to main
-- Bundle budget (npm run check:bundle): landing-page JS must stay within 400 kB gzip (currently ~364, down from ~517) and no chunk may exceed 500 kB minified; per-route antd chunks, lazy Movies/Stats routes and a lazy Dashboard movie drawer keep table/slider/drawer/modal code off the landing page
+- Bundle budget (npm run check:bundle): landing-page JS must stay within 400 kB gzip (currently ~332, down from ~517) and no chunk may exceed 500 kB minified; per-route antd chunks, lazy Movies/Stats routes and a lazy Dashboard movie drawer keep table/slider/drawer/modal code off the landing page
 - Current majors: React 19, Ant Design 6, Vite 8 (Rolldown), Express 5, TypeScript 6 (TypeScript 7 waits on typescript-eslint support)
 - Hover lift on stat cards and grid cards is a CSS transition (no animation library)
 - Requires Node.js 22.22+ (react-router v8 requirement)

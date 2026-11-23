@@ -3,6 +3,7 @@ import { Grid } from 'antd';
 import { Doughnut } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
 import { useClickHandlers, type ClickProps } from './chartHelpers';
+import { chartInk } from '../../utils/chartTheme';
 
 // Chart.js caps a bottom legend at half the chart height and drops rows past that, so on phones
 // (where the legend wraps to many rows) every doughnut uses the compact sizing.
@@ -22,7 +23,7 @@ const DoughnutChart: React.FC<DoughnutChartProps> = ({ data, isDark = true, onEl
   const click = useClickHandlers({ onElementClick, isClickable });
 
   const options: ChartOptions<'doughnut'> = useMemo(() => {
-    const textColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
+    const { text: textColor } = chartInk(isDark);
     const { size, padding, boxWidth } = LEGEND_SIZES[compact ? 'compact' : 'normal'];
 
     return {

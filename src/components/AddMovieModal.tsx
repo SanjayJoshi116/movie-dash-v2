@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Modal, Input, Button, Space, List, Alert, Avatar, Tag, Typography } from 'antd';
+import { Modal, Input, Button, Space, Alert, Avatar, Tag, Typography, Spin, Empty } from 'antd';
 import { SearchOutlined, CheckOutlined, PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useMovies } from '../hooks/useMovies';
@@ -155,34 +155,18 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
 
       {error && <Alert type="error" title={error} showIcon closable={{ onClose: () => setError(null) }} style={{ marginBottom: 12 }} />}
 
-      <List
-        loading={searching}
-        dataSource={results}
-        locale={{ emptyText: 'No results yet — search above' }}
-        style={{ maxHeight: 440, overflowY: 'auto' }}
-        renderItem={(item) => (
-          <List.Item
-            actions={[
-              isAdded(item.id) ? (
-                <Tag icon={<CheckOutlined />} color="success" key="added">Added</Tag>
-              ) : (
-                <Button
-                  key="import"
-                  size="small"
-                  icon={<PlusOutlined />}
-                  loading={importingIds.has(item.id)}
-                  onClick={() => handleImport(item.id)}
-                >
-                  Import
-                </Button>
-              ),
-            ]}
-          >
-            <List.Item.Meta
-              avatar={
+      {/* A plain list (antd List is deprecated in v6, B49), laid out like List.Item + Meta. */}
+      <Spin spinning={searching}>
+        {results.length === 0 ? (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No results yet — search above" />
+        ) : (
+          <ul className="plain-list" aria-label="Search results" style={{ maxHeight: 440, overflowY: 'auto' }}>
+            {results.map((item) => (
+              <li key={item.id} className="add-movie-result">
                 <Avatar
                   shape="square"
                   size={48}
+                  style={{ flexShrink: 0 }}
                   src={
                     <img
                       src={item.posterUrl || POSTER_FALLBACK}
@@ -191,17 +175,29 @@ const AddMovieModal: React.FC<AddMovieModalProps> = ({ open, onClose }) => {
                     />
                   }
                 />
-              }
-              title={<span style={{ color: 'var(--text-primary)' }}>{item.title}</span>}
-              description={
-                <Text style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                  {item.year || 'Unknown year'} · {getLanguageName(item.language) || 'Unknown language'}
-                </Text>
-              }
-            />
-          </List.Item>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{item.title}</div>
+                  <Text style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                    {item.year || 'Unknown year'} · {getLanguageName(item.language) || 'Unknown language'}
+                  </Text>
+                </div>
+                {isAdded(item.id) ? (
+                  <Tag icon={<CheckOutlined />} color="success" style={{ marginInlineEnd: 0 }}>Added</Tag>
+                ) : (
+                  <Button
+                    size="small"
+                    icon={<PlusOutlined />}
+                    loading={importingIds.has(item.id)}
+                    onClick={() => handleImport(item.id)}
+                  >
+                    Import
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
-      />
+      </Spin>
     </Modal>
   );
 };

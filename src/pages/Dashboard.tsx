@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useMemo, useState } from 'react';
-import { Row, Col, Typography, Button, Tag, List, Grid, Alert } from 'antd';
+import { Row, Col, Typography, Button, Tag, Grid, Alert, Empty } from 'antd';
 import { useNavigate } from 'react-router';
 import type { ChartData } from 'chart.js';
 import {
@@ -22,7 +22,8 @@ import LineChart from '../components/Charts/LineChart';
 import BarChart from '../components/Charts/BarChart';
 import DoughnutChart from '../components/Charts/DoughnutChart';
 import PosterThumb from '../components/PosterThumb';
-import ChunkErrorBoundary, { ChunkLoadError } from '../components/ChunkErrorBoundary';
+import ChunkErrorBoundary from '../components/ChunkErrorBoundary';
+import { retryableLazy, retryFailedLazies } from '../utils/retryableLazy';
 import EmptyState from '../components/EmptyState';
 import { getCardStyle, SPACING, FONT_SIZE, CHART_PALETTE, CHART_PRIMARY, withAlpha } from '../utils/chartTheme';
 import { groupByField, topNWithOther, makeDoughnut, parseRevenue, formatRevenue, drillableLabelAt, parseVote, ratingPool, countIntoBuckets, bucketToRange, VOTE_STEP, VOTE_MAX, MAX_NAMED_CATEGORIES } from '../utils/statsHelpers';
@@ -30,15 +31,13 @@ import { RATING_BUCKETS } from '../utils/chartBuckets';
 import { useDrillDown } from '../contexts/DrilldownContext';
 import { formatDateDDMMYYYY } from '../utils/formatDate';
 import type { Movie } from '../types/movie';
+import PageTitle from '../components/PageTitle';
 
 // Lazy: the drawer (Drawer, Descriptions, Image, Popconfirm) isn't needed for the landing page's
 // first paint, so it stays out of the initial bundle (frontend-performance spec) and loads on first open.
-// The loader stays module-level (so Vite still splits the chunk); the lazy component itself lives in
-// state, so a failed load can be retried with a fresh React.lazy (React caches a rejected one forever).
-// A failed download is marked as a ChunkLoadError, so the boundary passes real drawer crashes up (B178).
-const loadDrawer = () => import('../components/MovieDrawer').catch((err: unknown) => {
-  throw new ChunkLoadError(err);
-});
+// retryableLazy, like the route pages: a failed download is a ChunkLoadError (so the boundary passes
+// real drawer crashes up, B178) and retryFailedLazies() lets the next open download it again.
+const MovieDrawer = retryableLazy(() => import('../components/MovieDrawer'));
 
 const DRAWER_LOAD_ERROR = "Couldn't open movie details. Check your connection and try again.";
 
@@ -128,17 +127,16 @@ const Dashboard: React.FC = () => {
   // Mount the lazy drawer on first open and keep it mounted, so its close animation still plays.
   const [drawerMounted, setDrawerMounted] = useState(false);
   if (selectedMovie && !drawerMounted) setDrawerMounted(true);
-  const [drawer, setDrawer] = useState(() => ({ attempt: 0, MovieDrawer: React.lazy(loadDrawer) }));
-  const { MovieDrawer } = drawer;
   // An inline Alert, not antd `message`: message isn't on the landing route and would add ~9 kB gzip to it.
   const [drawerLoadFailed, setDrawerLoadFailed] = useState(false);
   const handleDrawerLoadError = useCallback(() => {
     setDrawerLoadFailed(true);
     setSelectedMovie(null);
+    // Unmounting drops the failed boundary; the next open mounts a fresh one and downloads again.
+    // Chromium fetches a failed module again; a browser that caches the failure keeps failing, which
+    // is why the alert also offers a reload (B179).
     setDrawerMounted(false);
-    // A fresh lazy calls import() again on the next open. Chromium fetches a failed module again; a
-    // browser that caches the failure keeps failing, which is why the alert also offers a reload (B179).
-    setDrawer((d) => ({ attempt: d.attempt + 1, MovieDrawer: React.lazy(loadDrawer) }));
+    retryFailedLazies();
   }, []);
   // A new open is a retry, so the previous failure's alert goes away.
   const openMovie = useCallback((movie: Movie) => {
@@ -259,7 +257,7 @@ const Dashboard: React.FC = () => {
   return (
     <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: SPACING.xxl }}>
-      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}><span aria-hidden="true">🏠 </span>Dashboard</Title>
+      <PageTitle emoji="🏠" title="Dashboard" />
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: SPACING.xxl }}>
         Snapshot of your movie collection — key stats, highlights, and trends at a glance.
       </Text>
@@ -365,39 +363,43 @@ const Dashboard: React.FC = () => {
               <Text style={{ color: 'var(--text-secondary)', fontSize: FONT_SIZE.label, display: 'block', marginBottom: SPACING.md }}>
                 Recent Releases
               </Text>
-              <List
-                dataSource={recentMovies}
-                locale={{ emptyText: 'No data' }}
-                renderItem={(movie) => {
-                  const date = formatDateDDMMYYYY(movie['Release Date']);
-                  const badge = formatVoteBadge(movie['Vote Average']);
-                  return (
-                    // The <li> keeps its list-item role; the clickable control is a real button inside it.
-                    <List.Item style={{ padding: '10px 4px', borderBlockEnd: '1px solid var(--glass-border)' }}>
-                      <button
-                        type="button"
-                        className="recent-release-button"
-                        onClick={() => openMovie(movie)}
-                        aria-label={`${movie.Name}${date ? `, released ${date}` : ''}, ${badge ? `rated ${movie['Vote Average']}` : 'not rated'}`}
-                        style={{ justifyContent: 'space-between', alignItems: 'center', gap: SPACING.md }}
-                      >
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                          <PosterThumb movie={movie} width={32} height={48} radius={4} />
-                          <span style={{ display: 'block', minWidth: 0 }}>
-                            <span style={{ display: 'block', color: 'var(--text-primary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {movie.Name}
-                            </span>
-                            <span style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: SPACING.xs }}>
-                              <ClockCircleOutlined /> {date}
+              {/* A plain list (antd List is deprecated in v6, B49). Each <li> keeps its list-item role;
+                  the clickable control is a real button inside it. A catalogue with no parseable
+                  Release Date gets here with nothing to list. */}
+              {recentMovies.length === 0 ? (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No dated releases" />
+              ) : (
+                <ul className="plain-list" aria-label="Recent releases">
+                  {recentMovies.map((movie) => {
+                    const date = formatDateDDMMYYYY(movie['Release Date']);
+                    const badge = formatVoteBadge(movie['Vote Average']);
+                    return (
+                      <li key={movie['Movie ID']} style={{ padding: '10px 4px', borderBlockEnd: '1px solid var(--glass-border)' }}>
+                        <button
+                          type="button"
+                          className="recent-release-button"
+                          onClick={() => openMovie(movie)}
+                          aria-label={`${movie.Name}${date ? `, released ${date}` : ''}, ${badge ? `rated ${movie['Vote Average']}` : 'not rated'}`}
+                          style={{ justifyContent: 'space-between', alignItems: 'center', gap: SPACING.md }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                            <PosterThumb movie={movie} width={32} height={48} radius={4} />
+                            <span style={{ display: 'block', minWidth: 0 }}>
+                              <span style={{ display: 'block', color: 'var(--text-primary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {movie.Name}
+                              </span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: SPACING.xs }}>
+                                <ClockCircleOutlined /> {date}
+                              </span>
                             </span>
                           </span>
-                        </span>
-                        <Tag color={badge ? 'blue' : undefined} style={{ flexShrink: 0 }}>{badge ?? NOT_RATED}</Tag>
-                      </button>
-                    </List.Item>
-                  );
-                }}
-              />
+                          <Tag color={badge ? 'blue' : undefined} style={{ flexShrink: 0 }}>{badge ?? NOT_RATED}</Tag>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           </Col>
         </Row>
@@ -432,7 +434,7 @@ const Dashboard: React.FC = () => {
       )}
 
       {drawerMounted && (
-        <ChunkErrorBoundary key={drawer.attempt} onError={handleDrawerLoadError}>
+        <ChunkErrorBoundary onError={handleDrawerLoadError}>
           <Suspense fallback={null}>
             <MovieDrawer movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
           </Suspense>

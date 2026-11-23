@@ -5,7 +5,9 @@ import { alignToStep } from '../utils/filterSpans';
 
 type Range = [number, number];
 
-interface RangeSliderProps extends Omit<SliderRangeProps, 'range' | 'value' | 'defaultValue' | 'onChange' | 'onChangeComplete'> {
+interface RangeSliderProps extends Omit<SliderRangeProps, 'range' | 'value' | 'defaultValue' | 'onChange' | 'onChangeComplete' | 'ariaLabelForHandle'> {
+  /** What the range filters (e.g. "Release year"); names the handles "<label> minimum"/"<label> maximum". */
+  label: string;
   /** The committed range (what the filter currently uses). */
   value: Range;
   /** Called once when the user releases the handle (or per keyboard step) — not on every drag tick. */
@@ -20,7 +22,7 @@ interface RangeSliderProps extends Omit<SliderRangeProps, 'range' | 'value' | 'd
  * step-aligned, and the slider reports that aligned value on every commit. An end the user didn't
  * move (its new value equals the aligned committed value) keeps its exact committed value instead.
  */
-const RangeSlider: React.FC<RangeSliderProps> = ({ value, onCommit, ...rest }) => {
+const RangeSlider: React.FC<RangeSliderProps> = ({ label, value, onCommit, ...rest }) => {
   const { min = 0, max = 100, step = 1 } = rest;
   // Handles can cross (rc-slider's allowCross defaults to true) and values come back sorted, so an
   // untouched bound may arrive at the other index. Match by index first, then the other bound,
@@ -48,6 +50,7 @@ const RangeSlider: React.FC<RangeSliderProps> = ({ value, onCommit, ...rest }) =
     <Slider
       {...rest}
       range
+      ariaLabelForHandle={[`${label} minimum`, `${label} maximum`]}
       value={draft}
       onChange={(v) => setDraft(v as Range)}
       onChangeComplete={(v) => onCommit(keepUntouched(v as Range))}

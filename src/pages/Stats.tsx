@@ -16,8 +16,9 @@ import { DrilldownScopeProvider } from '../contexts/DrilldownContext';
 import { getCardStyle } from '../utils/chartTheme';
 import { clampRange, computeFilterSpans } from '../utils/filterSpans';
 import type { Movie } from '../types/movie';
+import PageTitle from '../components/PageTitle';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const TAB_KEYS = ['overview', 'people', 'ratings', 'runtime', 'boxoffice', 'explore'] as const;
 type TabKey = typeof TAB_KEYS[number];
@@ -92,7 +93,7 @@ const Stats: React.FC = () => {
   return (
     <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: 24 }}>
-      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}><span aria-hidden="true">📊 </span>Statistics Dashboard</Title>
+      <PageTitle emoji="📊" title="Statistics Dashboard" />
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
         Deep-dive charts and breakdowns across ratings, people, runtime, box office, and more.
       </Text>
@@ -116,6 +117,7 @@ const Stats: React.FC = () => {
         </div>
         {/* Commits on release: re-scoping recomputes every visited tab's charts, so not per drag tick. */}
         <RangeSlider
+          label="Release year"
           min={yearMin}
           max={yearMax}
           value={yearRange ?? [yearMin, yearMax]}

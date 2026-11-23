@@ -7,7 +7,7 @@ import RadarChart from '../Charts/RadarChart';
 import LineChart from '../Charts/LineChart';
 import ScatterChart from '../Charts/ScatterChart';
 import ChartBlock from './ChartBlock';
-import { countIntoBuckets, bucketToRange, parseVote, continuousYears, VOTE_STEP, VOTE_MAX } from '../../utils/statsHelpers';
+import { countIntoBuckets, bucketToRange, parseVote, continuousYears, VOTE_STEP, VOTE_MAX, averagesBy, splitNames, topAverages } from '../../utils/statsHelpers';
 import { VOTE_BUCKETS } from '../../utils/chartBuckets';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { getLanguageName } from '../../utils/languages';
@@ -29,23 +29,8 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
   }, [movies]);
 
   const avgVoteByGenreData = useMemo<ChartData<'bar'>>(() => {
-    const sums: Record<string, { sum: number; count: number }> = {};
-    movies.forEach(m => {
-      const v = parseVote(m['Vote Average']);
-      if (v !== null && m.Genres) {
-        m.Genres.split(',').forEach(g => {
-          const genre = g.trim();
-          if (!genre) return;
-          if (!sums[genre]) sums[genre] = { sum: 0, count: 0 };
-          sums[genre].sum += v;
-          sums[genre].count += 1;
-        });
-      }
-    });
-    const top = Object.entries(sums)
-      .map(([g, { sum, count }]) => [g, sum / count] as [string, number])
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 15);
+    const avgs = averagesBy(movies, (m) => splitNames(m.Genres), (m) => parseVote(m['Vote Average']));
+    const top = topAverages(avgs, 15);
     return {
       labels: top.map(([g]) => g),
       datasets: [{ label: 'Avg Vote', data: top.map(([, v]) => parseFloat(v.toFixed(2))), backgroundColor: CHART_PALETTE[6] }],
@@ -53,22 +38,14 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
   }, [movies]);
 
   const avgVoteByLanguageData = useMemo<ChartData<'radar'>>(() => {
-    const sums: Record<string, { sum: number; count: number }> = {};
-    movies.forEach(m => {
-      const v = parseVote(m['Vote Average']);
-      if (v !== null && m.Language) {
-        if (!sums[m.Language]) sums[m.Language] = { sum: 0, count: 0 };
-        sums[m.Language].sum += v;
-        sums[m.Language].count += 1;
-      }
-    });
+    const sums = averagesBy(movies, (m) => (m.Language ? [m.Language] : []), (m) => parseVote(m['Vote Average']));
     // Top 8 among languages with rated movies (most rated first, code for ties): every spoke is a
     // real average — no blank-language "Unknown" or unrated-only language plotted at 0.
     const top8 = Object.entries(sums)
       .sort(([a, x], [b, y]) => y.count - x.count || a.localeCompare(b))
       .slice(0, 8)
       .map(([l]) => l);
-    const avgs = top8.map(l => parseFloat((sums[l].sum / sums[l].count).toFixed(2)));
+    const avgs = top8.map(l => parseFloat(sums[l].avg.toFixed(2)));
     return {
       labels: top8.map(getLanguageName),
       datasets: [{
@@ -84,28 +61,17 @@ const RatingsTab: React.FC<RatingsTabProps> = ({ movies }) => {
   // Every year from the first to the last with a rated release; years with none are `null`, so the
   // line breaks there (spanGaps stays false) and they aren't drill-down targets.
   const avgVoteByYearData = useMemo<ChartData<'line', (number | null)[]>>(() => {
-    const sums = new Map<number, { sum: number; count: number }>();
-    let lo = Infinity, hi = -Infinity;
-    movies.forEach(m => {
-      const v = parseVote(m['Vote Average']);
+    const avgs = averagesBy(movies, (m) => {
       const y = parseInt(m['Release Year'], 10);
-      if (v === null || isNaN(y)) return;
-      const s = sums.get(y) ?? { sum: 0, count: 0 };
-      s.sum += v;
-      s.count += 1;
-      sums.set(y, s);
-      if (y < lo) lo = y;
-      if (y > hi) hi = y;
-    });
-    const years = isFinite(lo) ? continuousYears(lo, hi) : [];
+      return isNaN(y) ? [] : [String(y)];
+    }, (m) => parseVote(m['Vote Average']));
+    const rated = Object.keys(avgs).map(Number);
+    const years = rated.length ? continuousYears(Math.min(...rated), Math.max(...rated)) : [];
     return {
       labels: years.map(String),
       datasets: [{
         label: 'Avg Vote',
-        data: years.map((y) => {
-          const s = sums.get(y);
-          return s ? parseFloat((s.sum / s.count).toFixed(2)) : null;
-        }),
+        data: years.map((y) => (avgs[y] ? parseFloat(avgs[y].avg.toFixed(2)) : null)),
         borderColor: CHART_PALETTE[1],
         backgroundColor: withAlpha(CHART_PALETTE[1], 0.15),
         fill: true,

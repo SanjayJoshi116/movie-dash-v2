@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
 import { useClickHandlers, type ClickProps } from './chartHelpers';
+import { chartInk } from '../../utils/chartTheme';
 
 interface BarChartProps extends ClickProps {
   data: ChartData<'bar'>;
@@ -14,9 +15,7 @@ const BarChart: React.FC<BarChartProps> = ({ data, isDark = true, onElementClick
   const multiSeries = data.datasets.length > 1;
 
   const options: ChartOptions<'bar'> = useMemo(() => {
-    const textColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
-    const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.14)';
-    const tickColor = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.75)';
+    const { text: textColor, gridStrong: gridColor, tick: tickColor } = chartInk(isDark);
 
     return {
       responsive: true,

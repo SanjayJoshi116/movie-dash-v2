@@ -3,7 +3,7 @@ import { Chart } from 'react-chartjs-2';
 import { Chart as ChartJS } from 'chart.js';
 import type { TooltipItem, ChartData, ChartOptions } from 'chart.js';
 import { MatrixController, MatrixElement } from 'chartjs-chart-matrix';
-import { CHART_PRIMARY, withAlpha } from '../../utils/chartTheme';
+import { CHART_PRIMARY, withAlpha, chartInk } from '../../utils/chartTheme';
 
 ChartJS.register(MatrixController, MatrixElement);
 
@@ -57,9 +57,7 @@ const MatrixChart: React.FC<MatrixChartProps> = ({ data, xLabels, yLabels, heigh
   }, [data, xLabels, yLabels, isDark]);
 
   const options = useMemo(() => {
-    const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';
-    const tickColor = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.75)';
-    const labelColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
+    const { grid: gridColor, tick: tickColor, text: labelColor } = chartInk(isDark);
 
     return {
       responsive: true,

@@ -41,6 +41,18 @@ export interface FilterState {
   revenueRange: [number, number] | null;
 }
 
+/** No search, no filters: the Movies page's starting state and "Clear all". */
+export const DEFAULT_FILTERS: FilterState = {
+  search: '',
+  languages: [],
+  genres: [],
+  directors: [],
+  yearRange: null,
+  voteRange: null,
+  runtimeRange: null,
+  revenueRange: null,
+};
+
 export interface StatsCounters {
   totalMovies: number;
   avgRuntime: number;

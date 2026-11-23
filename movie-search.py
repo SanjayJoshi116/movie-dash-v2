@@ -13,6 +13,7 @@ from catalogue_io import (
     CatalogueError,
     add_row_if_new,
     get_tmdb_object,
+    join_names,
     make_tmdb_session,
 )
 
@@ -213,9 +214,6 @@ def build_row(movie_id, details, credits, keywords):
     """The CSV row, built only from the TMDB responses fetched for this save (never from the list
     cells, which are blank when listing couldn't fetch the details). Values are raw: the shared
     append escapes them."""
-    def names(items):
-        return ", ".join(i["name"] for i in items or [] if i.get("name"))
-
     release_date = field(details, "release_date")
     return {
         "Movie ID": movie_id,
@@ -223,18 +221,18 @@ def build_row(movie_id, details, credits, keywords):
         "Language": field(details, "original_language"),
         "Runtime": field(details, "runtime"),
         "Release Year": release_date.split("-")[0] if release_date else "",
-        "Genres": names(details.get("genres")),
+        "Genres": join_names(details.get("genres")),
         "Director": next((m.get("name") or "" for m in credits.get("crew") or [] if m.get("job") == "Director"), ""),
-        "Actors/Actresses": names((credits.get("cast") or [])[:5]),
-        "Production Company": names(details.get("production_companies")),
-        "Production Country": names(details.get("production_countries")),
+        "Actors/Actresses": join_names((credits.get("cast") or [])[:5]),
+        "Production Company": join_names(details.get("production_companies")),
+        "Production Country": join_names(details.get("production_countries")),
         "Box Office Revenue": field(details, "revenue"),
         "Budget": field(details, "budget"),
         "Popularity Score": field(details, "popularity"),
         "Vote Average": field(details, "vote_average"),
         "Vote Count": field(details, "vote_count"),
         "Poster URL": f"{TMDB_IMAGE_BASE}{details['poster_path']}" if details.get("poster_path") else "",
-        "Keywords/Tags": names(keywords),
+        "Keywords/Tags": join_names(keywords),
         "Release Date": release_date,
     }
 

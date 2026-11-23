@@ -17,6 +17,7 @@ after the file name ("movies.csv " + str(e)), so callers catch CatalogueError an
 import csv
 import io
 import os
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -40,6 +41,18 @@ CATALOGUE_COLUMNS = (
 REPLACE_RETRY_DELAYS = (0.05, 0.1, 0.2, 0.4, 0.8)
 # How often add_row_if_new re-reads when the file changes between its duplicate check and append.
 APPEND_ATTEMPTS = 3
+
+
+_NAME_COMMA = re.compile(r"\s*,\s*")
+
+
+def join_names(items):
+    """A multi-valued cell (catalog-data-format): every TMDB item's "name" joined with ", ". The
+    list has no escaping, so a comma inside one name ("Example Films, Inc.") becomes a space first,
+    or the charts would split it into two fake categories (B147). Blank names are left out. Same
+    rule as joinNames() in server/app.ts."""
+    names = (_NAME_COMMA.sub(" ", item.get("name") or "").strip() for item in items or [])
+    return ", ".join(name for name in names if name)
 
 
 class CatalogueError(Exception):

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Radar } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
+import { chartInk } from '../../utils/chartTheme';
 
 interface RadarChartProps {
   data: ChartData<'radar'>;
@@ -9,10 +10,7 @@ interface RadarChartProps {
 
 const RadarChart: React.FC<RadarChartProps> = ({ data, isDark = true }) => {
   const options: ChartOptions<'radar'> = useMemo(() => {
-    const textColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
-    const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.14)';
-    const angleColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.18)';
-    const tickColor = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(30,30,63,0.7)';
+    const { text: textColor, gridStrong: gridColor, angle: angleColor, tickMuted: tickColor } = chartInk(isDark);
 
     return {
       responsive: true,

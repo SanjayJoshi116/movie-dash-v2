@@ -1,6 +1,13 @@
 import React from 'react';
-import { Layout, Menu } from 'antd';
-import { DashboardOutlined, BarChartOutlined, PlayCircleOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { Button, Layout, Menu } from 'antd';
+import {
+  DashboardOutlined,
+  BarChartOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  PlayCircleOutlined,
+  UnorderedListOutlined,
+} from '@ant-design/icons';
 import { Link, useLocation } from 'react-router';
 import { normalizePath } from '../utils/path';
 import { useTheme } from '../contexts/ThemeContext';
@@ -40,10 +47,13 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
   ];
 
   return (
+    // trigger={null}: Ant's default trigger is a bare <div onClick> (no role, focus or name), so the
+    // collapse toggle is a real Button below instead.
     <Sider
       collapsible
       collapsed={collapsed}
       onCollapse={onCollapse}
+      trigger={null}
       className="glass-panel"
       style={{
         background: 'var(--glass-bg)',
@@ -83,14 +93,37 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
         )}
       </Link>
 
-      <Menu
-        theme={isDark ? 'dark' : 'light'}
-        selectedKeys={[path]}
-        items={items}
+      {/* Sider renders an <aside> and Menu is role="menu", so wrap it for a desktop nav landmark
+          (BottomNav is already a <nav> on phones). */}
+      <nav aria-label="Main">
+        <Menu
+          theme={isDark ? 'dark' : 'light'}
+          selectedKeys={[path]}
+          items={items}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            marginTop: SPACING.sm,
+          }}
+        />
+      </nav>
+
+      <Button
+        type="text"
+        block
+        icon={collapsed ? <MenuUnfoldOutlined aria-hidden="true" /> : <MenuFoldOutlined aria-hidden="true" />}
+        onClick={() => onCollapse(!collapsed)}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!collapsed}
         style={{
-          background: 'transparent',
-          border: 'none',
-          marginTop: SPACING.sm,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          height: 48,
+          borderRadius: 0,
+          borderTop: '1px solid var(--glass-border)',
+          color: 'var(--text-secondary)',
         }}
       />
     </Sider>

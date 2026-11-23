@@ -36,7 +36,8 @@ interface MoviesState {
   error: string | null;
   /** A refetch() failed; the last loaded `movies` are still shown. Cleared by the next refetch. */
   refreshError: string | null;
-  refetch: () => void;
+  /** Starts a reload; the promise settles (never rejects) once that reload has finished, success or failure. */
+  refetch: () => Promise<void>;
 }
 
 const MoviesContext = createContext<MoviesState>({
@@ -45,7 +46,7 @@ const MoviesContext = createContext<MoviesState>({
   refreshing: false,
   error: null,
   refreshError: null,
-  refetch: () => {},
+  refetch: () => Promise.resolve(),
 });
 
 export const MoviesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -60,6 +61,13 @@ export const MoviesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const hasLoadedRef = useRef(false);
   // Whether the one automatic first-load 503 retry has been used; reset when a load succeeds.
   const retriedRef = useRef(false);
+  // refetch() callers waiting for the next load to settle (ErrorBoundary's "Try Again" waits on it).
+  const settleRef = useRef<Array<() => void>>([]);
+  const settle = () => {
+    const waiting = settleRef.current;
+    settleRef.current = [];
+    waiting.forEach((resolve) => resolve());
+  };
 
   const refetch = useCallback(() => {
     if (hasLoadedRef.current) {
@@ -70,6 +78,7 @@ export const MoviesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setLoading(true);
     }
     setFetchKey(k => k + 1);
+    return new Promise<void>((resolve) => { settleRef.current.push(resolve); });
   }, []);
 
   useEffect(() => {
@@ -87,6 +96,7 @@ export const MoviesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setMovies(response.data.map(normalizeMovie));
         setLoading(false);
         setRefreshing(false);
+        settle();
       })
       .catch((err: unknown) => {
         if (axios.isCancel(err)) return;
@@ -94,6 +104,7 @@ export const MoviesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (hasLoadedRef.current) {
           setRefreshError(message);
           setRefreshing(false);
+          settle();
         } else if (hasStatus(err, 503) && !retriedRef.current) {
           // Keep the skeleton up and try once more (the setFetchKey bump re-runs this effect).
           retriedRef.current = true;
@@ -101,6 +112,7 @@ export const MoviesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         } else {
           setError(message);
           setLoading(false);
+          settle();
         }
       });
 

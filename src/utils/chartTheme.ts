@@ -18,6 +18,44 @@ export const CHART_PRIMARY = CHART_PALETTE[0];
 export const CHART_POSITIVE = CHART_PALETTE[7];
 export const CHART_NEGATIVE = CHART_PALETTE[2];
 
+/**
+ * Text and grid colours of the chart wrappers (`src/components/Charts/*`), one set per theme, so no
+ * wrapper hardcodes its own (B40). `tickMuted`/`gridStrong`/`angle` are the radial charts' (and the
+ * vertical BarChart's grid) slightly different values, kept so nothing changes visually.
+ */
+export interface ChartInk {
+  /** Axis titles, legend labels. */
+  text: string;
+  /** Cartesian axis tick labels. */
+  tick: string;
+  /** Radial (radar / polar area) tick labels. */
+  tickMuted: string;
+  grid: string;
+  gridStrong: string;
+  /** Radar spokes. */
+  angle: string;
+}
+
+const CHART_INK_DARK: ChartInk = {
+  text: 'rgba(255,255,255,0.8)',
+  tick: 'rgba(255,255,255,0.7)',
+  tickMuted: 'rgba(255,255,255,0.5)',
+  grid: 'rgba(255,255,255,0.07)',
+  gridStrong: 'rgba(255,255,255,0.1)',
+  angle: 'rgba(255,255,255,0.15)',
+};
+
+const CHART_INK_LIGHT: ChartInk = {
+  text: 'rgba(30,30,63,0.85)',
+  tick: 'rgba(30,30,63,0.75)',
+  tickMuted: 'rgba(30,30,63,0.7)',
+  grid: 'rgba(0,0,0,0.14)',
+  gridStrong: 'rgba(0,0,0,0.14)',
+  angle: 'rgba(0,0,0,0.18)',
+};
+
+export const chartInk = (isDark: boolean): ChartInk => (isDark ? CHART_INK_DARK : CHART_INK_LIGHT);
+
 const HEX_COLOR = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /**

@@ -7,7 +7,7 @@ import type { MatrixDataPoint } from '../Charts/MatrixChart';
 import TopNExplorer from '../TopNExplorer';
 import ChartBlock from './ChartBlock';
 import { CHART_PRIMARY } from '../../utils/chartTheme';
-import { groupByField } from '../../utils/statsHelpers';
+import { groupByField, splitNames, topN } from '../../utils/statsHelpers';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import type { Movie } from '../../types/movie';
@@ -20,29 +20,23 @@ const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
   const drillDown = useDrillDown();
 
+  const genreCounts = useMemo(() => groupByField(movies, 'Genres'), [movies]);
+
   const genreBarData = useMemo<ChartData<'bar'>>(() => {
-    const top = Object.entries(groupByField(movies, 'Genres')).sort(([, a], [, b]) => b - a).slice(0, 20);
+    const top = topN(genreCounts, 20);
     return {
       labels: top.map(([label]) => label),
       datasets: [{ label: 'Movies', data: top.map(([, v]) => v), backgroundColor: CHART_PRIMARY }],
     };
-  }, [movies]);
+  }, [genreCounts]);
 
   const { matrixData, matrixGenres, decadeLabels } = useMemo(() => {
-    const genreCounts: Record<string, number> = {};
     const decadeSet = new Set<string>();
     movies.forEach(m => {
-      m.Genres.split(',').forEach(g => {
-        const genre = g.trim();
-        if (genre) genreCounts[genre] = (genreCounts[genre] ?? 0) + 1;
-      });
       const year = parseInt(m['Release Year'], 10);
       if (!isNaN(year)) decadeSet.add(`${Math.floor(year / 10) * 10}s`);
     });
-    const topGenres = Object.entries(genreCounts)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, TOP_GENRES_N)
-      .map(([g]) => g);
+    const topGenres = topN(genreCounts, TOP_GENRES_N).map(([g]) => g);
 
     const decades = [...decadeSet].sort();
 
@@ -57,8 +51,7 @@ const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
       if (isNaN(year)) return;
       const decadeLabel = `${Math.floor(year / 10) * 10}s`;
       if (!matrix[decadeLabel]) return;
-      m.Genres.split(',').forEach(g => {
-        const genre = g.trim();
+      splitNames(m.Genres).forEach(genre => {
         if (topGenres.includes(genre)) {
           matrix[decadeLabel][genre] = (matrix[decadeLabel][genre] ?? 0) + 1;
         }
@@ -73,7 +66,7 @@ const ExploreTab: React.FC<ExploreTabProps> = ({ movies }) => {
     });
 
     return { matrixData, matrixGenres: topGenres, decadeLabels: decades };
-  }, [movies]);
+  }, [movies, genreCounts]);
 
   const handleGenreClick = (index: number) => {
     const genre = genreBarData.labels?.[index] as string | undefined;

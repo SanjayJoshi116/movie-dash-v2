@@ -2,6 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Movie } from '../../src/types/movie';
 import {
+  averagesBy,
+  splitNames,
+  topBy,
+  topN,
   bucketToRange,
   continuousYears,
   countIntoBuckets,
@@ -85,4 +89,25 @@ test('continuousYears: every year inclusive, empty when either end is null', () 
   assert.deepEqual(continuousYears(2001, 2001), [2001]);
   assert.deepEqual(continuousYears(null, 2001), []);
   assert.deepEqual(continuousYears(2001, null), []);
+});
+
+test('splitNames: trims and drops blanks', () => {
+  assert.deepEqual(splitNames(' Drama, ,Crime ,'), ['Drama', 'Crime']);
+  assert.deepEqual(splitNames(''), []);
+  assert.deepEqual(splitNames(undefined), []);
+});
+
+test('topN / topBy: largest first, ties keep insertion order', () => {
+  assert.deepEqual(topN({ a: 1, b: 3, c: 3, d: 2 }, 3), [['b', 3], ['c', 3], ['d', 2]]);
+  assert.deepEqual(topBy({ x: { avg: 1 }, y: { avg: 5 } }, 1, (v) => v.avg), [['y', { avg: 5 }]]);
+});
+
+test('averagesBy: a movie counts toward every key; null values are skipped', () => {
+  const movies = [
+    movie({ Genres: 'Drama, Crime', 'Vote Average': '8' }),
+    movie({ Genres: 'Drama', 'Vote Average': '6' }),
+    movie({ Genres: 'Drama', 'Vote Average': '0' }), // unrated
+  ];
+  const avgs = averagesBy(movies, (m) => splitNames(m.Genres), (m) => (Number(m['Vote Average']) > 0 ? Number(m['Vote Average']) : null));
+  assert.deepEqual(avgs, { Drama: { avg: 7, count: 2 }, Crime: { avg: 8, count: 1 } });
 });

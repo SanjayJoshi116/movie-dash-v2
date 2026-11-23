@@ -1,0 +1,9 @@
+{
+  // Type-checks the server API tests, which `tsx --test` would otherwise only strip.
+  // Never emits; build:server keeps using tsconfig.json. The server files the tests import are checked with them.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["./__tests__/*.ts"]
+}

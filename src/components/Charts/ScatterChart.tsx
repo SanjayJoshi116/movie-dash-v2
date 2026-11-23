@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Scatter } from 'react-chartjs-2';
 import type { ChartData, ChartOptions, TooltipItem } from 'chart.js';
 import { formatNumber } from './chartHelpers';
+import { chartInk } from '../../utils/chartTheme';
 
 interface ScatterChartProps {
   data: ChartData<'scatter'>;
@@ -14,8 +15,7 @@ interface ScatterChartProps {
 
 const ScatterChart: React.FC<ScatterChartProps> = ({ data, isDark = true, xLabel, yLabel, pointLabels }) => {
   const options: ChartOptions<'scatter'> = useMemo(() => {
-    const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';
-    const tickColor = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.75)';
+    const { grid: gridColor, tick: tickColor } = chartInk(isDark);
 
     return {
       responsive: true,

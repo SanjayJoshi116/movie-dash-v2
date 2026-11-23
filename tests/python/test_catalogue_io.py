@@ -384,6 +384,17 @@ class SharedRulesTests(TempCsv):
         prefixes = {escapes.get(p, p) for p in re.findall(r"'([^']+)'", body)}
         self.assertEqual(prefixes, set(catalogue_io.FORMULA_PREFIX_CHARS))
 
+    def test_join_names_replaces_commas_inside_names(self):
+        items = [{"name": "Example Films, Inc."}, {"name": " "}, {"name": None}, {}, {"name": "Studio B"}]
+        self.assertEqual(catalogue_io.join_names(items), "Example Films Inc., Studio B")
+        self.assertEqual(catalogue_io.join_names(None), "")
+
+    def test_join_names_matches_typescript(self):
+        with open(os.path.join(ROOT, "server", "app.ts"), encoding="utf-8") as f:
+            ts = f.read()
+        self.assertIn(r".replace(/\s*,\s*/g, ' ').trim()", ts)
+        self.assertEqual(catalogue_io._NAME_COMMA.pattern, r"\s*,\s*")
+
     def test_append_escapes_formulas_once(self):
         self.write(b"Movie ID,Name\n1,'=Old\n")
         add_row_if_new(self.path, {"Movie ID": "2", "Name": "=Title"})

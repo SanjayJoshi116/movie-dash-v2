@@ -5,16 +5,17 @@ import { CHART_PALETTE, withAlpha } from './chartTheme';
 // Fields stored as comma-joined lists of full names (catalog-data-format spec) — a movie counts
 // once toward each listed value, so a UK/US co-production adds to both countries rather than
 // forming its own "United Kingdom, United States of America" bucket.
-const MULTI_VALUED_FIELDS: ReadonlySet<keyof Movie> = new Set<keyof Movie>(['Genres', 'Production Company', 'Production Country']);
+const MULTI_VALUED_FIELDS: ReadonlySet<keyof Movie> = new Set<keyof Movie>(['Genres', 'Actors/Actresses', 'Production Company', 'Production Country']);
+
+/** The names in a comma-joined list cell, trimmed, blanks left out (`catalog-data-format`). */
+export function splitNames(raw: string | undefined): string[] {
+  return (raw ?? '').split(',').map((part) => part.trim()).filter((part) => part !== '');
+}
 
 export function groupByField(movies: Movie[], field: keyof Movie): Record<string, number> {
   if (MULTI_VALUED_FIELDS.has(field)) {
     return movies.reduce<Record<string, number>>((acc, m) => {
-      const raw = m[field] ?? '';
-      raw.split(',').forEach(part => {
-        const value = part.trim();
-        if (value) acc[value] = (acc[value] ?? 0) + 1;
-      });
+      splitNames(m[field]).forEach((value) => { acc[value] = (acc[value] ?? 0) + 1; });
       return acc;
     }, {});
   }
@@ -23,6 +24,44 @@ export function groupByField(movies: Movie[], field: keyof Movie): Record<string
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
+}
+
+/** The `n` entries with the largest `score`, largest first (ties keep insertion order). */
+export function topBy<T>(data: Record<string, T>, n: number, score: (value: T) => number): [string, T][] {
+  return Object.entries(data).sort(([, a], [, b]) => score(b) - score(a)).slice(0, n);
+}
+
+/** The `n` highest averages from `averagesBy`, highest first, as `[key, average]` pairs. */
+export function topAverages(avgs: Record<string, { avg: number }>, n: number): [string, number][] {
+  return topBy(avgs, n, (a) => a.avg).map(([key, { avg }]) => [key, avg]);
+}
+
+/** The `n` largest counts, largest first (ties keep insertion order). */
+export function topN(data: Record<string, number>, n: number): [string, number][] {
+  return topBy(data, n, (v) => v);
+}
+
+/**
+ * Average of `valueOf(movie)` per key: each movie counts toward every key `keysOf` returns, and a
+ * `null` value (unknown, e.g. an unrated vote) is skipped entirely — it neither lowers an average
+ * nor adds to `count`.
+ */
+export function averagesBy(
+  movies: Movie[],
+  keysOf: (m: Movie) => readonly string[],
+  valueOf: (m: Movie) => number | null,
+): Record<string, { avg: number; count: number }> {
+  const sums: Record<string, { sum: number; count: number }> = {};
+  movies.forEach((m) => {
+    const value = valueOf(m);
+    if (value === null) return;
+    keysOf(m).forEach((key) => {
+      const entry = (sums[key] ??= { sum: 0, count: 0 });
+      entry.sum += value;
+      entry.count += 1;
+    });
+  });
+  return Object.fromEntries(Object.entries(sums).map(([k, { sum, count }]) => [k, { avg: sum / count, count }]));
 }
 
 // Category charts keep at most `n` named slices plus "Other", so with n ≤ 7 the 8-colour

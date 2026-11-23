@@ -7,11 +7,15 @@ Defines the canonical value format of movie catalogue fields, so every tool that
 ## Requirements
 
 ### Requirement: Multi-valued fields list every value, comma-separated
-Every catalogue writer SHALL store `Genres`, `Actors/Actresses`, `Production Company` and `Production Country` as the full names of all values, joined by a comma and a space. Production countries SHALL use full country names, not ISO codes.
+Every catalogue writer SHALL store `Genres`, `Actors/Actresses`, `Production Company` and `Production Country` as the full names of all values, joined by a comma and a space. Production countries SHALL use full country names, not ISO codes. Because the list has no escaping, a writer SHALL replace a comma inside a single name (and the spaces around it) with one space, and SHALL leave out names that are blank.
 
 #### Scenario: Co-production imported in-app
 - **WHEN** a movie produced in the United Kingdom and the United States is imported
 - **THEN** its `Production Country` is stored as `United Kingdom, United States of America`
+
+#### Scenario: Company name containing a comma
+- **WHEN** a movie whose production companies are `Example Films, Inc.` and `Studio B` is added by any writer
+- **THEN** its `Production Company` is stored as `Example Films Inc., Studio B`, which the charts count as two companies
 
 #### Scenario: Same movie added by the Python tool
 - **WHEN** the same movie is added using the bundled search tool

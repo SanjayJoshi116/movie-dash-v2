@@ -3,7 +3,7 @@ import { Row, Col } from 'antd';
 import type { ChartData } from 'chart.js';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import ChartBlock from './ChartBlock';
-import { parseRevenue, formatRevenue } from '../../utils/statsHelpers';
+import { parseRevenue, formatRevenue, averagesBy, splitNames, topAverages } from '../../utils/statsHelpers';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CHART_PALETTE, CHART_PRIMARY, CHART_POSITIVE, CHART_NEGATIVE } from '../../utils/chartTheme';
@@ -49,22 +49,11 @@ const BoxOfficeTab: React.FC<BoxOfficeTabProps> = ({ movies }) => {
   }, [movies]);
 
   const avgRevenueByGenreData = useMemo<ChartData<'bar'>>(() => {
-    const sums: Record<string, { sum: number; count: number }> = {};
-    movies.forEach(m => {
+    const avgs = averagesBy(movies, (m) => splitNames(m.Genres), (m) => {
       const rev = parseRevenue(m['Box Office Revenue']);
-      if (rev <= 0 || !m.Genres) return;
-      m.Genres.split(',').forEach(g => {
-        const genre = g.trim();
-        if (!genre) return;
-        if (!sums[genre]) sums[genre] = { sum: 0, count: 0 };
-        sums[genre].sum += rev;
-        sums[genre].count += 1;
-      });
+      return rev > 0 ? rev : null; // revenue ≤ 0 = unknown
     });
-    const top = Object.entries(sums)
-      .map(([g, { sum, count }]) => [g, sum / count] as [string, number])
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 15);
+    const top = topAverages(avgs, 15);
     return {
       labels: top.map(([g]) => g),
       datasets: [{

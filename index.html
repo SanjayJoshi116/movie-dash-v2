@@ -2,9 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MovieDash</title>
+    <!-- Before the bundle and its CSS arrive: theme-init.js sets data-theme, and this paints the
+         theme's base colour (index.css --export-bg) with matching native scrollbars/controls. -->
+    <script src="/theme-init.js"></script>
+    <style>
+      html { background: #0d0d1a; color-scheme: dark; }
+      html[data-theme='light'] { background: #f5f7ff; color-scheme: light; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

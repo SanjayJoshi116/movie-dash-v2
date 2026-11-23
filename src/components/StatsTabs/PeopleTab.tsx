@@ -4,7 +4,7 @@ import type { ChartData } from 'chart.js';
 import HorizontalBarChart from '../Charts/HorizontalBarChart';
 import DoughnutChart from '../Charts/DoughnutChart';
 import ChartBlock from './ChartBlock';
-import { groupByField, topNWithOther, makeDoughnut, drillableLabelAt, parseVote } from '../../utils/statsHelpers';
+import { groupByField, topNWithOther, makeDoughnut, drillableLabelAt, parseVote, averagesBy, splitNames, topN, topAverages } from '../../utils/statsHelpers';
 import { useDrillDown } from '../../contexts/DrilldownContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CHART_PALETTE, CHART_PRIMARY } from '../../utils/chartTheme';
@@ -14,19 +14,16 @@ interface PeopleTabProps { movies: Movie[] }
 
 const MIN_FILMS = 2;
 
+/** Only people with at least MIN_FILMS rated films qualify for an average ranking. */
+const qualifying = <T extends { count: number }>(data: Record<string, T>): Record<string, T> =>
+  Object.fromEntries(Object.entries(data).filter(([, { count }]) => count >= MIN_FILMS));
+
 const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
   const { isDark } = useTheme();
   const drillDown = useDrillDown();
 
   const topActorsData = useMemo<ChartData<'bar'>>(() => {
-    const counts: Record<string, number> = {};
-    movies.forEach(m => {
-      m['Actors/Actresses'].split(',').forEach(a => {
-        const name = a.trim();
-        if (name) counts[name] = (counts[name] ?? 0) + 1;
-      });
-    });
-    const top = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 15);
+    const top = topN(groupByField(movies, 'Actors/Actresses'), 15);
     return {
       labels: top.map(([name]) => name),
       datasets: [{ label: 'Appearances', data: top.map(([, c]) => c), backgroundColor: CHART_PRIMARY }],
@@ -34,8 +31,7 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
   }, [movies]);
 
   const topDirectorsData = useMemo<ChartData<'bar'>>(() => {
-    const g = groupByField(movies, 'Director');
-    const top = Object.entries(g).sort(([, a], [, b]) => b - a).slice(0, 15);
+    const top = topN(groupByField(movies, 'Director'), 15);
     return {
       labels: top.map(([d]) => d),
       datasets: [{ label: 'Movies', data: top.map(([, c]) => c), backgroundColor: CHART_PALETTE[1] }],
@@ -48,20 +44,9 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
   );
 
   const avgVoteByDirectorData = useMemo<ChartData<'bar'>>(() => {
-    const sums: Record<string, { sum: number; count: number }> = {};
-    movies.forEach(m => {
-      // Unrated films neither lower the average nor count toward MIN_FILMS.
-      const v = parseVote(m['Vote Average']);
-      if (v === null || !m.Director) return;
-      if (!sums[m.Director]) sums[m.Director] = { sum: 0, count: 0 };
-      sums[m.Director].sum += v;
-      sums[m.Director].count += 1;
-    });
-    const top = Object.entries(sums)
-      .filter(([, { count }]) => count >= MIN_FILMS)
-      .map(([d, { sum, count }]) => [d, sum / count] as [string, number])
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 15);
+    // Unrated films neither lower the average nor count toward MIN_FILMS.
+    const avgs = averagesBy(movies, (m) => (m.Director ? [m.Director] : []), (m) => parseVote(m['Vote Average']));
+    const top = topAverages(qualifying(avgs), 15);
     return {
       labels: top.map(([d]) => d),
       datasets: [{ label: 'Avg Vote', data: top.map(([, v]) => parseFloat(v.toFixed(2))), backgroundColor: CHART_PALETTE[6] }],
@@ -69,23 +54,8 @@ const PeopleTab: React.FC<PeopleTabProps> = ({ movies }) => {
   }, [movies]);
 
   const avgVoteByActorData = useMemo<ChartData<'bar'>>(() => {
-    const sums: Record<string, { sum: number; count: number }> = {};
-    movies.forEach(m => {
-      const v = parseVote(m['Vote Average']);
-      if (v === null) return;
-      m['Actors/Actresses'].split(',').forEach(a => {
-        const name = a.trim();
-        if (!name) return;
-        if (!sums[name]) sums[name] = { sum: 0, count: 0 };
-        sums[name].sum += v;
-        sums[name].count += 1;
-      });
-    });
-    const top = Object.entries(sums)
-      .filter(([, { count }]) => count >= MIN_FILMS)
-      .map(([a, { sum, count }]) => [a, sum / count] as [string, number])
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 15);
+    const avgs = averagesBy(movies, (m) => splitNames(m['Actors/Actresses']), (m) => parseVote(m['Vote Average']));
+    const top = topAverages(qualifying(avgs), 15);
     return {
       labels: top.map(([a]) => a),
       datasets: [{ label: 'Avg Vote', data: top.map(([, v]) => parseFloat(v.toFixed(2))), backgroundColor: CHART_PALETTE[5] }],

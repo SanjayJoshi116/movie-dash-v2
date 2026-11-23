@@ -9,9 +9,13 @@ import TopBar from './components/TopBar';
 import Dashboard from './pages/Dashboard';
 import ScrollToTop from './components/ScrollToTop';
 import ErrorBoundary from './components/ErrorBoundary';
+import PageTitle from './components/PageTitle';
+import { noteNavigation } from './utils/firstPage';
+import { retryableLazy, retryFailedLazies } from './utils/retryableLazy';
 
-const Stats = React.lazy(() => import('./pages/Stats'));
-const Movies = React.lazy(() => import('./pages/Movies'));
+// Retryable: a failed chunk download is retried on the next render instead of cached (B10).
+const Stats = retryableLazy(() => import('./pages/Stats'));
+const Movies = retryableLazy(() => import('./pages/Movies'));
 
 const PageLoader: React.FC = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
@@ -27,7 +31,8 @@ const NotFound: React.FC = () => {
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
       <Result
         status="404"
-        title="404"
+        // A real heading (it also names the tab and takes focus, like every page's title).
+        title={<PageTitle title="Page not found" style={{ marginBottom: 0 }} />}
         subTitle="The page you're looking for doesn't exist."
         extra={
           <Button type="primary" onClick={() => navigate('/')}>
@@ -41,6 +46,8 @@ const NotFound: React.FC = () => {
 
 const AppContent: React.FC = () => {
   const location = useLocation();
+  // Track the first page here too: a route that crashes before its PageTitle renders still counts as leaving it.
+  noteNavigation(location.pathname);
   const navigationType = useNavigationType();
   const { isDark } = useTheme();
   const { refetch } = useMoviesContext();
@@ -119,7 +126,7 @@ const AppContent: React.FC = () => {
         <Layout style={{ background: 'transparent' }}>
           <TopBar />
           <Content style={isMobile ? { paddingBottom: 64 } : undefined}>
-            <ErrorBoundary key={location.pathname} resetKey={resetKey} onReset={refetch}>
+            <ErrorBoundary key={location.pathname} resetKey={resetKey} onReset={refetch} onClear={retryFailedLazies}>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   <Route path="/" element={<Dashboard />} />

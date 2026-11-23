@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Drawer, Select, Button, Typography, Grid } from 'antd';
 import type { Movie, FilterState } from '../types/movie';
 import { getLanguageName } from '../utils/languages';
-import { formatRevenue } from '../utils/statsHelpers';
+import { formatRevenue, splitNames } from '../utils/statsHelpers';
 import { computeFilterSpans, niceStep } from '../utils/filterSpans';
 import RangeSlider from './RangeSlider';
 import { useTheme } from '../contexts/ThemeContext';
@@ -49,12 +49,7 @@ const FiltersDrawer: React.FC<FiltersDrawerProps> = ({ movies, filters, onChange
     movies.forEach((m) => {
       if (m.Language) languages.add(m.Language);
       if (m.Director) directors.add(m.Director);
-      if (m.Genres) {
-        m.Genres.split(',').forEach(g => {
-          const trimmed = g.trim();
-          if (trimmed) genres.add(trimmed);
-        });
-      }
+      splitNames(m.Genres).forEach((g) => genres.add(g));
     });
     return {
       languageOptions: [...languages].sort((a, b) => getLanguageName(a).localeCompare(getLanguageName(b))).map((l) => ({ label: getLanguageName(l), value: l })),
@@ -142,6 +137,7 @@ const FiltersDrawer: React.FC<FiltersDrawerProps> = ({ movies, filters, onChange
       <SectionLabel>Ranges</SectionLabel>
       <FieldLabel>Release Year</FieldLabel>
       <RangeSlider
+        label="Release year"
         min={yearMin}
         max={yearMax}
         value={filters.yearRange ?? [yearMin, yearMax]}
@@ -152,6 +148,7 @@ const FiltersDrawer: React.FC<FiltersDrawerProps> = ({ movies, filters, onChange
 
       <FieldLabel>Vote Average</FieldLabel>
       <RangeSlider
+        label="Vote average"
         min={0}
         max={10}
         step={0.1}
@@ -162,6 +159,7 @@ const FiltersDrawer: React.FC<FiltersDrawerProps> = ({ movies, filters, onChange
 
       <FieldLabel>Runtime (min)</FieldLabel>
       <RangeSlider
+        label="Runtime"
         min={runtimeMin}
         max={runtimeMax}
         value={filters.runtimeRange ?? [runtimeMin, runtimeMax]}
@@ -172,6 +170,7 @@ const FiltersDrawer: React.FC<FiltersDrawerProps> = ({ movies, filters, onChange
 
       <FieldLabel>Box Office Revenue</FieldLabel>
       <RangeSlider
+        label="Box office revenue"
         min={revenueMin}
         max={revenueMax}
         step={niceStep((revenueMax - revenueMin) / 100)}

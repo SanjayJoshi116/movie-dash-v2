@@ -1,5 +1,6 @@
 body {
   margin: 0;
+  background: var(--export-bg); /* overscroll and anything outside the app's gradient Layout */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -13,6 +14,7 @@ code {
 
 /* ── CSS Custom Properties ────────────────────────────────────────────────── */
 :root {
+  color-scheme: dark; /* native scrollbars, form controls and overscroll follow the theme */
   --bg-gradient: linear-gradient(135deg, #0d0d1a 0%, #1a1030 50%, #0d0d1a 100%);
   --export-bg: #0d0d1a; /* solid fill behind exported chart PNGs (the gradient's base colour) */
   --glass-bg: rgba(255, 255, 255, 0.05);
@@ -30,6 +32,7 @@ code {
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bg-gradient: linear-gradient(135deg, #f5f7ff 0%, #eef1ff 50%, #f5f7ff 100%);
   --export-bg: #f5f7ff;
   --glass-bg: rgba(255, 255, 255, 0.92);
@@ -69,6 +72,33 @@ code {
 .movie-name-button:focus-visible {
   outline: 2px solid #818cf8;
   outline-offset: 2px;
+}
+
+/* PageTitle takes focus after a navigation (so it's announced); it isn't interactive, so no ring. */
+.page-title:focus {
+  outline: none;
+}
+
+/* ActiveFilters chip remove button (replaces Ant's unfocusable Tag close icon; same size and fade). */
+.chip-remove-button {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 4px;
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0.65;
+  border-radius: 2px;
+}
+
+.chip-remove-button:hover {
+  opacity: 1;
+}
+
+.chip-remove-button:focus-visible {
+  opacity: 1;
+  outline: 2px solid #818cf8;
+  outline-offset: 1px;
 }
 
 /* ── Ant Design Tabs on dark background ─────────────────────────────────── */
@@ -156,6 +186,26 @@ code {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* A <ul> with no bullets or indent (Dashboard Recent Releases, Add Movie results; antd List is deprecated). */
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* One Add Movie search result: poster, title + year/language, then the Import/Added action. */
+.add-movie-result {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-block-end: 1px solid var(--glass-border);
+}
+
+.add-movie-result:last-child {
+  border-block-end: none;
 }
 
 /* Dashboard Recent Releases: a full-width button inside each list item (same reset as .movie-name-button). */

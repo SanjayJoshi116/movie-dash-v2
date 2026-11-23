@@ -11,6 +11,7 @@ import { useMovies } from '../hooks/useMovies';
 import { useLatest } from '../hooks/useLatest';
 import { hasStatus, serverErrorMessage } from '../utils/httpError';
 import { voteColor } from '../utils/vote';
+import { splitNames } from '../utils/statsHelpers';
 
 const { Title } = Typography;
 
@@ -168,7 +169,7 @@ const MovieDrawer: React.FC<MovieDrawerProps> = ({ movie, onClose }) => {
         >
           <Descriptions.Item label="Movie ID">{movie['Movie ID']}</Descriptions.Item>
           <Descriptions.Item label="Genres">
-            {movie.Genres.split(',').map(g => g.trim()).filter(Boolean).map((g) => (
+            {splitNames(movie.Genres).map((g) => (
               <Tag key={g} color="purple" style={{ marginBottom: 4 }}>
                 {g}
               </Tag>

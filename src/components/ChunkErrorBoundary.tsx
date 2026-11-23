@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * A lazy component's chunk failed to download. The loader wraps its `import()` rejection in this,
+ * A lazy component's chunk failed to download. retryableLazy wraps its `import()` rejection in this,
  * so the boundary can tell a failed download from an error thrown by the loaded component (B178).
  */
 // Kept beside the boundary that checks it (like the context files' hooks); this file is rarely edited, so losing Fast Refresh here costs little.
@@ -27,8 +27,8 @@ interface ChunkErrorBoundaryState {
 /**
  * Local boundary for a lazy-loaded piece of UI: when its chunk fails to download it renders nothing
  * and tells the parent, instead of letting the error reach the route-level ErrorBoundary. Any other
- * error is rethrown from render, so the route boundary still shows real crashes. Key it on an
- * attempt counter that changes with each fresh lazy instance (a retry), so a retry gets a fresh boundary.
+ * error is rethrown from render, so the route boundary still shows real crashes. A retry needs a
+ * fresh boundary: unmount it (Dashboard does, on error) or change its key, and call retryFailedLazies().
  */
 class ChunkErrorBoundary extends React.Component<ChunkErrorBoundaryProps, ChunkErrorBoundaryState> {
   state: ChunkErrorBoundaryState = { error: null, hasError: false };

@@ -30,3 +30,16 @@ describe('Legacy placeholder values read as missing', () => {
     assert.ok(!fs.readFileSync(s.csvPath, 'utf8').includes('N/A'));
   });
 });
+
+describe('Language codes are normalised on load', () => {
+  it('serves a hand-edited code trimmed and lower-cased (B146)', async () => {
+    const s = await start({ fixture: 'empty' });
+    fs.writeFileSync(s.csvPath, [
+      HEADER,
+      '1,Upper,EN,100,2020,Drama,Dir,A,Co,India,0,0,1,7,10,,,2020-01-01',
+      '2,Spaced, fr ,100,2020,Drama,Dir,A,Co,India,0,0,1,7,10,,,2020-01-01',
+    ].join('\n') + '\n');
+    const list = (await request<Record<string, string>[]>(s.baseUrl, '/api/movies')).body;
+    assert.deepEqual(list.map((m) => m.Language), ['en', 'fr']);
+  });
+});

@@ -3,6 +3,7 @@ import { Bar } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
 import { useLatest } from '../../hooks/useLatest';
 import { formatNumber, useClickHandlers, type ClickProps } from './chartHelpers';
+import { chartInk } from '../../utils/chartTheme';
 
 interface HorizontalBarChartProps extends ClickProps {
   data: ChartData<'bar'>;
@@ -17,9 +18,7 @@ const HorizontalBarChart: React.FC<HorizontalBarChartProps> = ({ data, height = 
   const latest = useLatest({ formatValue });
   const hasFormat = formatValue !== undefined;
   const options: ChartOptions<'bar'> = useMemo(() => {
-    const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.14)';
-    const tickColor = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(30,30,63,0.75)';
-    const labelColor = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(30,30,63,0.85)';
+    const { grid: gridColor, tick: tickColor, text: labelColor } = chartInk(isDark);
 
     return {
       indexAxis: 'y' as const,

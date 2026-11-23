@@ -152,9 +152,12 @@ function sameFingerprint(a: FileFingerprint | null, b: FileFingerprint | null): 
 // as empty so it never shows up as a director/year/etc. in charts, filters, or drill-downs.
 const LEGACY_MISSING = 'N/A';
 
-function normalizeStoredValue(value: string): string {
+function normalizeStoredValue(value: string, header: string): string {
   if (value === LEGACY_MISSING) return '';
-  return unsanitizeCsvValue(value);
+  const text = unsanitizeCsvValue(value);
+  // An ISO code: a hand-edited 'EN' / ' en' is the same language as TMDB's 'en' everywhere (B146).
+  // A later rewrite stores the normalised code.
+  return header === 'Language' ? text.trim().toLowerCase() : text;
 }
 
 /** A header that names a column twice can't be read or rewritten without losing one column's data. */
@@ -206,6 +209,19 @@ async function renameWithRetry({ rename, sleep }: FsHooks, from: string, to: str
 function toCsvLine(row: Movie, headers: readonly (string | null)[]): string {
   const values = headers.map((h) => (h === null ? '' : (row as unknown as Record<string, string>)[h] ?? ''));
   return values.map((v) => escapeCsvField(sanitizeCsvValue(v))).join(',');
+}
+
+/**
+ * A multi-valued catalogue cell (`catalog-data-format`): every name joined with ", ". The list has no
+ * escaping, so a comma inside one name ("Example Films, Inc.") is replaced by a space first, or the
+ * charts would split it into two fake categories (B147). Blank names are left out.
+ * `catalogue_io.join_names()` (used by movie-search.py) applies the same rule.
+ */
+export function joinNames(items: readonly { name?: string | null }[] | null | undefined): string {
+  return (items ?? [])
+    .map((item) => (item.name ?? '').replace(/\s*,\s*/g, ' ').trim())
+    .filter((name) => name !== '')
+    .join(', ');
 }
 
 export function createApp(options: CreateAppOptions): CreatedApp {
@@ -289,7 +305,7 @@ export function createApp(options: CreateAppOptions): CreatedApp {
           // A cell that is empty once trimmed (e.g. Excel's trailing `,,`) names no column:
           // null makes csv-parser skip it, so it is neither a duplicate nor part of the catalogue.
           mapHeaders: ({ header }) => header.replace(/^\uFEFF/, '').trim() || null,
-          mapValues: ({ value }) => normalizeStoredValue(value),
+          mapValues: ({ header, value }) => normalizeStoredValue(value, header),
         }))
         .on('headers', (h: (string | null)[]) => {
           const named = h.filter((x): x is string => x !== null);
@@ -640,10 +656,10 @@ export function createApp(options: CreateAppOptions): CreatedApp {
       }
 
       const director = (credits.crew ?? []).find((c) => c.job === 'Director')?.name ?? '';
-      const cast = (credits.cast ?? []).slice(0, 5).map((c) => c.name).join(', ');
-      const genres = (details.genres ?? []).map((g) => g.name).join(', ');
-      const prodCompanies = (details.production_companies ?? []).map((c) => c.name).join(', ');
-      const prodCountries = (details.production_countries ?? []).map((c) => c.name).join(', ');
+      const cast = joinNames((credits.cast ?? []).slice(0, 5));
+      const genres = joinNames(details.genres);
+      const prodCompanies = joinNames(details.production_companies);
+      const prodCountries = joinNames(details.production_countries);
       // 'Keywords/Tags' is a CSV column but not part of the Movie type — left blank on import, matching the rest of the app
 
       const row: Movie = {

@@ -223,6 +223,28 @@ describe('Stored values round-trip faithfully and safely', () => {
     assert.deepEqual(stored, ["'+1", "'-Ism"]);
   });
 
+  it('a movie with no credited director is stored with an empty Director, not a placeholder', async () => {
+    const s = await start(importOpts(stubTmdb({ '/movie/42/credits': { cast: [{ name: 'Solo Actor' }], crew: [] } })));
+    assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 42 })).status, 201);
+    const stored = (await readCsvRows(s.csvPath)).find((r) => r['Movie ID'] === '42');
+    assert.equal(stored?.Director, '');
+    assert.equal(stored?.['Actors/Actresses'], 'Solo Actor');
+    assert.equal(stored?.Genres, 'Action, Drama');
+  });
+
+  it('a comma inside a name is replaced, so the joined list splits into the real names (B147)', async () => {
+    const tmdb = stubTmdb({
+      '/movie/42': tmdbDetails(42, {
+        production_companies: [{ name: 'Example Films, Inc.' }, { name: ' ' }, { name: 'Studio B' }],
+      }),
+    });
+    const s = await start(importOpts(tmdb));
+    assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 42 })).status, 201);
+    const stored = (await readCsvRows(s.csvPath)).find((r) => r['Movie ID'] === '42');
+    assert.equal(stored?.['Production Company'], 'Example Films Inc., Studio B');
+    assert.equal(stored?.['Production Country'], 'United Kingdom, United States of America');
+  });
+
   it('an imported formula-like title is stored escaped and served as entered', async () => {
     const s = await start(importOpts(stubTmdb({ '/movie/42': tmdbDetails(42, { title: '=HYPERLINK("x")' }) })));
     assert.equal((await postJson(s.baseUrl, '/api/tmdb/import', { movieId: 42 })).status, 201);

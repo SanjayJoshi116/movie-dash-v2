@@ -3,6 +3,48 @@
 All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.12.0] - 2026-11-23
+
+Clears the rest of `BUG_BACKLOG.md` §1–§3: every remaining item is fixed or closed. A `/simplify` pass and a `/code-review` (high) of the result follow; that review's findings (B194–B200, §3v) are fixed too. Full e2e 135/135.
+
+### Fixed
+- **A page whose code failed to download couldn't be recovered without a full reload** (B10). React.lazy caches a rejected import, so "Try Again" re-threw the same error. Movies, Stats and the Dashboard movie drawer now load through `retryableLazy()` (`src/utils/retryableLazy.ts`): a failed download is wrapped in `ChunkLoadError` and a fresh lazy is queued, applied when the error view clears. The route error view shows a connection message plus **Reload page** for it; its Try Again retries at once, without waiting on the catalogue (B197).
+- **"Try Again" re-rendered before the catalogue reloaded** (B11). `refetch()` now returns a promise; after a crash the error view (button spinning) stays up until the reload finishes. A late reload can no longer clear a newer error (B196).
+- **The outermost error view couldn't recover** (B23): its Try Again reloads the page, and the crashed tree is no longer re-rendered before the reload (B198).
+- **Search didn't ignore accents** (B20): `amelie` finds *Amélie*. Each movie's folded text is cached and the term folded once per search.
+- **Names containing a comma split into fake categories** (B147). The in-app import and `movie-search.py` replace a comma inside one name with a space before joining (`joinNames()` / `catalogue_io.join_names()`); existing rows aren't rewritten.
+- **Language case/whitespace variants counted as separate languages** (B146). The server trims and lower-cases `Language` when it loads the CSV, so `EN` and ` en` are `en` in the API and every chart. The next in-app delete persists the normalised codes.
+- **White flash before first paint, light browser chrome in dark theme** (B35). `public/theme-init.js` applies the saved/OS theme before React mounts, with an inline base colour and `color-scheme`.
+- **Recent Releases could show a heading over an empty list** (B195): "No dated releases" when no movie has a parseable date.
+- **The browser tab kept the previous page's name** (B33, B200). Each page names the tab ("Movies · MovieDash"); a failed route shows "Something went wrong".
+
+### Accessibility
+- Page headings take focus after an in-app navigation so screen readers announce the new page (B33); the first page of a visit keeps normal focus, even after Stats rewrites `?tab=` or a reload (B194, `src/utils/firstPage.ts`). New `PageTitle` component, also on the 404 page.
+- The Sidebar collapse toggle is a real keyboard-operable button named "Collapse/Expand sidebar" with `aria-expanded` (B12); the desktop menu is a `<nav aria-label="Main">` landmark (B32).
+- Filter chips are a named list, each with a real "Remove <chip>" button instead of antd's unfocusable "Close" icon (B28).
+- Range-slider handles are named ("Release year minimum/maximum", B29).
+
+### Changed
+- antd `List` (deprecated in v6) replaced by plain lists on the Dashboard and in Add Movie (B49).
+- Create React App leftovers removed: `favicon.ico`, `manifest.json`, `logo192/512.png` (B36), replaced by `favicon.svg`; the CRA entries are gone from `.gitignore`.
+- Chart wrappers take their text/grid/tick colours from `chartInk(isDark)` instead of hardcoding them (B40).
+- Shared stats helpers `splitNames`, `topN`, `topBy`, `topAverages`, `averagesBy` replace duplicated aggregation code across the Stats tabs, drawer, grid and filters (B41); `Actors/Actresses` joins `MULTI_VALUED_FIELDS`.
+- `docs/screenshots/` regenerated from the template CSV (B47).
+- e2e selectors moved off layout and antd internals onto helpers (`filterChip`, `columnCells`, `searchResult`, `exportCsv`) (B50).
+- Server tests are type-checked (`server/tsconfig.test.json`, run by `type-check:server`) (B38).
+- `DEFAULT_FILTERS` lives in `src/types/movie.ts`.
+- `/simplify` pass: one `clearError()` in `ErrorBoundary` with a generic `onClear` prop; Language normalisation moved from the client to the server; shared e2e helpers; skipped items are listed in BUG_BACKLOG.
+- The "Added" tag's margin override in Add Movie is now a documented exception (B199).
+- Landing JS is about 332 kB gzip (was ~364).
+- Closed without a fix: B39 (stat-card accents, by design), B75, B191, B192 (won't fix).
+- README, CLAUDE.md, features.txt and `openspec/specs/catalog-data-format` updated; `BUG_BACKLOG.md` §3v added (B194–B200), §6 rows 87–90.
+
+### Added
+- 18 e2e tests (117 → 135): chunk retry and Try Again behaviour, theme pre-paint, keyboard chip removal, slider names, sidebar keyboard and landmark, page title and focus (incl. first page), 404 heading, accent search, empty Recent Releases and other §4 spec scenarios. The client Language test moved to the server.
+- 3 server tests (115 → 118): commas in names, missing director, Language normalisation.
+- 17 frontend unit tests (39 → 56): `tests/unit/search.test.ts`, `persistedFilters.test.ts`, more `statsHelpers` and `chartTheme` cases (B15).
+- 2 Python tests (40 → 42): `join_names` and its parity with the server.
+
 ## [0.11.12] - 2026-11-23
 
 Fixes from a `/code-review` (high) of the staged 0.11.8–0.11.11 diff (BUG_BACKLOG §3u). Of its 7 findings, 5 are fixed, B191 is accepted (no fix planned) and B192 stays open pending a design choice.

@@ -6,6 +6,10 @@ import {
   type ApiMovie,
   searchBox,
   activeTabPane,
+  columnCells,
+  filterChip,
+  searchResult,
+  exportCsv,
   waitForTable,
   waitForStats,
   openFiltersDrawer,
@@ -33,7 +37,7 @@ import { getLanguageName } from '../src/utils/languages';
 import { matchesSearch } from '../src/utils/search';
 import { voteColor } from '../src/utils/vote';
 import { slugify } from '../src/utils/slugify';
-import { formatRevenue, countIntoBuckets, parseVote, type Bucket } from '../src/utils/statsHelpers';
+import { formatRevenue, countIntoBuckets, parseVote, splitNames, type Bucket } from '../src/utils/statsHelpers';
 import { RATING_BUCKETS, VOTE_BUCKETS } from '../src/utils/chartBuckets';
 
 /** Asserts the first two `names` are in localeCompare order (dir 1 = A–Z, -1 = Z–A), compared in the browser. */
@@ -132,7 +136,7 @@ test.describe('Dashboard', () => {
     await expect.poll(() => canvas.evaluate((el) => (el as HTMLElement).style.cursor)).toBe('pointer');
     await page.mouse.click(plotLeft + 5 * step, box.y + box.height * 0.3);
     await expect(page).toHaveURL('/movies');
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Year: 2020–2020' })).toBeVisible();
+    await expect(filterChip(page, 'Year: 2020–2020')).toBeVisible();
     await expectTotal(page, 1);
   });
 
@@ -231,6 +235,58 @@ test.describe('Dashboard', () => {
     await page.getByRole('button', { name: /^Top Rated: / }).click();
     await expect(page.getByText('Something went wrong')).toBeVisible();
     await expect(page.getByText("Couldn't open movie details")).toHaveCount(0);
+  });
+
+  test('a route page whose chunk failed to download loads on Try Again', async ({ page }) => {
+    let fail = true;
+    await page.route(/\/src\/pages\/Stats\.tsx/, (route) => (fail ? route.abort() : route.fallback()));
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Stats', exact: true }).click();
+    await expect(page.getByText("Couldn't load this page.", { exact: false })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reload page' })).toBeVisible();
+    // The failed page never rendered its title, so the tab doesn't keep the Dashboard's.
+    await expect(page).toHaveTitle('Something went wrong · MovieDash');
+    fail = false;
+    // A download retry doesn't wait on the catalogue: hold every reload and Stats still appears.
+    await page.route('**/api/movies', () => new Promise<void>(() => {}));
+    await page.getByRole('button', { name: 'Try Again' }).click();
+    await expect(page.getByRole('heading', { name: 'Statistics Dashboard', exact: true })).toBeVisible();
+  });
+
+  test('Try Again keeps the error view up until the catalogue reload finishes', async ({ page }) => {
+    await page.route(/MovieDrawer/, (route) => route.fulfill({
+      contentType: 'application/javascript',
+      body: "export default function MovieDrawer() { throw new Error('drawer render crash'); }",
+    }));
+    // Only reloads after the crash are held (dev StrictMode already fetches twice on load).
+    let holding = false;
+    let held = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('**/api/movies', async (route) => {
+      if (holding) { held += 1; await gate; }
+      await route.fallback();
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: /^Top Rated: / }).click();
+    const tryAgain = page.getByRole('button', { name: 'Try Again' });
+    holding = true;
+    await tryAgain.click();
+    await expect.poll(() => held).toBe(1);
+    // Reload still in flight: the error view stays, its button busy.
+    await expect(page.getByText('Something went wrong')).toBeVisible();
+    await expect(tryAgain).toHaveClass(/ant-btn-loading/);
+    release();
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
+  });
+
+  test('Recent Releases says so when no movie has a release date', async ({ page }) => {
+    await mockMovies(page, [makeMovie(1, { 'Release Date': '' }), makeMovie(2, { 'Release Date': '' })]);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
+    await expect(page.getByText('No dated releases')).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Recent releases' })).toHaveCount(0);
   });
 
   test('unknown revenue and ratings are not shown as real values', async ({ page }) => {
@@ -362,6 +418,17 @@ test.describe('Movies', () => {
     await expect(clearBtn).not.toBeVisible();
   });
 
+  test('a filter chip is removed from the keyboard by its named button', async ({ page }) => {
+    await searchBox(page).fill('action');
+    const chip = filterChip(page, 'Search: action');
+    await expect(chip).toBeVisible();
+    const remove = page.getByRole('button', { name: 'Remove Search: action', exact: true });
+    await remove.focus();
+    await page.keyboard.press('Enter');
+    await expect(chip).toHaveCount(0);
+    await expect(searchBox(page)).toHaveValue('');
+  });
+
   test('active filter shows dot indicator', async ({ page }) => {
     await searchBox(page).fill('a');
     await expect(page.locator('.ant-badge-dot')).toBeVisible();
@@ -384,7 +451,7 @@ test.describe('Movies', () => {
     expect(expected).toBeGreaterThan(0);
     await expectTotal(page, expected);
 
-    const cells = await page.locator('.ant-table-row td:nth-child(3)').allInnerTexts();
+    const cells = await (await columnCells(page, 'Language')).allInnerTexts();
     expect(cells.length).toBe(Math.min(expected, 10));
     for (const cell of cells) expect(cell).toBe(language);
   });
@@ -395,16 +462,15 @@ test.describe('Movies', () => {
     const genre = await selectInDrawer(page, 'Genre');
     await closeFiltersDrawer(page);
 
-    const genresOf = (s: string) => s.split(',').map((g) => g.trim());
-    const expected = movies.filter((m) => genresOf(m.Genres ?? '').includes(genre)).length;
+    const expected = movies.filter((m) => splitNames(m.Genres).includes(genre)).length;
     expect(expected, `precondition: "${genre}" must not cover every movie`).toBeLessThan(movies.length);
     expect(expected).toBeGreaterThan(0);
     await expectTotal(page, expected);
 
-    // Genres is the 6th column (shown from the md breakpoint up — the desktop viewport).
-    const cells = await page.locator('.ant-table-row td:nth-child(6)').allInnerTexts();
+    // Genres is shown from the md breakpoint up — the desktop viewport.
+    const cells = await (await columnCells(page, 'Genres')).allInnerTexts();
     expect(cells.length).toBe(Math.min(expected, 10));
-    for (const cell of cells) expect(genresOf(cell)).toContain(genre);
+    for (const cell of cells) expect(splitNames(cell)).toContain(genre);
   });
 
   test('row click opens drawer with movie details', async ({ page }) => {
@@ -584,7 +650,7 @@ test.describe('Movies Advanced Filters', () => {
     await selectInDrawer(page, 'Director', 'Director B');
     await closeFiltersDrawer(page);
 
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Director: Director B' })).toBeVisible();
+    await expect(filterChip(page, 'Director: Director B')).toBeVisible();
     await expectTotal(page, 4);
   });
 
@@ -601,12 +667,24 @@ test.describe('Movies Advanced Filters', () => {
     await closeFiltersDrawer(page);
 
     // Expected count from the chip's committed bounds, so slider step sizes don't matter.
-    const chip = page.locator('.ant-tag').filter({ hasText: 'Runtime:' });
+    const chip = filterChip(page, 'Runtime:');
     await expect(chip).toHaveText(/Runtime: \d+–\d+m/);
     const [lo, hi] = (await chip.innerText()).match(/(\d+)–(\d+)m/)!.slice(1).map(Number);
     const expected = rows.filter((m) => { const r = Number(m.Runtime); return r > 0 && r >= lo && r <= hi; }).length;
     expect(expected).toBeLessThan(rows.length);
     await expectTotal(page, expected);
+  });
+
+  test('range slider handles have accessible names', async ({ page }) => {
+    await mockMovies(page, rangeRows());
+    await page.goto('/movies');
+    await waitForTable(page);
+    await openFiltersDrawer(page);
+    const drawer = page.locator('.ant-drawer-body');
+    for (const label of ['Release year', 'Vote average', 'Runtime', 'Box office revenue']) {
+      await expect(drawer.getByRole('slider', { name: `${label} minimum`, exact: true })).toHaveCount(1);
+      await expect(drawer.getByRole('slider', { name: `${label} maximum`, exact: true })).toHaveCount(1);
+    }
   });
 
   test('revenue range slider narrows to the movies inside its bounds', async ({ page }) => {
@@ -624,7 +702,7 @@ test.describe('Movies Advanced Filters', () => {
     expect(hi).toBeGreaterThan(lo);
     await closeFiltersDrawer(page);
 
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Revenue:' })).toHaveText(`Revenue: ${formatRevenue(lo)}–${formatRevenue(hi)}`);
+    await expect(filterChip(page, 'Revenue:')).toHaveText(`Revenue: ${formatRevenue(lo)}–${formatRevenue(hi)}`);
     const expected = rows.filter((m) => { const r = Number(m['Box Office Revenue']); return r > 0 && r >= lo && r <= hi; }).length;
     expect(expected).toBeLessThan(rows.length);
     await expectTotal(page, expected);
@@ -644,7 +722,7 @@ test.describe('Movies Advanced Filters', () => {
     await page.keyboard.press('ArrowRight');
     await closeFiltersDrawer(page);
     // Span $1M–$2.8B → step $20M (1/100 of the span, rounded), not $1.
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Revenue:' })).toContainText('Revenue: $21.0M–$2.8B');
+    await expect(filterChip(page, 'Revenue:')).toContainText('Revenue: $21.0M–$2.8B');
     await expectTotal(page, 2);
   });
 });
@@ -693,8 +771,8 @@ test.describe('Movies Add & Delete', () => {
 
     await modal.getByPlaceholder('Movie name').fill('Mock');
     await modal.getByRole('button', { name: 'Search' }).click();
-    const fresh = modal.locator('.ant-list-item').filter({ hasText: 'Mock Import One' });
-    const existing = modal.locator('.ant-list-item').filter({ hasText: 'Mock Already There' });
+    const fresh = searchResult(modal, 'Mock Import One');
+    const existing = searchResult(modal, 'Mock Already There');
     await expect(fresh).toBeVisible();
     await expect(existing).toBeVisible();
     expect(seen.searchUrl?.searchParams.get('query')).toBe('Mock');
@@ -749,6 +827,24 @@ test.describe('Movies Add & Delete', () => {
     release();
     await expect(page.getByTitle('3 movies in catalogue')).toBeVisible();
     await expect(status).toHaveCount(0);
+  });
+
+  test('Delete: a movie already deleted elsewhere (404) closes the drawer and refreshes', async ({ page }) => {
+    const rows = [makeMovie(1), makeMovie(2)];
+    const victim = rows[1];
+    const setMovies = await mockMovies(page, rows);
+    await page.route('**/api/movies/*', (route) => {
+      if (route.request().method() !== 'DELETE') return route.fallback();
+      setMovies([rows[0]]); // another tab already removed it
+      return route.fulfill({ status: 404, json: { error: 'Movie not found' } });
+    });
+    await page.goto('/movies');
+    await waitForTable(page);
+    await page.locator('.ant-table-row', { hasText: victim.Name }).click();
+    await confirmDrawerDelete(page);
+    await expect(page.locator('.ant-drawer-open')).toHaveCount(0);
+    await expectTotal(page, 1);
+    await expect(page.getByText('Movie not found')).toHaveCount(0);
   });
 
   test('Delete: Popconfirm, refetch, drawer closes and the row is gone', async ({ page }) => {
@@ -810,7 +906,7 @@ test.describe('Movies Add & Delete', () => {
     await name.fill('Aliens');
     await name.press('Enter');
 
-    const items = modal.locator('.ant-list-item');
+    const items = searchResult(modal);
     await expect(items.filter({ hasText: 'Aliens Result' })).toBeVisible();
     releaseAlien();
     await expect.poll(() => state.alienReplied).toBe(true);
@@ -835,7 +931,7 @@ test.describe('Movies Add & Delete', () => {
     const modal = await openAddMovie(page);
     await modal.getByPlaceholder('Movie name').fill('Added');
     await modal.getByRole('button', { name: 'Search' }).click();
-    const row = modal.locator('.ant-list-item').filter({ hasText: 'Added Elsewhere' });
+    const row = searchResult(modal, 'Added Elsewhere');
     await row.getByRole('button', { name: 'Import' }).click();
 
     await expect(row.getByText('Added', { exact: true })).toBeVisible();
@@ -865,7 +961,7 @@ test.describe('Movies Add & Delete', () => {
     const modal = await openAddMovie(page);
     await modal.getByPlaceholder('Movie name').fill('Short');
     await modal.getByRole('button', { name: 'Search' }).click();
-    const row = modal.locator('.ant-list-item').filter({ hasText: 'Short Lived' });
+    const row = searchResult(modal, 'Short Lived');
     await row.getByRole('button', { name: 'Import' }).click();
     await expect(row.getByText('Added', { exact: true })).toBeVisible();
     await expect(page.getByTitle('3 movies in catalogue')).toBeVisible();
@@ -899,7 +995,7 @@ test.describe('Movies Add & Delete', () => {
     const modal = await openAddMovie(page);
     await modal.getByPlaceholder('Movie name').fill('Movie');
     await modal.getByRole('button', { name: 'Search' }).click();
-    const items = modal.locator('.ant-list-item');
+    const items = searchResult(modal);
     await items.filter({ hasText: 'Movie A' }).getByRole('button', { name: 'Import' }).click();
     const alert = modal.getByRole('alert');
     await expect(alert).toContainText('Failed to save movie');
@@ -1012,7 +1108,8 @@ test.describe('Navigation', () => {
 
   test('404 page for unknown route', async ({ page }) => {
     await page.goto('/nonexistent-route');
-    await expect(page.getByText('404')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Page not found', exact: true })).toBeVisible();
+    await expect(page).toHaveTitle('Page not found · MovieDash');
     await expect(page.getByRole('button', { name: 'Back to Dashboard' })).toBeVisible();
   });
 
@@ -1022,11 +1119,40 @@ test.describe('Navigation', () => {
     await expect(page).toHaveURL('/');
   });
 
+  test('a trailing slash still highlights Movies in the sidebar', async ({ page }) => {
+    await page.goto('/movies/');
+    const nav = page.getByRole('navigation', { name: 'Main' });
+    await expect(nav.getByRole('link', { name: 'Movies', exact: true })).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('a wide desktop shows the sidebar and never the bottom nav', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+    await expect(page.getByRole('navigation')).toHaveCount(1);
+  });
+
   test('sidebar collapses on trigger click', async ({ page }) => {
     await page.goto('/');
-    await page.waitForSelector('.ant-layout-sider');
-    await page.locator('.ant-layout-sider-trigger').click();
+    await page.getByRole('button', { name: 'Collapse sidebar' }).click();
     await expect(page.locator('.ant-layout-sider-collapsed')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Expand sidebar' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('sidebar toggle works from the keyboard', async ({ page }) => {
+    await page.setViewportSize({ width: 700, height: 900 });
+    await page.goto('/');
+    const toggle = page.getByRole('button', { name: 'Expand sidebar' });
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.ant-layout-sider-collapsed')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeFocused();
+  });
+
+  test('desktop sidebar is a navigation landmark', async ({ page }) => {
+    await page.goto('/');
+    const nav = page.getByRole('navigation', { name: 'Main' });
+    await expect(nav.getByRole('link', { name: 'Movies', exact: true })).toBeVisible();
   });
 
   test('tablet-width load starts with the sidebar collapsed', async ({ page }) => {
@@ -1081,13 +1207,38 @@ test.describe('Navigation', () => {
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   });
 
-  test('page title updates on navigation', async ({ page }) => {
+  test('page heading and document title update on navigation; the new heading takes focus', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
-    await page.getByRole('link', { name: 'Movies' }).click();
-    await expect(page.getByRole('heading', { name: 'Movies', exact: true })).toBeVisible();
-    await page.getByRole('link', { name: 'Stats' }).click();
-    await expect(page.getByRole('heading', { name: 'Statistics Dashboard', exact: true })).toBeVisible();
+    const dashboard = page.getByRole('heading', { name: 'Dashboard', exact: true });
+    await expect(dashboard).toBeVisible();
+    await expect(page).toHaveTitle('Dashboard · MovieDash');
+    await expect(dashboard).not.toBeFocused(); // the first page of a visit keeps normal focus
+
+    await page.getByRole('link', { name: 'Movies', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Movies', exact: true })).toBeFocused();
+    await expect(page).toHaveTitle('Movies · MovieDash');
+
+    await page.getByRole('link', { name: 'Stats', exact: true }).click();
+    const stats = page.getByRole('heading', { name: 'Statistics Dashboard', exact: true });
+    await expect(stats).toBeFocused();
+    await expect(page).toHaveTitle('Statistics Dashboard · MovieDash');
+
+    // A tab switch rewrites ?tab= but isn't a new page: focus stays on the tab.
+    const people = page.getByRole('tab', { name: /People/ });
+    await people.click();
+    await expect(people).toBeFocused();
+  });
+
+  test('the first page keeps normal focus even after Stats rewrites ?tab=', async ({ page }) => {
+    await page.goto('/stats');
+    await expect(page).toHaveURL(/[?&]tab=overview/);
+    const stats = page.getByRole('heading', { name: 'Statistics Dashboard', exact: true });
+    await expect(stats).toBeVisible();
+    await expect(stats).not.toBeFocused();
+    // A reload is a first page too, even though history.state now holds a non-default key.
+    await page.reload();
+    await expect(stats).toBeVisible();
+    await expect(stats).not.toBeFocused();
   });
 });
 
@@ -1115,9 +1266,7 @@ test.describe('Mobile', () => {
     await page.setViewportSize({ width: 800, height: 900 });
     await expect(page.locator('.ant-table-thead th', { hasText: 'Actors/Actresses' })).toHaveCount(0);
     await expect(names).toHaveText(defaultOrder);
-    const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: /Export CSV/i }).click();
-    const csv = readFileSync(await (await downloadPromise).path(), 'utf8');
+    const csv = await exportCsv(page);
     const exported = csv.split('\n').slice(1).map((line) => line.split(',')[1]);
     expect(exported).toEqual(defaultOrder);
 
@@ -1479,7 +1628,7 @@ test.describe('Stats Page', () => {
     const pt = await findPointer(page, byCount, 'y', 0.4);
     await page.mouse.click(pt.x, pt.y);
     await expect(page).toHaveURL('/movies');
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Mixed Bag' })).toBeVisible();
+    await expect(filterChip(page, 'Mixed Bag')).toBeVisible();
     await expectTotal(page, 2);
   });
 
@@ -1524,7 +1673,7 @@ test.describe('Stats Page', () => {
     const pt = await findPointer(page, line, 'x', 0.5);
     await page.mouse.click(pt.x, pt.y);
     await expect(page).toHaveURL('/movies');
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Year: 1962–1962' })).toBeVisible();
+    await expect(filterChip(page, 'Year: 1962–1962')).toBeVisible();
     await expectTotal(page, 1);
   });
 
@@ -1551,6 +1700,20 @@ test.describe('Theme', () => {
   test('default theme follows the OS preference (dark)', async ({ page }) => {
     await page.goto('/');
     await expect(html(page)).toHaveAttribute('data-theme', 'dark');
+  });
+
+  test('the theme is painted before the app bundle runs', async ({ page }) => {
+    // Without the bundle, only index.html's theme-init.js and inline style can set the theme.
+    await page.route(/\/src\/main\.tsx/, (route) => route.abort());
+    await page.goto('/');
+    await expect(html(page)).toHaveAttribute('data-theme', 'dark');
+    const dark = await html(page).evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(dark).toBe('rgb(13, 13, 26)');
+    await page.evaluate(() => localStorage.setItem('movieDash_theme', 'light'));
+    await page.reload();
+    await expect(html(page)).toHaveAttribute('data-theme', 'light');
+    await expect(html(page)).toHaveCSS('color-scheme', 'light');
+    await expect(html(page)).toHaveCSS('background-color', 'rgb(245, 247, 255)');
   });
 
   test('toggle switches to light theme', async ({ page }) => {
@@ -1612,7 +1775,7 @@ test.describe('Filter Persistence', () => {
 
     await searchBox(page).fill('drama');
     // The chip renders from the (immediately persisted) filter state.
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Search: drama' })).toBeVisible();
+    await expect(filterChip(page, 'Search: drama')).toBeVisible();
 
     await page.getByRole('link', { name: 'Stats' }).click();
     await expect(page).toHaveURL('/stats');
@@ -1636,7 +1799,7 @@ test.describe('Filter Persistence', () => {
     await openFiltersDrawer(page);
     const genre = await selectInDrawer(page, 'Genre');
     await closeFiltersDrawer(page);
-    const chip = page.locator('.ant-tag').filter({ hasText: genre });
+    const chip = filterChip(page, genre);
     await expect(chip).toBeVisible();
 
     await page.reload();
@@ -1652,6 +1815,69 @@ test.describe('Filter Persistence', () => {
 // ── Edge Cases ─────────────────────────────────────────────────────────────
 
 test.describe('Edge Cases', () => {
+  test('an empty catalogue shows a count badge of 0', async ({ page }) => {
+    await mockMovies(page, []);
+    await page.goto('/');
+    await expect(page.getByTitle('0 movies in catalogue')).toBeVisible();
+  });
+
+  test('corrupted saved filters fall back to defaults instead of crashing', async ({ page }) => {
+    await page.addInitScript(([key, value]) => sessionStorage.setItem(key, value), [
+      FILTERS_STORAGE_KEY,
+      JSON.stringify({ genres: null, yearRange: 'x', languages: [1], search: 5 }),
+    ]);
+    await mockMovies(page, [makeMovie(1), makeMovie(2)]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    await expectTotal(page, 2);
+    await expect(page.getByRole('list', { name: 'Active filters' })).toHaveCount(0);
+    await expect(page.getByText('Something went wrong')).toHaveCount(0);
+  });
+
+  test('export after sorting by vote writes the highest rated first', async ({ page }) => {
+    await mockMovies(page, [
+      makeMovie(1, { 'Vote Average': '6.1' }),
+      makeMovie(2, { 'Vote Average': '9.2' }),
+      makeMovie(3, { 'Vote Average': '7.5' }),
+    ]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    const header = page.locator('.ant-table-thead th', { hasText: 'Vote Avg' });
+    await header.click();
+    if ((await header.getAttribute('aria-sort')) !== 'descending') await header.click();
+    await expect(header).toHaveAttribute('aria-sort', 'descending');
+    const lines = (await exportCsv(page)).split('\n').slice(1).filter(Boolean);
+    expect(lines.map((line) => line.split(',')[1])).toEqual(['Mock Movie 02', 'Mock Movie 03', 'Mock Movie 01']);
+  });
+
+  test('a formula-like title is exported escaped', async ({ page }) => {
+    await mockMovies(page, [makeMovie(1, { Name: '=SUM(1+1)' })]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    const row = (await exportCsv(page)).split('\n')[1];
+    expect(row.split(',')[1]).toBe("'=SUM(1+1)");
+  });
+
+  test('a filter change on grid page 3 returns to page 1', async ({ page }) => {
+    await mockMovies(page, Array.from({ length: 40 }, (_, i) => makeMovie(i + 1)));
+    await page.goto('/movies');
+    await waitForTable(page);
+    await page.getByText('Grid', { exact: true }).click();
+    await page.locator('.ant-pagination-item-3').click();
+    await expect(paginationTotal(page)).toHaveText('25–36 of 40 movies');
+    await searchBox(page).fill('Mock Movie');
+    await expect(paginationTotal(page)).toHaveText('1–12 of 40 movies');
+  });
+
+  test('search ignores accents', async ({ page }) => {
+    await mockMovies(page, [makeMovie(1, { Name: 'Amélie' }), makeMovie(2, { Name: 'Heat' })]);
+    await page.goto('/movies');
+    await waitForTable(page);
+    await searchBox(page).fill('amelie');
+    await expectTotal(page, 1);
+    await expect(page.locator('.ant-table-row')).toContainText('Amélie');
+  });
+
   test('search ignores surrounding whitespace', async ({ page }) => {
     await mockMovies(page, [makeMovie(1), makeMovie(2), makeMovie(3)]);
     await page.goto('/movies');
@@ -1660,7 +1886,7 @@ test.describe('Edge Cases', () => {
     await expectTotal(page, 1);
     await searchBox(page).fill(' ');
     await expectTotal(page, 3);
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Search:' })).toHaveCount(0);
+    await expect(filterChip(page, 'Search:')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Filters', exact: true })).toBeVisible();
   });
 
@@ -1670,7 +1896,7 @@ test.describe('Edge Cases', () => {
     await mockMovies(page, rows);
     await page.addInitScript(([key, value]) => sessionStorage.setItem(key, value), [FILTERS_STORAGE_KEY, JSON.stringify({ genres: ['Drama'] })]);
     await page.goto('/movies');
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Genre: Drama' })).toBeVisible();
+    await expect(filterChip(page, 'Genre: Drama')).toBeVisible();
     await expect(page.locator('.ant-table')).toBeVisible();
     await expect(page.locator('.ant-table-row')).toHaveCount(0);
     await expect(page.getByText('Something went wrong')).toHaveCount(0);
@@ -1722,7 +1948,7 @@ test.describe('Edge Cases', () => {
     await page.goto('/movies');
     await waitForTable(page);
     await page.locator('.ant-table-thead th', { hasText: 'Language' }).click();
-    const languageCells = page.locator('.ant-table-row td:nth-child(3)');
+    const languageCells = await columnCells(page, 'Language');
     await expect(languageCells).toHaveText(['English', 'German', 'Greek']);
   });
 
@@ -1860,9 +2086,9 @@ test.describe('Edge Cases', () => {
     await closeFiltersDrawer(page);
 
     await expectTotal(page, expected);
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Search: a' })).toBeVisible();
-    await expect(page.locator('.ant-tag').filter({ hasText: language })).toBeVisible();
-    const cells = await page.locator('.ant-table-row td:nth-child(3)').allInnerTexts();
+    await expect(filterChip(page, 'Search: a')).toBeVisible();
+    await expect(filterChip(page, language)).toBeVisible();
+    const cells = await (await columnCells(page, 'Language')).allInnerTexts();
     expect(cells.length).toBe(Math.min(expected, 10));
     for (const cell of cells) expect(cell).toBe(language);
   });
@@ -1976,7 +2202,7 @@ test.describe('Drill-down consistency', () => {
     await expect(page).toHaveURL('/movies');
     await waitForTable(page);
     await expectTotal(page, counts[index]);
-    const voteChip = page.locator('.ant-tag').filter({ hasText: 'Vote:' });
+    const voteChip = filterChip(page, 'Vote:');
     await expect(voteChip).toBeVisible();
     // Opening the filters drawer must not rewrite the off-step range (e.g. 3.999 → 4.0).
     const chipText = await voteChip.innerText();
@@ -2009,7 +2235,7 @@ test.describe('Drill-down consistency', () => {
     await page.keyboard.press('ArrowRight');
     await closeFiltersDrawer(page);
     // The untouched upper bound stays 3.999 (not the slider's 0.1-step 4.0), so 4.0 stays out.
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Vote:' })).toContainText('Vote: 2.1–3.999');
+    await expect(filterChip(page, 'Vote:')).toContainText('Vote: 2.1–3.999');
     await expectTotal(page, 3);
     await expect(page.locator('.ant-table-row', { hasText: 'Rated Four' })).toHaveCount(0);
   });
@@ -2038,8 +2264,8 @@ test.describe('Drill-down consistency', () => {
 
     await expect(page).toHaveURL('/movies');
     await waitForTable(page);
-    await expect(page.locator('.ant-tag').filter({ hasText: `Year: ${yearMin + 1}–${yearMax}` })).toBeVisible();
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Vote:' })).toBeVisible();
+    await expect(filterChip(page, `Year: ${yearMin + 1}–${yearMax}`)).toBeVisible();
+    await expect(filterChip(page, 'Vote:')).toBeVisible();
     await expectTotal(page, counts[index]);
   });
 
@@ -2088,7 +2314,7 @@ test.describe('Drill-down consistency', () => {
     await clickVerticalBar(page, canvas, 1, 2); // bars: 2010s, 2020s
     await expect(page).toHaveURL('/movies');
     await waitForTable(page);
-    await expect(page.locator('.ant-tag').filter({ hasText: 'Year: 2020–2024' })).toBeVisible();
+    await expect(filterChip(page, 'Year: 2020–2024')).toBeVisible();
     await expectTotal(page, 5);
   });
 

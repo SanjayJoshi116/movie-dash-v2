@@ -12,25 +12,15 @@ import MovieCardGrid from '../components/MovieCardGrid';
 import MovieDrawer from '../components/MovieDrawer';
 import AddMovieModal from '../components/AddMovieModal';
 import LoadingError from '../components/LoadingError';
-import { parseRevenue } from '../utils/statsHelpers';
+import { parseRevenue, splitNames } from '../utils/statsHelpers';
 import { isFiltersActive } from '../utils/filterChips';
 import { exportMoviesToCsv } from '../utils/exportCsv';
 import { matchesSearch } from '../utils/search';
 import { computeFilterSpans, clampFiltersToSpans } from '../utils/filterSpans';
-import type { Movie, FilterState } from '../types/movie';
+import { DEFAULT_FILTERS, type Movie, type FilterState } from '../types/movie';
+import PageTitle from '../components/PageTitle';
 
-const { Title, Text } = Typography;
-
-const DEFAULT_FILTERS: FilterState = {
-  search: '',
-  languages: [],
-  genres: [],
-  directors: [],
-  yearRange: null,
-  voteRange: null,
-  runtimeRange: null,
-  revenueRange: null,
-};
+const { Text } = Typography;
 
 // Blank (or whitespace-only) search = no search, applied at once.
 const isEmptySearch = (v: string) => v.trim() === '';
@@ -95,7 +85,7 @@ const Movies: React.FC = () => {
 
       // Genre filter
       if (filters.genres.length > 0) {
-        const movieGenres = movie.Genres.split(',').map(g => g.trim());
+        const movieGenres = splitNames(movie.Genres);
         const hasMatch = filters.genres.some(selected => movieGenres.includes(selected));
         if (!hasMatch) return false;
       }
@@ -156,7 +146,7 @@ const Movies: React.FC = () => {
   return (
     <LoadingError loading={loading} error={error} onRetry={refetch}>
     <div style={{ padding: 24 }}>
-      <Title level={3} style={{ color: 'var(--text-primary)', marginBottom: 4 }}><span aria-hidden="true">🎬 </span>Movies</Title>
+      <PageTitle emoji="🎬" title="Movies" />
       <Text style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: 24 }}>
         Browse, search, and filter your full movie catalogue in table or grid view.
       </Text>
